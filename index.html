@@ -110,7 +110,7 @@
               <th>Starting Seat</th>
               <th>Final Award</th>
               <th>Status</th>
-              <th>Displacement Ledger Reason (Proffers)</th>
+              <th>Displacement Ledger Reason (Proffers & Denials)</th>
             </tr>
           </thead>
           <tbody id="competitorTable"></tbody>
@@ -186,7 +186,7 @@ function runAnalysis() {
       seatLedger[key] = {
         pubDelta: capObj.delta,
         modApplied: modValue,
-        targetCap: Math.max(0, parseInt(capObj.start) + pubModTotal), // Pulls directly from JSON now
+        targetCap: Math.max(0, parseInt(capObj.start) + pubModTotal),
         awardedCount: 0,
         originalVacancies: Math.max(0, pubModTotal),
         juniorSen: "N/A" 
@@ -205,7 +205,7 @@ function runAnalysis() {
     let is320 = false;
     if (p.current) is320 = Object.values(p.current).some(val => String(val).includes("320"));
 
-    // 1. FROZEN OR 320 PILOT LOGIC (Bypass capacity limits entirely)
+    // 1. FROZEN OR 320 PILOT LOGIC
     if (NO_BID.has(pSen) || is320) {
       fullSystemLog.push({
         sen: pSen,
@@ -224,6 +224,7 @@ function runAnalysis() {
     let actionType = ""; 
     let ledgerReason = "";
     let resolved = false;
+    let firstChoiceDeniedReason = "";
 
     // Normalize preferences
     let normalizedBids = [];
@@ -239,12 +240,16 @@ function runAnalysis() {
     // Process Bids
     for (const entry of normalizedBids) {
       const bidKey = entry.parsedKey;
+      const isFirst = (entry === normalizedBids[0]);
       if (!seatLedger[bidKey]) continue;
 
       const bplVal = parseInt(entry.bpl_min || 0);
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
-      if (bplVal > 0 && projectedCatSen > bplVal) continue; // Failed BPL
+      if (bplVal > 0 && projectedCatSen > bplVal) {
+        if (isFirst) firstChoiceDeniedReason = `Denied #1 (${bidKey}): Hit BPL Limit`;
+        continue; 
+      }
 
       // Check if there's room in the target capacity
       if (seatLedger[bidKey].targetCap > seatLedger[bidKey].awardedCount) {
@@ -258,7 +263,6 @@ function runAnalysis() {
             ledgerReason = "Awarded Current Position";
         } else {
             actionType = "MOVED";
-            // Check if this was an original vacancy or proffered from someone senior
             let pText = "";
             if (seatLedger[awardedSeat].originalVacancies > 0) {
                 seatLedger[awardedSeat].originalVacancies--;
@@ -271,12 +275,14 @@ function runAnalysis() {
             }
             ledgerReason = `Awarded ${bidKey} ${pText}`;
             
-            // Because they moved, their OLD seat is now vacated and proffered to the system
+            // Vacate old seat
             if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
                 vacatedSeats[startingSeat].push(pSen);
             }
         }
         break; 
+      } else {
+        if (isFirst) firstChoiceDeniedReason = `Denied #1 (${bidKey}): Seat Full`;
       }
     }
 
@@ -292,7 +298,7 @@ function runAnalysis() {
               seatLedger[startingSeat].juniorSen = pSen;
           }
        } else {
-          // True unassigned (Section 24.K)
+          // True unassigned
           awardedSeat = "UNASSIGNED";
           actionType = "LOST";
           ledgerReason = "No Bids & No Active Position Available";
@@ -301,6 +307,12 @@ function runAnalysis() {
               vacatedSeats[startingSeat].push(pSen);
           }
        }
+    }
+
+    // Append Denial Reason if they didn't get their first choice
+    let firstBidKey = normalizedBids.length > 0 ? normalizedBids[0].parsedKey : "";
+    if (firstChoiceDeniedReason && awardedSeat !== firstBidKey) {
+        ledgerReason += ` | [${firstChoiceDeniedReason}]`;
     }
 
     fullSystemLog.push({
@@ -334,7 +346,6 @@ function searchPilot() {
     document.getElementById('dashStatus').innerText = pilotData.status;
     document.getElementById('dashLedger').innerText = "> Ledger Log: " + pilotData.ledger;
     
-    // Color coding final text
     document.getElementById('dashFinal').style.color = pilotData.css === "action-awarded" ? "var(--success)" : (pilotData.css === "action-danger" ? "var(--danger)" : "var(--accent)");
   } else {
     alert(`Seniority ${senNum} not found in the final ledger.`);
