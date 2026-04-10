@@ -1,20 +1,11 @@
 <!doctype html>
 <html lang="en">
 <head>
-<link rel="manifest" href="manifest.json">
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-  }
-</script>  
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Master Command Center</title>
-  
+  <title>Master Command Center | Displacement Logic</title>
   <meta name="robots" content="noindex, nofollow">
-
   <style>
-    /* Alaska Shades of Blue Theme */
     :root {
       --bg: #040c17; 
       --card: #0b192c; 
@@ -31,147 +22,66 @@
     .container { max-width: 1200px; margin: 0 auto; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-    
     label { display: block; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
-    input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #07111f; color: #fff; box-sizing: border-box; font-size: 14px; outline: none; transition: border-color 0.2s; }
-    input:focus, select:focus { border-color: var(--accent); }
-    
-    button { background: var(--accent); color: #021024; border: none; font-weight: 900; cursor: pointer; margin-top: 10px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3); }
-    button:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4); }
-    
-    .btn-secondary { background: transparent; border: 1px solid var(--accent); color: var(--accent); width: auto; padding: 6px 16px; font-size: 12px; margin-top: 0; box-shadow: none; }
-    .btn-secondary:hover { background: rgba(0, 229, 255, 0.1); color: var(--accent-hover); box-shadow: none; }
-
-    .big-num { font-size: 36px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; margin-top: 5px; }
-    
+    input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #07111f; color: #fff; box-sizing: border-box; font-size: 14px; outline: none; }
+    button { background: var(--accent); color: #021024; border: none; font-weight: 900; cursor: pointer; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; }
+    button:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-secondary { background: transparent; border: 1px solid var(--accent); color: var(--accent); width: auto; padding: 6px 16px; font-size: 12px; margin-top: 0; }
     .table-container { max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 15px; background: #07111f; }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
-    th { color: var(--accent); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; position: sticky; top: 0; background: #0b192c; box-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 10; }
-    tr:hover { background: rgba(0, 229, 255, 0.03); }
-    
-    .action-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
+    th { color: var(--accent); text-transform: uppercase; font-size: 11px; position: sticky; top: 0; background: #0b192c; z-index: 10; }
+    .action-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; }
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
-    .action-vacated { background: rgba(255, 207, 51, 0.1); color: var(--warning); border: 1px solid var(--warning); }
+    .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
     .ledger-text { font-family: monospace; font-size: 12px; color: var(--warning); }
-    .bpl-text { font-family: monospace; font-size: 11px; color: var(--text-muted); }
-
-    .summary-text { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; }
-    .data-dates { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: -5px; margin-bottom: 24px; font-weight: 600; line-height: 1.6; text-transform: uppercase; letter-spacing: 1px; }
-    
-    .status-card { text-align: center; padding: 30px; border: 2px solid var(--border); background: #06111f; box-shadow: inset 0 0 40px rgba(0,0,0,0.5); }
-    #awardStatus { font-size: 38px; font-weight: 900; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--success); }
-    #vacancyMath { font-size: 16px; color: var(--warning); margin-top: 8px; font-weight: 600; font-family: monospace; }
-
-    .override-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 15px; }
-    .override-input-group { background: #07111f; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
-    .override-input-group label { margin-bottom: 4px; font-size: 10px; color: var(--accent); }
-    .override-input-group input { padding: 8px; text-align: center; font-weight: 700; background: #040c17; color: #fff; }
-    .override-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
-    .override-header h3 { margin: 0; font-size: 14px; color: var(--accent); text-transform: uppercase; }
-    
-    .summary-table-container { overflow-x: auto; margin-top: 15px; border-radius: 8px; border: 1px solid var(--border); }
-    .summary-table th { background: #06111f; }
-    .summary-table td { font-weight: 600; font-size: 14px; }
-    .val-danger { color: var(--danger); }
-    .val-success { color: var(--success); }
-    .val-bpl-pass { color: var(--success); font-weight: 800; }
-    .val-bpl-fail { color: var(--danger); font-weight: 800; }
-
-    @media (max-width: 800px) {
-      .override-grid { grid-template-columns: repeat(3, 1fr); }
-    }
+    .val-bpl-fail { color: var(--danger); }
+    .val-bpl-pass { color: var(--success); }
   </style>
 </head>
 <body>
+
   <div class="container">
     <div class="card">
-      <h2 style="text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 900; letter-spacing: -0.5px;">Master Command Center</h2>
-      <div class="data-dates">
-        Seniority Data: FEB 2026 | Bid Data: 06-2026
-      </div>
-
-      <div style="max-width: 400px; margin: 0 auto; text-align: center;">
-        <label>Your Personal Lookup Sen # (Optional)</label>
-        <input id="senInput" type="number" placeholder="e.g. 2670" style="text-align: center; font-size: 18px; font-weight: bold;">
+      <h2 style="margin-top:0; color:var(--accent);">System Parameters & Overrides</h2>
+      <div class="grid" id="modifierGrid">
+        </div>
+      <div style="margin-top: 20px; display: flex; gap: 15px;">
+        <div style="flex: 1;">
+          <label>View Specific Seniority</label>
+          <input type="number" id="senInput" placeholder="Enter Seniority #">
+        </div>
+        <div style="flex: 1;">
+          <button onclick="runAnalysis()">Run Full System Award</button>
+        </div>
       </div>
     </div>
 
     <div class="card">
-      <div class="override-header">
-        <h3>Global Vacancy Adjustments</h3>
-        <span style="font-size: 11px; color: var(--text-muted);">Enter (+/-) values to override the bid</span>
-      </div>
-      
-      <div class="override-grid">
-        <div class="override-input-group"><label>ANC CA</label><input type="number" id="mod_ANC_CA" placeholder="0"></div>
-        <div class="override-input-group"><label>ANC FO</label><input type="number" id="mod_ANC_FO" placeholder="0"></div>
-        <div class="override-input-group"><label>LAX CA</label><input type="number" id="mod_LAX_CA" placeholder="0"></div>
-        <div class="override-input-group"><label>LAX FO</label><input type="number" id="mod_LAX_FO" placeholder="0"></div>
-        <div class="override-input-group"><label>PDX CA</label><input type="number" id="mod_PDX_CA" placeholder="0"></div>
-        <div class="override-input-group"><label>PDX FO</label><input type="number" id="mod_PDX_FO" placeholder="0"></div>
-        <div class="override-input-group"><label>SAN CA</label><input type="number" id="mod_SAN_CA" placeholder="0"></div>
-        <div class="override-input-group"><label>SAN FO</label><input type="number" id="mod_SAN_FO" placeholder="0"></div>
-        <div class="override-input-group"><label>SEA CA</label><input type="number" id="mod_SEA_CA" placeholder="0"></div>
-        <div class="override-input-group"><label>SEA FO</label><input type="number" id="mod_SEA_FO" placeholder="0"></div>
-        <div class="override-input-group"><label>SFO CA</label><input type="number" id="mod_SFO_CA" placeholder="0"></div>
-        <div class="override-input-group"><label>SFO FO</label><input type="number" id="mod_SFO_FO" placeholder="0"></div>
-      </div>
-      
-      <button id="calcBtn" style="margin-top: 20px;">Run Absolute Capacity Award</button>
-    </div>
-
-    <div class="card">
-      <div class="override-header">
-        <h3>System-Wide Category Summary</h3>
-        <span style="font-size: 11px; color: var(--text-muted);">Displays the cutoff seniority for every base and seat.</span>
-      </div>
-      <div class="summary-table-container">
-        <table class="summary-table">
+      <h3>Global Vacancy Summary</h3>
+      <div class="table-container">
+        <table>
           <thead>
             <tr>
-              <th>Category</th>
+              <th>Seat</th>
               <th>Pub Delta</th>
-              <th>Override Mod</th>
-              <th>Total Cap</th>
+              <th>Manual Mod</th>
+              <th>Target Cap</th>
               <th>Awarded</th>
-              <th>Open Spots</th>
-              <th>Junior Sen (Cutoff)</th>
+              <th>Remaining</th>
+              <th>Junior Sen</th>
             </tr>
           </thead>
-          <tbody id="globalSummaryTable">
-            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Awaiting simulation run...</td></tr>
-          </tbody>
+          <tbody id="globalSummaryTable"></tbody>
         </table>
       </div>
     </div>
 
-    <div class="grid">
-      <div class="card status-card" style="grid-column: 1 / -1;">
-        <label>Personal Award Snapshot</label>
-        <div id="awardStatus" style="color: var(--text-muted);">AWAITING DATA</div>
-        <div id="vacancyMath">Enter your seniority and run the system award.</div>
-      </div>
-      <div class="card" style="text-align:center;">
-        <label>Your Starting Seat</label>
-        <div id="dashStarting" class="big-num" style="color: var(--text);">-</div>
-      </div>
-      <div class="card" style="text-align:center;">
-        <label>Total Cap For Awarded Seat</label>
-        <div id="dashTotalSpots" class="big-num" style="color: var(--accent);">-</div>
-      </div>
-      <div class="card" style="text-align:center;">
-        <label>Remaining Spots After You</label>
-        <div id="dashRemaining" class="big-num" style="color:var(--success);">-</div>
-      </div>
-    </div>
-
     <div class="card">
-      <div class="override-header">
-        <h3>Absolute Displacement Ledger</h3>
-        <button id="exportBtn" class="btn-secondary">Export Full CSV Ledger</button>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Displacement Ledger</h3>
+        <button onclick="exportToCSV()" class="btn-secondary">Export CSV Ledger</button>
       </div>
       <div class="table-container">
         <table>
@@ -182,7 +92,7 @@
               <th>Final Award</th>
               <th>Status</th>
               <th>BPL Activity</th>
-              <th>Vacancy/Displacement Ledger</th>
+              <th>Displacement Ledger Reason</th>
             </tr>
           </thead>
           <tbody id="competitorTable"></tbody>
@@ -192,84 +102,71 @@
   </div>
 
 <script>
-let ROSTER = [], PREFS = {}, CAPACITIES = {};
+let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set();
 let fullSystemLog = []; 
-let finalSeatLedger = {}; 
 
 const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
 const allSeats = ["CA", "FO"];
 
+// Initialization: Create the modifier inputs
+const grid = document.getElementById('modifierGrid');
+allBases.forEach(b => {
+  allSeats.forEach(s => {
+    const div = document.createElement('div');
+    div.innerHTML = `<label>${b} ${s} Mod</label>
+                     <input type="number" id="mod_${b}_${s}" placeholder="0">`;
+    grid.appendChild(div);
+  });
+});
+
 function findCurrent(p) {
   if (!p || !p.current) return "";
-  const b = p.current.base || "";
-  const s = p.current.seat || "";
-  return `${String(b).trim()} ${String(s).trim()}`;
-}
-
-function updatePlaceholders() {
-  if (Object.keys(CAPACITIES).length === 0) return;
-  allBases.forEach(b => {
-    allSeats.forEach(s => {
-      const key = `${b} ${s}`;
-      let capObj = CAPACITIES[key] || { delta: 0 };
-      let deltaDisplay = parseInt(capObj.delta) || 0;
-      let el = document.getElementById(`mod_${b}_${s}`);
-      if (el) el.placeholder = `Pub Delta: ${deltaDisplay}`;
-    });
-  });
+  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`;
 }
 
 async function loadData() {
   try {
-    const [r, p, c] = await Promise.all([
+    const [r, p, c, nb] = await Promise.all([
       fetch('./roster.json').then(res => res.json()),
       fetch('./preferences.json').then(res => res.json()),
-      fetch('./capacities.json').then(res => res.json())
+      fetch('./capacities.json').then(res => res.json()),
+      fetch('./nobidpilots.json').then(res => res.json())
     ]);
     
     ROSTER = Array.isArray(r) ? r : Object.values(r);
     PREFS = p;
+    NO_BID = new Set(nb.map(x => parseInt(x.sen)));
     
     CAPACITIES = {};
     if (Array.isArray(c)) {
       c.forEach(item => {
-        if (item.base && item.seat) {
-          CAPACITIES[`${item.base} ${item.seat}`] = {
-            start: item.startCapacity || 0,
-            delta: item.delta || 0
-          };
-        }
+        CAPACITIES[`${item.base} ${item.seat}`] = {
+          start: item.startCapacity || 0,
+          delta: item.delta || 0
+        };
       });
     }
-    updatePlaceholders();
+    console.log("Data loaded successfully. Frozen count:", NO_BID.size);
   } catch (e) { 
-    console.error("Error loading JSON files."); 
+    console.error("Error loading JSON files. Check if they exist in the folder."); 
   }
 }
 
 function runAnalysis() {
-  // 1. Initialize Absolute Capacity Ledger for System Summary
   let seatLedger = {};
   
+  // Initialize capacities from JSON + UI modifiers
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
-      let baseStart = parseInt(capObj.start) || 0;
-      let baseDelta = parseInt(capObj.delta) || 0;
-      
       const modInput = document.getElementById(`mod_${b}_${s}`);
-      let modValue = 0;
-      if (modInput && modInput.value !== "") {
-        modValue = parseInt(modInput.value) || 0;
-      }
-      
-      let targetCap = Math.max(0, baseStart + baseDelta + modValue);
+      let modValue = modInput ? parseInt(modInput.value) || 0 : 0;
       
       seatLedger[key] = {
-        pubDelta: baseDelta,
+        pubDelta: capObj.delta,
         modApplied: modValue,
-        targetCap: targetCap,
+        targetCap: Math.max(0, parseInt(capObj.start) + parseInt(capObj.delta) + modValue),
         awardedCount: 0,
         juniorSen: "N/A" 
       };
@@ -279,36 +176,51 @@ function runAnalysis() {
   fullSystemLog = []; 
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
-  // 2. FULL SYSTEM ABSOLUTE CAPACITY CASCADE
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     const startingSeat = findCurrent(p);
-    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
     
+    // 1. FROZEN PILOT LOGIC (IGNORE BIDDING)
+    if (NO_BID.has(pSen)) {
+      let awardedSeat = startingSeat;
+      if (seatLedger[awardedSeat]) {
+          seatLedger[awardedSeat].awardedCount++;
+          seatLedger[awardedSeat].juniorSen = pSen;
+      }
+      fullSystemLog.push({
+        sen: pSen,
+        start: startingSeat || "N/A",
+        final: awardedSeat,
+        status: "HELD (FROZEN)",
+        bplNotes: "Bidding Frozen",
+        bplExportText: "Frozen",
+        ledger: "FROZEN - Pilot not permitted to bid",
+        css: "action-stay"
+      });
+      continue;
+    }
+
+    // 2. STANDARD BIDDING LOGIC
+    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
     let awardedSeat = ""; 
     let actionType = ""; 
     let ledgerReason = "";
     let wasDisplaced = false;
     let bplActivityLog = []; 
+    let resolved = false;
 
+    // Normalize preferences
     let normalizedBids = [];
     if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
-      for (const entry of pPrefObj.preferences) {
+      pPrefObj.preferences.forEach(entry => {
         let rawBid = String(entry.bid || "").toUpperCase();
         let bMatch = allBases.find(b => rawBid.includes(b));
         let sMatch = allSeats.find(s => rawBid.includes(s));
-        
-        if (bMatch && sMatch) {
-          normalizedBids.push({
-             ...entry,
-             parsedKey: `${bMatch} ${sMatch}`
-          });
-        }
-      }
+        if (bMatch && sMatch) normalizedBids.push({ ...entry, parsedKey: `${bMatch} ${sMatch}` });
+      });
     }
-    
-    let resolved = false;
 
+    // Process Bids
     for (const entry of normalizedBids) {
       const bidKey = entry.parsedKey;
       if (!seatLedger[bidKey]) continue;
@@ -316,13 +228,9 @@ function runAnalysis() {
       const bplVal = parseInt(entry.bpl_min || 0);
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
-      if (bplVal > 0) {
-        if (projectedCatSen > bplVal) {
-          bplActivityLog.push(`<span class="val-bpl-fail">Denied ${bidKey}</span> (Limit: ${bplVal}, Proj: ${projectedCatSen})`);
-          continue; 
-        } else {
-          bplActivityLog.push(`<span class="val-bpl-pass">Passed ${bidKey}</span> (Limit: ${bplVal}, Proj: ${projectedCatSen})`);
-        }
+      if (bplVal > 0 && projectedCatSen > bplVal) {
+        bplActivityLog.push(`<span class="val-bpl-fail">Denied ${bidKey}</span> (Limit: ${bplVal})`);
+        continue; 
       }
 
       if (seatLedger[bidKey].targetCap > seatLedger[bidKey].awardedCount) {
@@ -330,33 +238,22 @@ function runAnalysis() {
         seatLedger[bidKey].awardedCount++;
         seatLedger[bidKey].juniorSen = pSen; 
         resolved = true;
-        
-        if (bidKey === startingSeat) {
-           actionType = "HELD";
-           ledgerReason = `Held Seat (Spot ${seatLedger[bidKey].awardedCount} of ${seatLedger[bidKey].targetCap})`;
-        } else {
-           actionType = wasDisplaced ? "DISPLACED_MOVED" : "MOVED";
-           let prefix = wasDisplaced ? "Displaced -> " : "";
-           ledgerReason = `${prefix}Awarded ${bidKey} (Spot ${seatLedger[bidKey].awardedCount} of ${seatLedger[bidKey].targetCap})`;
-        }
+        actionType = (bidKey === startingSeat) ? "HELD" : "MOVED";
+        ledgerReason = `Awarded ${bidKey} (Spot ${seatLedger[bidKey].awardedCount} of ${seatLedger[bidKey].targetCap})`;
         break; 
       } else {
-        if (bidKey === startingSeat) {
-          wasDisplaced = true;
-        }
+        if (bidKey === startingSeat) wasDisplaced = true;
       }
     }
 
-    // THE SAFETY NET FIX:
-    // If they missed all their bids (either failed BPLs, or bids were full), 
-    // keep them in their starting seat IF there is physical room for them!
+    // Safety Net: If bids fail, try to hold starting seat
     if (!resolved && startingSeat !== "" && seatLedger[startingSeat]) {
        if (seatLedger[startingSeat].targetCap > seatLedger[startingSeat].awardedCount) {
           awardedSeat = startingSeat;
           seatLedger[startingSeat].awardedCount++;
           seatLedger[startingSeat].juniorSen = pSen; 
           actionType = "HELD";
-          ledgerReason = `Held Starting Seat (Spot ${seatLedger[startingSeat].awardedCount} of ${seatLedger[startingSeat].targetCap})`;
+          ledgerReason = "Held Starting Seat (No successful bids)";
           resolved = true;
        } else {
           wasDisplaced = true;
@@ -365,111 +262,51 @@ function runAnalysis() {
 
     if (!resolved) {
        awardedSeat = "UNASSIGNED";
-       actionType = "DISPLACED_UNASSIGNED";
-       ledgerReason = wasDisplaced ? "DISPLACED -> No Backups Available" : "No Valid Bids & No Starting Seat";
+       actionType = "LOST";
+       ledgerReason = wasDisplaced ? "DISPLACED -> No Seats Available" : "No Valid Bids";
     }
-
-    let cssClass = "";
-    let uiAction = "";
-    if (actionType === "MOVED") { cssClass = "action-awarded"; uiAction = "MOVED"; }
-    else if (actionType === "HELD") { cssClass = "action-stay"; uiAction = "HELD"; }
-    else if (actionType === "DISPLACED_MOVED") { cssClass = "action-vacated"; uiAction = "DISPLACED -> MOVED"; }
-    else if (actionType === "DISPLACED_UNASSIGNED") { cssClass = "action-danger"; uiAction = "DISPLACED -> LOST SEAT"; }
 
     fullSystemLog.push({
       sen: pSen,
       start: startingSeat || "N/A",
       final: awardedSeat,
-      status: uiAction,
+      status: actionType,
       bplNotes: bplActivityLog.length > 0 ? bplActivityLog.join('<br>') : "None",
       bplExportText: bplActivityLog.length > 0 ? bplActivityLog.map(str => str.replace(/<[^>]+>/g, '')).join(' | ') : "None",
       ledger: ledgerReason,
-      css: cssClass
+      css: actionType === "MOVED" ? "action-awarded" : (actionType === "LOST" ? "action-danger" : "action-stay")
     });
   }
 
-  finalSeatLedger = seatLedger;
+  renderUI(seatLedger);
+}
 
-  // 3. RENDER GLOBAL SUMMARY TABLE
+function renderUI(seatLedger) {
   const summaryTbody = document.getElementById("globalSummaryTable");
   let summaryHTML = "";
-  
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
-      const data = seatLedger[key];
-      const openSpots = Math.max(0, data.targetCap - data.awardedCount);
-      
-      const openSpotsStyled = openSpots > 0 
-        ? `<span class="val-success">${openSpots}</span>` 
-        : `<span class="val-danger">0</span>`;
-        
-      const modStyled = data.modApplied !== 0 
-        ? `<span style="color: var(--accent);">${data.modApplied > 0 ? '+' : ''}${data.modApplied}</span>` 
-        : `0`;
-
-      summaryHTML += `
-        <tr>
-          <td style="color: var(--accent);">${key}</td>
-          <td>${data.pubDelta}</td>
-          <td>${modStyled}</td>
-          <td>${data.targetCap}</td>
-          <td>${data.awardedCount}</td>
-          <td>${openSpotsStyled}</td>
-          <td style="color: var(--warning);">${data.juniorSen}</td>
-        </tr>
-      `;
+      const d = seatLedger[key];
+      const remaining = d.targetCap - d.awardedCount;
+      summaryHTML += `<tr>
+        <td style="color:var(--accent)">${key}</td>
+        <td>${d.pubDelta}</td>
+        <td>${d.modApplied}</td>
+        <td>${d.targetCap}</td>
+        <td>${d.awardedCount}</td>
+        <td style="color:${remaining > 0 ? 'var(--success)' : 'var(--danger)'}">${remaining}</td>
+        <td style="color:var(--warning)">${d.juniorSen}</td>
+      </tr>`;
     });
   });
   summaryTbody.innerHTML = summaryHTML;
 
-  // 4. RENDER PERSONAL UI
-  const mySenInput = document.getElementById("senInput").value;
-  if (mySenInput !== "") {
-    const mySen = parseInt(mySenInput);
-    const myLog = fullSystemLog.find(l => l.sen === mySen);
-    
-    if (myLog) {
-      document.getElementById("dashStarting").textContent = myLog.start;
-      
-      document.getElementById("awardStatus").textContent = myLog.final;
-      if (myLog.status.includes("DISPLACED -> LOST")) {
-        document.getElementById("awardStatus").style.color = "var(--danger)";
-      } else if (myLog.status === "MOVED" || myLog.status.includes("DISPLACED -> MOVED")) {
-        document.getElementById("awardStatus").style.color = "var(--success)";
-      } else {
-        document.getElementById("awardStatus").style.color = "var(--accent)";
-      }
-      
-      document.getElementById("vacancyMath").innerHTML = `Ledger: ${myLog.ledger}`;
-
-      if (myLog.final !== "UNASSIGNED" && seatLedger[myLog.final]) {
-         let capData = seatLedger[myLog.final];
-         document.getElementById("dashTotalSpots").textContent = capData.targetCap;
-         document.getElementById("dashRemaining").textContent = Math.max(0, capData.targetCap - capData.awardedCount);
-      } else {
-         document.getElementById("dashTotalSpots").textContent = "N/A";
-         document.getElementById("dashRemaining").textContent = "N/A";
-      }
-
-    } else {
-      document.getElementById("awardStatus").textContent = "PILOT NOT FOUND";
-      document.getElementById("vacancyMath").textContent = "Check Seniority # and try again.";
-      document.getElementById("dashStarting").textContent = "-";
-      document.getElementById("dashTotalSpots").textContent = "-";
-      document.getElementById("dashRemaining").textContent = "-";
-    }
-  } else {
-      document.getElementById("awardStatus").textContent = "ENTER SEN #";
-      document.getElementById("vacancyMath").textContent = "Enter your seniority above to see your personal result.";
-  }
-
-  // 5. RENDER MASTER LOG TABLE
   document.getElementById("competitorTable").innerHTML = fullSystemLog.map(c => `
     <tr>
       <td>${c.sen}</td>
       <td>${c.start}</td>
-      <td><span style="font-weight: 800; color: ${c.status.includes('LOST') ? 'var(--danger)' : (c.status.includes('MOVED') ? 'var(--success)' : 'var(--text-muted)')}">${c.final}</span></td>
+      <td><span style="color:var(--accent); font-weight:800">${c.final}</span></td>
       <td><span class="action-pill ${c.css}">${c.status}</span></td>
       <td class="bpl-text">${c.bplNotes}</td>
       <td class="ledger-text">${c.ledger}</td>
@@ -478,32 +315,19 @@ function runAnalysis() {
 }
 
 function exportToCSV() {
-  if (!fullSystemLog || fullSystemLog.length === 0) {
-    alert("No data to export. Please run the full system award first.");
-    return;
-  }
-  
-  let csvContent = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,BPL Details,Displacement Ledger Source\n";
-  
-  fullSystemLog.forEach(row => {
-    csvContent += `${row.sen},${row.start},${row.final},${row.status},"${row.bplExportText}","${row.ledger}"\n`;
+  let csv = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,BPL Details,Displacement Ledger Source\n";
+  fullSystemLog.forEach(r => {
+    csv += `${r.sen},${r.start},${r.final},${r.status},"${r.bplExportText}","${r.ledger}"\n`;
   });
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", "Displacement_System_Ledger.csv");
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', 'Displacement_Results.csv');
+  a.click();
 }
 
-document.getElementById("calcBtn").addEventListener("click", runAnalysis);
-document.getElementById("exportBtn").addEventListener("click", exportToCSV);
-
-loadData();
+window.onload = loadData;
 </script>
 </body>
 </html>
