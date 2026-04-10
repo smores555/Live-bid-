@@ -9,7 +9,7 @@
 </script>  
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>System Award & Displacement Ledger</title>
+  <title>Master Command Center</title>
   
   <meta name="robots" content="noindex, nofollow">
 
@@ -192,6 +192,9 @@ let ROSTER = [], PREFS = {}, CAPACITIES = {};
 let fullSystemLog = []; 
 let finalSeatLedger = {}; 
 
+const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
+const allSeats = ["CA", "FO"];
+
 function findCurrent(p) {
   if (!p || !p.current) return "";
   const b = p.current.base || "";
@@ -201,8 +204,6 @@ function findCurrent(p) {
 
 function updatePlaceholders() {
   if (Object.keys(CAPACITIES).length === 0) return;
-  const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
-  const allSeats = ["CA", "FO"];
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
@@ -245,8 +246,6 @@ async function loadData() {
 function runAnalysis() {
   // 1. Initialize Absolute Capacity Ledger for System Summary
   let seatLedger = {};
-  const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
-  const allSeats = ["CA", "FO"];
   
   allBases.forEach(b => {
     allSeats.forEach(s => {
@@ -268,7 +267,7 @@ function runAnalysis() {
         modApplied: modValue,
         targetCap: targetCap,
         awardedCount: 0,
-        juniorSen: "N/A" // Will track the most junior pilot to hold this seat
+        juniorSen: "N/A" 
       };
     });
   });
@@ -287,52 +286,67 @@ function runAnalysis() {
     let ledgerReason = "";
     let wasDisplaced = false;
 
-    let bids = [];
+    // --- FIX: THE BID PARSER ---
+    // This strips out "73G" and matches directly to the Base/Seat keys
+    let normalizedBids = [];
     if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
-      bids = pPrefObj.preferences.filter(entry => String(entry.bid || "").trim() !== "");
+      for (const entry of pPrefObj.preferences) {
+        let rawBid = String(entry.bid || "").toUpperCase();
+        let bMatch = allBases.find(b => rawBid.includes(b));
+        let sMatch = allSeats.find(s => rawBid.includes(s));
+        
+        if (bMatch && sMatch) {
+          normalizedBids.push({
+             ...entry,
+             parsedKey: `${bMatch} ${sMatch}`
+          });
+        }
+      }
     }
     
-    let bidIncludesStarting = bids.some(b => String(b.bid).trim() === startingSeat);
+    let bidIncludesStarting = normalizedBids.some(b => b.parsedKey === startingSeat);
     let resolved = false;
 
-    for (const entry of bids) {
-      const bidStr = String(entry.bid).trim();
-      if (!seatLedger[bidStr]) continue;
+    for (const entry of normalizedBids) {
+      const bidKey = entry.parsedKey;
+      if (!seatLedger[bidKey]) continue;
 
       const bplVal = parseInt(entry.bpl_min || 0);
-      const projectedCatSen = seatLedger[bidStr].awardedCount + 1; 
+      const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
       if (bplVal > 0 && projectedCatSen > bplVal) {
-        continue; 
+        continue; // Blocked by BPL
       }
 
-      if (seatLedger[bidStr].targetCap > seatLedger[bidStr].awardedCount) {
-        awardedSeat = bidStr;
-        seatLedger[bidStr].awardedCount++;
-        seatLedger[bidStr].juniorSen = pSen; // Update the cutoff score
+      if (seatLedger[bidKey].targetCap > seatLedger[bidKey].awardedCount) {
+        // Seat successfully awarded! This triggers the cascade.
+        awardedSeat = bidKey;
+        seatLedger[bidKey].awardedCount++;
+        seatLedger[bidKey].juniorSen = pSen; 
         resolved = true;
         
-        if (bidStr === startingSeat) {
+        if (bidKey === startingSeat) {
            actionType = "HELD";
-           ledgerReason = `Held Seat (Spot ${seatLedger[bidStr].awardedCount} of ${seatLedger[bidStr].targetCap})`;
+           ledgerReason = `Held Seat (Spot ${seatLedger[bidKey].awardedCount} of ${seatLedger[bidKey].targetCap})`;
         } else {
            actionType = wasDisplaced ? "DISPLACED_MOVED" : "MOVED";
            let prefix = wasDisplaced ? "Displaced -> " : "";
-           ledgerReason = `${prefix}Awarded ${bidStr} (Spot ${seatLedger[bidStr].awardedCount} of ${seatLedger[bidStr].targetCap})`;
+           ledgerReason = `${prefix}Awarded ${bidKey} (Spot ${seatLedger[bidKey].awardedCount} of ${seatLedger[bidKey].targetCap})`;
         }
         break; 
       } else {
-        if (bidStr === startingSeat) {
+        if (bidKey === startingSeat) {
           wasDisplaced = true;
         }
       }
     }
 
+    // Fallback if they didn't get a new bid, stay put UNLESS displaced
     if (!resolved && startingSeat !== "" && seatLedger[startingSeat] && !bidIncludesStarting) {
        if (seatLedger[startingSeat].targetCap > seatLedger[startingSeat].awardedCount) {
           awardedSeat = startingSeat;
           seatLedger[startingSeat].awardedCount++;
-          seatLedger[startingSeat].juniorSen = pSen; // Update cutoff score
+          seatLedger[startingSeat].juniorSen = pSen; 
           actionType = "HELD";
           ledgerReason = `Held Seat Implicitly (Spot ${seatLedger[startingSeat].awardedCount} of ${seatLedger[startingSeat].targetCap})`;
           resolved = true;
