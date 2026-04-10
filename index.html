@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>  
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Bid Cascade Engine</title>
+  
+  <meta name="robots" content="noindex, nofollow">
+
+  <style>
+    /* Alaska Shades of Blue Theme */
+    :root {
+      --bg: #040c17; 
+      --card: #0b192c; 
+      --accent: #00e5ff; 
+      --accent-hover: #33ebff;
+      --text: #e8eefc; 
+      --text-muted: #8ba3c7;
+      --border: rgba(0, 229, 255, 0.15);
+      --success: #00ffaa; 
+      --danger: #ff4772; 
+      --warning: #ffcf33;
+    }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    
+    label { display: block; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+    input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #07111f; color: #fff; box-sizing: border-box; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    input:focus, select:focus { border-color: var(--accent); }
+    
+    button { background: var(--accent); color: #021024; border: none; font-weight: 900; cursor: pointer; margin-top: 10px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3); }
+    button:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4); }
+    
+    .btn-secondary { background: transparent; border: 1px solid var(--accent); color: var(--accent); width: auto; padding: 6px 16px; font-size: 12px; margin-top: 0; box-shadow: none; }
+    .btn-secondary:hover { background: rgba(0, 229, 255, 0.1); color: var(--accent-hover); box-shadow: none; }
+
+    .big-num { font-size: 36px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 14px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+    th { color: var(--accent); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
+    tr:hover { background: rgba(0, 229, 255, 0.03); }
+    
+    .bpl-pill { display: inline-block; padding: 2px 6px; background: rgba(255, 71, 114, 0.15); border: 1px solid var(--danger); border-radius: 4px; color: var(--danger); font-weight: 800; font-size: 10px; margin-left: 8px; }
+    .action-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
+    .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
+    .action-vacated { background: rgba(255, 207, 51, 0.1); color: var(--warning); border: 1px solid var(--warning); }
+
+    .summary-text { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; }
+    .data-dates { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: -5px; margin-bottom: 24px; font-weight: 600; line-height: 1.6; text-transform: uppercase; letter-spacing: 1px; }
+    
+    /* Snapshot Badge Styles */
+    .status-card { text-align: center; padding: 30px; border: 2px solid var(--border); background: #06111f; box-shadow: inset 0 0 40px rgba(0,0,0,0.5); }
+    #awardStatus { font-size: 34px; font-weight: 900; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
+    #vacancyMath { font-size: 15px; color: var(--text-muted); margin-top: 8px; font-weight: 500; }
+
+    /* Override Grid Styles */
+    .override-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 15px; }
+    .override-input-group { background: #07111f; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
+    .override-input-group label { margin-bottom: 4px; font-size: 10px; color: var(--accent); }
+    .override-input-group input { padding: 8px; text-align: center; font-weight: 700; background: #040c17; }
+    .override-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
+    .override-header h3 { margin: 0; font-size: 14px; color: var(--accent); text-transform: uppercase; }
+    
+    @media (max-width: 800px) {
+      .override-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h2 style="text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 900; letter-spacing: -0.5px;">Live Cascade Engine</h2>
+      <div class="data-dates">
+        Seniority Data: FEB 2026 | Bid Data: 06-2026
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Your Seniority #</label>
+          <input id="senInput" type="number" placeholder="e.g. 2670">
+          <div id="userStatusSummary" class="summary-text"></div>
+        </div>
+        <div>
+          <label>Target Base</label>
+          <select id="baseSelect">
+            <option value="ANC">ANC</option><option value="LAX">LAX</option>
+            <option value="PDX">PDX</option><option value="SAN">SAN</option>
+            <option value="SEA">SEA</option><option value="SFO">SFO</option>
+          </select>
+        </div>
+        <div>
+          <label>Target Seat</label>
+          <select id="seatSelect">
+            <option value="CA">Captain (CA)</option>
+            <option value="FO">First Officer (FO)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="override-header">
+        <h3>Global Vacancy Adjustments</h3>
+        <span style="font-size: 11px; color: var(--text-muted);">Enter (+/-) values to override the bid</span>
+      </div>
+      
+      <div class="override-grid">
+        <div class="override-input-group"><label>ANC CA</label><input type="number" id="mod_ANC_CA" placeholder="0"></div>
+        <div class="override-input-group"><label>ANC FO</label><input type="number" id="mod_ANC_FO" placeholder="0"></div>
+        <div class="override-input-group"><label>LAX CA</label><input type="number" id="mod_LAX_CA" placeholder="0"></div>
+        <div class="override-input-group"><label>LAX FO</label><input type="number" id="mod_LAX_FO" placeholder="0"></div>
+        <div class="override-input-group"><label>PDX CA</label><input type="number" id="mod_PDX_CA" placeholder="0"></div>
+        <div class="override-input-group"><label>PDX FO</label><input type="number" id="mod_PDX_FO" placeholder="0"></div>
+        <div class="override-input-group"><label>SAN CA</label><input type="number" id="mod_SAN_CA" placeholder="0"></div>
+        <div class="override-input-group"><label>SAN FO</label><input type="number" id="mod_SAN_FO" placeholder="0"></div>
+        <div class="override-input-group"><label>SEA CA</label><input type="number" id="mod_SEA_CA" placeholder="0"></div>
+        <div class="override-input-group"><label>SEA FO</label><input type="number" id="mod_SEA_FO" placeholder="0"></div>
+        <div class="override-input-group"><label>SFO CA</label><input type="number" id="mod_SFO_CA" placeholder="0"></div>
+        <div class="override-input-group"><label>SFO FO</label><input type="number" id="mod_SFO_FO" placeholder="0"></div>
+      </div>
+      
+      <button id="calcBtn" style="margin-top: 20px;">Run Cascade Simulation</button>
+    </div>
+
+    <div class="card status-card">
+      <label>Projected Award Status</label>
+      <div id="awardStatus" style="color: var(--text-muted);">AWAITING DATA</div>
+      <div id="vacancyMath">Enter your seniority and run the cascade to see your status.</div>
+    </div>
+
+    <div class="grid">
+      <div class="card" style="text-align:center;">
+        <label>Primary Vacancies (Post-Mod)</label>
+        <div id="primaryResult" class="big-num">-</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <label>Secondary Vacancies Created</label>
+        <div id="secondaryResult" class="big-num" style="color:var(--warning);">-</div>
+      </div>
+      <div class="card" style="text-align:center; border: 1px solid var(--success); background: rgba(0, 255, 170, 0.05);">
+        <label style="color: var(--success);">Total Available Spots</label>
+        <div id="totalSpotsResult" class="big-num" style="color:var(--success);">-</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="override-header">
+        <h3>Seniority Log: Interaction with Target Seat</h3>
+        <button id="exportBtn" class="btn-secondary">Export CSV</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Sen #</th>
+            <th>Starting Seat</th>
+            <th>Action Taken</th>
+            <th>Final Award</th>
+          </tr>
+        </thead>
+        <tbody id="competitorTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+let ROSTER = [], PREFS = {}, CAPACITIES = {};
+let globalEventLog = []; // Stores the log globally so it can be exported
+
+function findCurrent(p) {
+  if (!p || !p.current) return "";
+  const b = p.current.base || "";
+  const s = p.current.seat || "";
+  return `${String(b).trim()} ${String(s).trim()}`;
+}
+
+async function loadData() {
+  try {
+    const [r, p, c] = await Promise.all([
+      fetch('./roster.json').then(res => res.json()),
+      fetch('./preferences.json').then(res => res.json()),
+      fetch('./capacities.json').then(res => res.json())
+    ]);
+    
+    ROSTER = Array.isArray(r) ? r : Object.values(r);
+    PREFS = p;
+    
+    CAPACITIES = {};
+    if (Array.isArray(c)) {
+      c.forEach(item => {
+        if (item.base && item.seat) {
+          CAPACITIES[`${item.base} ${item.seat}`] = item.delta || 0;
+        }
+      });
+    } else {
+      CAPACITIES = c;
+    }
+  } catch (e) { 
+    console.error("Error loading JSON files."); 
+  }
+}
+
+function runAnalysis() {
+  const mySen = parseInt(document.getElementById("senInput").value);
+  const tBase = document.getElementById("baseSelect").value;
+  const tSeat = document.getElementById("seatSelect").value;
+  const targetString = `${tBase} ${tSeat}`;
+
+  const user = ROSTER.find(p => parseInt(p.sen) === mySen);
+  if (!user) return alert("Pilot not found in roster.");
+
+  const myStartingSeat = findCurrent(user);
+  document.getElementById("userStatusSummary").textContent = `Starting Seat: ${myStartingSeat}`;
+
+  let runningCapacities = {};
+  const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
+  const allSeats = ["CA", "FO"];
+  
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      let basePublished = parseInt(CAPACITIES[key]) || 0;
+      if (basePublished < 0) basePublished = 0; 
+      
+      const modInput = document.getElementById(`mod_${b}_${s}`);
+      let modValue = 0;
+      if (modInput && modInput.value !== "") {
+        modValue = parseInt(modInput.value) || 0;
+      }
+      
+      runningCapacities[key] = Math.max(0, basePublished + modValue);
+    });
+  });
+
+  const startingPrimaryForTarget = runningCapacities[targetString];
+
+  let categorySeniority = {}; 
+  let secondaryVacanciesCreated = 0; 
+  globalEventLog = []; // Reset the global log array
+
+  const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
+
+  for (const p of sortedRoster) {
+    const pSen = parseInt(p.sen);
+    if (pSen >= mySen) break; 
+
+    const startingSeat = findCurrent(p);
+    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
+    
+    let awardedSeat = startingSeat; 
+    let actionType = "stay"; 
+
+    if (pPrefObj && pPrefObj.preferences && pPrefObj.preferences.length > 0) {
+      for (const entry of pPrefObj.preferences) {
+        const bidStr = String(entry.bid || "").trim();
+        if (bidStr === "") continue;
+
+        const bplVal = parseInt(entry.bpl_min || 0);
+        const projectedCatSen = (categorySeniority[bidStr] || 0) + 1; 
+
+        if (bplVal > 0 && projectedCatSen > bplVal) {
+          continue; 
+        }
+
+        if (bidStr === startingSeat) {
+          awardedSeat = startingSeat;
+          actionType = "stay";
+          break;
+        }
+
+        let availableSpots = runningCapacities[bidStr] || 0;
+        if (availableSpots > 0) {
+          awardedSeat = bidStr;
+          actionType = "awarded";
+          
+          runningCapacities[bidStr]--; 
+          
+          if (startingSeat !== "") {
+            runningCapacities[startingSeat] = (runningCapacities[startingSeat] || 0) + 1;
+            if (startingSeat === targetString) {
+              secondaryVacanciesCreated++;
+              actionType = "vacated";
+            }
+          }
+          break; 
+        }
+      }
+    }
+
+    if (awardedSeat !== "") {
+      categorySeniority[awardedSeat] = (categorySeniority[awardedSeat] || 0) + 1;
+    }
+
+    if (awardedSeat === targetString && actionType === "awarded") {
+      globalEventLog.push({ sen: pSen, start: startingSeat, action: "TOOK VACANCY", final: awardedSeat, css: "action-awarded" });
+    } else if (actionType === "vacated") {
+      globalEventLog.push({ sen: pSen, start: startingSeat, action: "LEFT SEAT", final: awardedSeat, css: "action-vacated" });
+    } else if (awardedSeat === targetString && actionType === "stay") {
+      globalEventLog.push({ sen: pSen, start: startingSeat, action: "HELD SEAT", final: awardedSeat, css: "action-stay" });
+    }
+  }
+
+  let spotsRemainingForMe = runningCapacities[targetString] || 0;
+
+  const statusBadge = document.getElementById("awardStatus");
+  const mathText = document.getElementById("vacancyMath");
+
+  if (myStartingSeat === targetString) {
+    statusBadge.textContent = "🟢 CURRENTLY HOLDING";
+    statusBadge.style.color = "var(--success)";
+    mathText.textContent = `You already hold this seat.`;
+  } else if (spotsRemainingForMe > 0) {
+    statusBadge.textContent = "🟢 AWARDED";
+    statusBadge.style.color = "var(--success)";
+    statusBadge.style.borderColor = "var(--success)";
+    mathText.textContent = `The cascade reached you with ${spotsRemainingForMe} spots remaining. You get the seat!`;
+  } else {
+    statusBadge.textContent = "🔴 NOT AWARDED";
+    statusBadge.style.color = "var(--danger)";
+    statusBadge.style.borderColor = "var(--danger)";
+    mathText.textContent = `The cascade reached your seniority, but 0 vacancies remain.`;
+  }
+
+  document.getElementById("primaryResult").textContent = startingPrimaryForTarget;
+  document.getElementById("secondaryResult").textContent = `+${secondaryVacanciesCreated}`;
+  document.getElementById("totalSpotsResult").textContent = spotsRemainingForMe;
+
+  document.getElementById("competitorTable").innerHTML = globalEventLog.map(c => `
+    <tr>
+      <td>${c.sen}</td>
+      <td>${c.start || 'N/A'}</td>
+      <td><span class="action-pill ${c.css}">${c.action}</span></td>
+      <td>${c.final}</td>
+    </tr>
+  `).join("");
+}
+
+function exportToCSV() {
+  if (!globalEventLog || globalEventLog.length === 0) {
+    alert("No data to export. Please run the cascade simulation first.");
+    return;
+  }
+  
+  let csvContent = "Seniority,Starting Seat,Action Taken,Final Award\n";
+  
+  globalEventLog.forEach(row => {
+    const startSeat = row.start || "N/A";
+    csvContent += `${row.sen},${startSeat},${row.action},${row.final}\n`;
+  });
+  
+  // Creates a Blob file to safely handle huge downloads without freezing the browser
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "cascade_transaction_log.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+document.getElementById("calcBtn").addEventListener("click", runAnalysis);
+document.getElementById("exportBtn").addEventListener("click", exportToCSV);
+
+loadData();
+</script>
+</body>
+</html>
