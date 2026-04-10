@@ -9,7 +9,7 @@
 </script>  
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Live System Award Ledger</title>
+  <title>System Award & Displacement Ledger</title>
   
   <meta name="robots" content="noindex, nofollow">
 
@@ -44,16 +44,17 @@
 
     .big-num { font-size: 36px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; margin-top: 5px; }
     
-    /* Scrollable Table Container */
     .table-container { max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 15px; background: #07111f; }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
-    th { color: var(--accent); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; position: sticky; top: 0; background: #0b192c; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+    th { color: var(--accent); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; position: sticky; top: 0; background: #0b192c; box-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 10; }
     tr:hover { background: rgba(0, 229, 255, 0.03); }
     
     .action-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
+    .action-vacated { background: rgba(255, 207, 51, 0.1); color: var(--warning); border: 1px solid var(--warning); }
+    .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
     .ledger-text { font-family: monospace; font-size: 12px; color: var(--warning); }
 
     .summary-text { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; }
@@ -66,10 +67,16 @@
     .override-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 15px; }
     .override-input-group { background: #07111f; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
     .override-input-group label { margin-bottom: 4px; font-size: 10px; color: var(--accent); }
-    .override-input-group input { padding: 8px; text-align: center; font-weight: 700; background: #040c17; }
+    .override-input-group input { padding: 8px; text-align: center; font-weight: 700; background: #040c17; color: #fff; }
     .override-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
     .override-header h3 { margin: 0; font-size: 14px; color: var(--accent); text-transform: uppercase; }
     
+    .summary-table-container { overflow-x: auto; margin-top: 15px; border-radius: 8px; border: 1px solid var(--border); }
+    .summary-table th { background: #06111f; }
+    .summary-table td { font-weight: 600; font-size: 14px; }
+    .val-danger { color: var(--danger); }
+    .val-success { color: var(--success); }
+
     @media (max-width: 800px) {
       .override-grid { grid-template-columns: repeat(3, 1fr); }
     }
@@ -78,13 +85,13 @@
 <body>
   <div class="container">
     <div class="card">
-      <h2 style="text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 900; letter-spacing: -0.5px;">System Award Ledger</h2>
+      <h2 style="text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 900; letter-spacing: -0.5px;">Master Command Center</h2>
       <div class="data-dates">
         Seniority Data: FEB 2026 | Bid Data: 06-2026
       </div>
 
       <div style="max-width: 400px; margin: 0 auto; text-align: center;">
-        <label>Your Seniority Lookup #</label>
+        <label>Your Personal Lookup Sen # (Optional)</label>
         <input id="senInput" type="number" placeholder="e.g. 2670" style="text-align: center; font-size: 18px; font-weight: bold;">
       </div>
     </div>
@@ -110,12 +117,37 @@
         <div class="override-input-group"><label>SFO FO</label><input type="number" id="mod_SFO_FO" placeholder="0"></div>
       </div>
       
-      <button id="calcBtn" style="margin-top: 20px;">Run Full System Award</button>
+      <button id="calcBtn" style="margin-top: 20px;">Run Absolute Capacity Award</button>
+    </div>
+
+    <div class="card">
+      <div class="override-header">
+        <h3>System-Wide Category Summary</h3>
+        <span style="font-size: 11px; color: var(--text-muted);">Displays the cutoff seniority for every base and seat.</span>
+      </div>
+      <div class="summary-table-container">
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Pub Delta</th>
+              <th>Override Mod</th>
+              <th>Total Cap</th>
+              <th>Awarded</th>
+              <th>Open Spots</th>
+              <th>Junior Sen (Cutoff)</th>
+            </tr>
+          </thead>
+          <tbody id="globalSummaryTable">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Awaiting simulation run...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="grid">
       <div class="card status-card" style="grid-column: 1 / -1;">
-        <label>Your Final Awarded Seat</label>
+        <label>Personal Award Snapshot</label>
         <div id="awardStatus" style="color: var(--text-muted);">AWAITING DATA</div>
         <div id="vacancyMath">Enter your seniority and run the system award.</div>
       </div>
@@ -124,14 +156,18 @@
         <div id="dashStarting" class="big-num" style="color: var(--text);">-</div>
       </div>
       <div class="card" style="text-align:center;">
-        <label>Movement Status</label>
-        <div id="dashAction" class="big-num" style="color: var(--text-muted);">-</div>
+        <label>Total Cap For Awarded Seat</label>
+        <div id="dashTotalSpots" class="big-num" style="color: var(--accent);">-</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <label>Remaining Spots After You</label>
+        <div id="dashRemaining" class="big-num" style="color:var(--success);">-</div>
       </div>
     </div>
 
     <div class="card">
       <div class="override-header">
-        <h3>System Award Ledger Log</h3>
+        <h3>Absolute Displacement Ledger</h3>
         <button id="exportBtn" class="btn-secondary">Export Full CSV Ledger</button>
       </div>
       <div class="table-container">
@@ -142,7 +178,7 @@
               <th>Starting Seat</th>
               <th>Final Award</th>
               <th>Status</th>
-              <th>Vacancy Ledger Source</th>
+              <th>Vacancy/Displacement Ledger</th>
             </tr>
           </thead>
           <tbody id="competitorTable"></tbody>
@@ -154,6 +190,7 @@
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {};
 let fullSystemLog = []; 
+let finalSeatLedger = {}; 
 
 function findCurrent(p) {
   if (!p || !p.current) return "";
@@ -169,10 +206,10 @@ function updatePlaceholders() {
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
-      let defCap = parseInt(CAPACITIES[key]) || 0;
-      if (defCap < 0) defCap = 0;
+      let capObj = CAPACITIES[key] || { delta: 0 };
+      let deltaDisplay = parseInt(capObj.delta) || 0;
       let el = document.getElementById(`mod_${b}_${s}`);
-      if (el) el.placeholder = `Default: ${defCap}`;
+      if (el) el.placeholder = `Pub Delta: ${deltaDisplay}`;
     });
   });
 }
@@ -192,11 +229,12 @@ async function loadData() {
     if (Array.isArray(c)) {
       c.forEach(item => {
         if (item.base && item.seat) {
-          CAPACITIES[`${item.base} ${item.seat}`] = item.delta || 0;
+          CAPACITIES[`${item.base} ${item.seat}`] = {
+            start: item.startCapacity || 0,
+            delta: item.delta || 0
+          };
         }
       });
-    } else {
-      CAPACITIES = c;
     }
     updatePlaceholders();
   } catch (e) { 
@@ -205,9 +243,7 @@ async function loadData() {
 }
 
 function runAnalysis() {
-  const mySen = parseInt(document.getElementById("senInput").value);
-  
-  // 1. Initialize Dual-Track Ledger for all categories
+  // 1. Initialize Absolute Capacity Ledger for System Summary
   let seatLedger = {};
   const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
   const allSeats = ["CA", "FO"];
@@ -215,8 +251,9 @@ function runAnalysis() {
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
-      let basePublished = parseInt(CAPACITIES[key]) || 0;
-      if (basePublished < 0) basePublished = 0; 
+      let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
+      let baseStart = parseInt(capObj.start) || 0;
+      let baseDelta = parseInt(capObj.delta) || 0;
       
       const modInput = document.getElementById(`mod_${b}_${s}`);
       let modValue = 0;
@@ -224,118 +261,191 @@ function runAnalysis() {
         modValue = parseInt(modInput.value) || 0;
       }
       
-      const startingPrimary = Math.max(0, basePublished + modValue);
+      let targetCap = Math.max(0, baseStart + baseDelta + modValue);
+      
       seatLedger[key] = {
-        primaryRemaining: startingPrimary,
-        secondaryQueue: [] // Array of Sen #s who vacated this seat
+        pubDelta: baseDelta,
+        modApplied: modValue,
+        targetCap: targetCap,
+        awardedCount: 0,
+        juniorSen: "N/A" // Will track the most junior pilot to hold this seat
       };
     });
   });
 
-  let categorySeniority = {}; 
   fullSystemLog = []; 
-
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
-  // 2. FULL SYSTEM CASCADE ENGINE
+  // 2. FULL SYSTEM ABSOLUTE CAPACITY CASCADE
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     const startingSeat = findCurrent(p);
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
     
-    let awardedSeat = startingSeat; 
-    let actionType = "stay"; 
-    let ledgerReason = "-";
+    let awardedSeat = ""; 
+    let actionType = ""; 
+    let ledgerReason = "";
+    let wasDisplaced = false;
 
-    if (pPrefObj && pPrefObj.preferences && pPrefObj.preferences.length > 0) {
-      for (const entry of pPrefObj.preferences) {
-        const bidStr = String(entry.bid || "").trim();
-        if (bidStr === "" || !seatLedger[bidStr]) continue;
+    let bids = [];
+    if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
+      bids = pPrefObj.preferences.filter(entry => String(entry.bid || "").trim() !== "");
+    }
+    
+    let bidIncludesStarting = bids.some(b => String(b.bid).trim() === startingSeat);
+    let resolved = false;
 
-        // BPL Check
-        const bplVal = parseInt(entry.bpl_min || 0);
-        const projectedCatSen = (categorySeniority[bidStr] || 0) + 1; 
-        if (bplVal > 0 && projectedCatSen > bplVal) {
-          continue; // Blocked by BPL
-        }
+    for (const entry of bids) {
+      const bidStr = String(entry.bid).trim();
+      if (!seatLedger[bidStr]) continue;
 
-        // Check if bidding to stay put
-        if (bidStr === startingSeat) {
-          awardedSeat = startingSeat;
-          actionType = "stay";
-          ledgerReason = "Held Current Seat";
-          break;
-        }
+      const bplVal = parseInt(entry.bpl_min || 0);
+      const projectedCatSen = seatLedger[bidStr].awardedCount + 1; 
 
-        // Check availability (Primary + Secondary)
-        let availableSpots = seatLedger[bidStr].primaryRemaining + seatLedger[bidStr].secondaryQueue.length;
+      if (bplVal > 0 && projectedCatSen > bplVal) {
+        continue; 
+      }
+
+      if (seatLedger[bidStr].targetCap > seatLedger[bidStr].awardedCount) {
+        awardedSeat = bidStr;
+        seatLedger[bidStr].awardedCount++;
+        seatLedger[bidStr].juniorSen = pSen; // Update the cutoff score
+        resolved = true;
         
-        if (availableSpots > 0) {
-          awardedSeat = bidStr;
-          actionType = "awarded";
-          
-          // Determine Ledger Origin
-          if (seatLedger[bidStr].primaryRemaining > 0) {
-            let before = seatLedger[bidStr].primaryRemaining;
-            seatLedger[bidStr].primaryRemaining--;
-            ledgerReason = `Primary Vacancy (${before} -> ${seatLedger[bidStr].primaryRemaining})`;
-          } else {
-            let providerSen = seatLedger[bidStr].secondaryQueue.shift();
-            ledgerReason = `Secondary Vacancy (Created by Sen #${providerSen})`;
-          }
-          
-          // Add vacated seat to the secondary queue for the rest of the airline
-          if (startingSeat !== "" && seatLedger[startingSeat]) {
-            seatLedger[startingSeat].secondaryQueue.push(pSen);
-          }
-          break; 
+        if (bidStr === startingSeat) {
+           actionType = "HELD";
+           ledgerReason = `Held Seat (Spot ${seatLedger[bidStr].awardedCount} of ${seatLedger[bidStr].targetCap})`;
+        } else {
+           actionType = wasDisplaced ? "DISPLACED_MOVED" : "MOVED";
+           let prefix = wasDisplaced ? "Displaced -> " : "";
+           ledgerReason = `${prefix}Awarded ${bidStr} (Spot ${seatLedger[bidStr].awardedCount} of ${seatLedger[bidStr].targetCap})`;
+        }
+        break; 
+      } else {
+        if (bidStr === startingSeat) {
+          wasDisplaced = true;
         }
       }
     }
 
-    // Default reason if no valid bids were found or processed
-    if (awardedSeat === startingSeat && ledgerReason === "-") {
-      ledgerReason = "Held Current Seat (No Target Met / BPL Blocked)";
+    if (!resolved && startingSeat !== "" && seatLedger[startingSeat] && !bidIncludesStarting) {
+       if (seatLedger[startingSeat].targetCap > seatLedger[startingSeat].awardedCount) {
+          awardedSeat = startingSeat;
+          seatLedger[startingSeat].awardedCount++;
+          seatLedger[startingSeat].juniorSen = pSen; // Update cutoff score
+          actionType = "HELD";
+          ledgerReason = `Held Seat Implicitly (Spot ${seatLedger[startingSeat].awardedCount} of ${seatLedger[startingSeat].targetCap})`;
+          resolved = true;
+       } else {
+          wasDisplaced = true;
+       }
     }
 
-    if (awardedSeat !== "") {
-      categorySeniority[awardedSeat] = (categorySeniority[awardedSeat] || 0) + 1;
+    if (!resolved) {
+       awardedSeat = "UNASSIGNED";
+       actionType = "DISPLACED_UNASSIGNED";
+       ledgerReason = wasDisplaced ? "DISPLACED -> No Backups Available" : "No Valid Bids & No Starting Seat";
     }
 
-    // Push to Full System Log
+    let cssClass = "";
+    let uiAction = "";
+    if (actionType === "MOVED") { cssClass = "action-awarded"; uiAction = "MOVED"; }
+    else if (actionType === "HELD") { cssClass = "action-stay"; uiAction = "HELD"; }
+    else if (actionType === "DISPLACED_MOVED") { cssClass = "action-vacated"; uiAction = "DISPLACED -> MOVED"; }
+    else if (actionType === "DISPLACED_UNASSIGNED") { cssClass = "action-danger"; uiAction = "DISPLACED -> LOST SEAT"; }
+
     fullSystemLog.push({
       sen: pSen,
       start: startingSeat || "N/A",
-      final: awardedSeat || "N/A",
-      status: (actionType === "awarded") ? "MOVED" : "HELD",
+      final: awardedSeat,
+      status: uiAction,
       ledger: ledgerReason,
-      css: (actionType === "awarded") ? "action-awarded" : "action-stay"
+      css: cssClass
     });
   }
 
-  // 3. RENDER UI FOR SPECIFIC SENIORITY
-  const myLog = fullSystemLog.find(l => l.sen === mySen);
+  finalSeatLedger = seatLedger;
+
+  // 3. RENDER GLOBAL SUMMARY TABLE
+  const summaryTbody = document.getElementById("globalSummaryTable");
+  let summaryHTML = "";
   
-  if (myLog) {
-    document.getElementById("dashStarting").textContent = myLog.start;
-    document.getElementById("dashAction").textContent = myLog.status;
-    document.getElementById("dashAction").style.color = (myLog.status === "MOVED") ? "var(--success)" : "var(--text-muted)";
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      const data = seatLedger[key];
+      const openSpots = Math.max(0, data.targetCap - data.awardedCount);
+      
+      const openSpotsStyled = openSpots > 0 
+        ? `<span class="val-success">${openSpots}</span>` 
+        : `<span class="val-danger">0</span>`;
+        
+      const modStyled = data.modApplied !== 0 
+        ? `<span style="color: var(--accent);">${data.modApplied > 0 ? '+' : ''}${data.modApplied}</span>` 
+        : `0`;
+
+      summaryHTML += `
+        <tr>
+          <td style="color: var(--accent);">${key}</td>
+          <td>${data.pubDelta}</td>
+          <td>${modStyled}</td>
+          <td>${data.targetCap}</td>
+          <td>${data.awardedCount}</td>
+          <td>${openSpotsStyled}</td>
+          <td style="color: var(--warning);">${data.juniorSen}</td>
+        </tr>
+      `;
+    });
+  });
+  summaryTbody.innerHTML = summaryHTML;
+
+  // 4. RENDER PERSONAL UI (If a Sen # is entered)
+  const mySenInput = document.getElementById("senInput").value;
+  if (mySenInput !== "") {
+    const mySen = parseInt(mySenInput);
+    const myLog = fullSystemLog.find(l => l.sen === mySen);
     
-    document.getElementById("awardStatus").textContent = myLog.final;
-    document.getElementById("awardStatus").style.color = (myLog.status === "MOVED") ? "var(--success)" : "var(--accent)";
-    
-    document.getElementById("vacancyMath").textContent = `Ledger: ${myLog.ledger}`;
+    if (myLog) {
+      document.getElementById("dashStarting").textContent = myLog.start;
+      
+      document.getElementById("awardStatus").textContent = myLog.final;
+      if (myLog.status.includes("DISPLACED -> LOST")) {
+        document.getElementById("awardStatus").style.color = "var(--danger)";
+      } else if (myLog.status === "MOVED" || myLog.status.includes("DISPLACED -> MOVED")) {
+        document.getElementById("awardStatus").style.color = "var(--success)";
+      } else {
+        document.getElementById("awardStatus").style.color = "var(--accent)";
+      }
+      
+      document.getElementById("vacancyMath").textContent = `Ledger: ${myLog.ledger}`;
+
+      if (myLog.final !== "UNASSIGNED" && seatLedger[myLog.final]) {
+         let capData = seatLedger[myLog.final];
+         document.getElementById("dashTotalSpots").textContent = capData.targetCap;
+         document.getElementById("dashRemaining").textContent = Math.max(0, capData.targetCap - capData.awardedCount);
+      } else {
+         document.getElementById("dashTotalSpots").textContent = "N/A";
+         document.getElementById("dashRemaining").textContent = "N/A";
+      }
+
+    } else {
+      document.getElementById("awardStatus").textContent = "PILOT NOT FOUND";
+      document.getElementById("vacancyMath").textContent = "Check Seniority # and try again.";
+      document.getElementById("dashStarting").textContent = "-";
+      document.getElementById("dashTotalSpots").textContent = "-";
+      document.getElementById("dashRemaining").textContent = "-";
+    }
   } else {
-    document.getElementById("awardStatus").textContent = "PILOT NOT FOUND";
-    document.getElementById("vacancyMath").textContent = "Check Seniority # and try again.";
+      document.getElementById("awardStatus").textContent = "ENTER SEN #";
+      document.getElementById("vacancyMath").textContent = "Enter your seniority above to see your personal result.";
   }
 
-  // Render Master Log Table
+  // 5. RENDER MASTER LOG TABLE
   document.getElementById("competitorTable").innerHTML = fullSystemLog.map(c => `
     <tr>
       <td>${c.sen}</td>
       <td>${c.start}</td>
-      <td><span style="font-weight: 800; color: ${c.status === 'MOVED' ? 'var(--success)' : 'var(--text-muted)'}">${c.final}</span></td>
+      <td><span style="font-weight: 800; color: ${c.status.includes('LOST') ? 'var(--danger)' : (c.status.includes('MOVED') ? 'var(--success)' : 'var(--text-muted)')}">${c.final}</span></td>
       <td><span class="action-pill ${c.css}">${c.status}</span></td>
       <td class="ledger-text">${c.ledger}</td>
     </tr>
@@ -348,10 +458,9 @@ function exportToCSV() {
     return;
   }
   
-  let csvContent = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,Vacancy Ledger Source\n";
+  let csvContent = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,Displacement Ledger Source\n";
   
   fullSystemLog.forEach(row => {
-    // Wrap ledger in quotes in case of commas
     csvContent += `${row.sen},${row.start},${row.final},${row.status},"${row.ledger}"\n`;
   });
   
@@ -360,7 +469,7 @@ function exportToCSV() {
   
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", "Master_System_Award_Ledger.csv");
+  link.setAttribute("download", "Displacement_System_Ledger.csv");
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
