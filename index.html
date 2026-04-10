@@ -105,9 +105,10 @@
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <h3 style="margin: 0;">Displacement & Vacancy Ledger</h3>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button onclick="exportFinalAwardsCSV()" class="btn-secondary" style="border-color: var(--success); color: var(--success);">Export Final Awards</button>
           <button onclick="exportAuditCSV()" class="btn-secondary">Export Full Audit Trail</button>
+          <button onclick="exportBPLRostersCSV()" class="btn-secondary" style="border-color: var(--warning); color: var(--warning);">Export BPL Seat Rosters</button>
         </div>
       </div>
       <div class="table-container">
@@ -130,6 +131,7 @@
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set();
 let fullSystemLog = []; 
+let globalSeatLedger = {}; // Global reference for the BPL export
 
 const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
 const allSeats = ["CA", "FO"];
@@ -197,7 +199,8 @@ function runAnalysis() {
         targetCap: Math.max(0, parseInt(capObj.start) + pubModTotal),
         awardedCount: 0,
         originalVacancies: Math.max(0, pubModTotal),
-        juniorSen: "N/A" 
+        juniorSen: "N/A",
+        awardedPilots: [] // NEW: Array to track who is sitting in this seat and their BPL spot
       };
       vacatedSeats[key] = []; 
     });
@@ -222,6 +225,16 @@ function runAnalysis() {
       auditLog.push(`Pilot identified as exempt (${reason}).`);
       auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
       
+      if (startingSeat && seatLedger[startingSeat]) {
+          seatLedger[startingSeat].awardedPilots.push({
+              spot: "EXEMPT",
+              sen: pSen,
+              name: pName,
+              start: startingSeat,
+              status: "HELD (EXEMPT)"
+          });
+      }
+
       fullSystemLog.push({
         sen: pSen,
         name: pName,
@@ -288,6 +301,15 @@ function runAnalysis() {
         seatLedger[bidKey].juniorSen = pSen; 
         resolved = true;
         
+        // Log the pilot into the seat's roster queue
+        seatLedger[bidKey].awardedPilots.push({
+            spot: seatLedger[bidKey].awardedCount,
+            sen: pSen,
+            name: pName,
+            start: startingSeat,
+            status: (bidKey === startingSeat) ? "HELD" : "MOVED"
+        });
+        
         if (bidKey === startingSeat) {
             actionType = "HELD";
             ledgerReason = "Remain in current position.";
@@ -334,6 +356,13 @@ function runAnalysis() {
           if (seatLedger[startingSeat]) {
               seatLedger[startingSeat].awardedCount++;
               seatLedger[startingSeat].juniorSen = pSen;
+              seatLedger[startingSeat].awardedPilots.push({
+                  spot: seatLedger[startingSeat].awardedCount,
+                  sen: pSen,
+                  name: pName,
+                  start: startingSeat,
+                  status: "HELD"
+              });
           }
        } else {
           // True unassigned
@@ -366,6 +395,7 @@ function runAnalysis() {
     });
   }
 
+  globalSeatLedger = seatLedger; // Expose globally for the BPL export
   renderUI(seatLedger);
 }
 
@@ -445,14 +475,13 @@ function exportFinalAwardsCSV() {
     let base = "UNASSIGNED";
     let seat = "UNASSIGNED";
     
-    // If the pilot was awarded a valid seat like "SEA CA", split it into Base and Seat
     if (r.final && r.final !== "UNASSIGNED" && r.final !== "N/A") {
       const parts = r.final.trim().split(" ");
       if (parts.length >= 2) {
         base = parts[0];
         seat = parts[1];
       } else {
-        base = r.final; // Fallback if formatting is weird
+        base = r.final;
         seat = "";
       }
     }
@@ -461,11 +490,7 @@ function exportFinalAwardsCSV() {
   });
   
   const blob = new Blob([csv], { type: 'text/csv' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.setAttribute('href', url);
-  a.setAttribute('download', 'Final_Awards_Summary.csv');
-  a.click();
+  triggerDownload(blob, 'Final_Awards_Summary.csv');
 }
 
 // EXPORT 2: Detailed Audit Trail Output
@@ -475,18 +500,41 @@ function exportAuditCSV() {
   let csv = "Seniority,Pilot Name,Starting Seat,Final Awarded Seat,Movement Status,Final Note,Audit Trail\n";
   
   fullSystemLog.forEach(r => {
-    // Strip HTML tags for the CSV export of the audit trail and join with newlines
     const plainTextAudit = r.audit.map(str => str.replace(/<[^>]+>/g, '')).join('\n');
-    
-    // Wrap strings in quotes to handle commas and newlines inside the fields safely
     csv += `"${r.sen}","${r.name}","${r.start}","${r.final}","${r.status}","${r.ledger}","${plainTextAudit}"\n`;
   });
   
   const blob = new Blob([csv], { type: 'text/csv' });
+  triggerDownload(blob, 'Displacement_Results_With_Audit_Trail.csv');
+}
+
+// EXPORT 3: BPL Seat Rosters (Queue mapping)
+function exportBPLRostersCSV() {
+  if (Object.keys(globalSeatLedger).length === 0 || fullSystemLog.length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Awarded Seat,BPL Spot #,Pilot Seniority,Pilot Name,Starting Seat,Movement Status\n";
+  
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      if (globalSeatLedger[key] && globalSeatLedger[key].awardedPilots) {
+          globalSeatLedger[key].awardedPilots.forEach(pilot => {
+              csv += `"${key}","${pilot.spot}","${pilot.sen}","${pilot.name}","${pilot.start}","${pilot.status}"\n`;
+          });
+      }
+    });
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  triggerDownload(blob, 'BPL_Seat_Rosters.csv');
+}
+
+// Helper to trigger file downloads
+function triggerDownload(blob, filename) {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.setAttribute('href', url);
-  a.setAttribute('download', 'Displacement_Results_With_Audit_Trail.csv');
+  a.setAttribute('download', filename);
   a.click();
 }
 
