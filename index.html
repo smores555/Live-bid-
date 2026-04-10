@@ -48,7 +48,6 @@
     th { color: var(--accent); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
     tr:hover { background: rgba(0, 229, 255, 0.03); }
     
-    .bpl-pill { display: inline-block; padding: 2px 6px; background: rgba(255, 71, 114, 0.15); border: 1px solid var(--danger); border-radius: 4px; color: var(--danger); font-weight: 800; font-size: 10px; margin-left: 8px; }
     .action-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
@@ -57,12 +56,10 @@
     .summary-text { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; }
     .data-dates { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: -5px; margin-bottom: 24px; font-weight: 600; line-height: 1.6; text-transform: uppercase; letter-spacing: 1px; }
     
-    /* Snapshot Badge Styles */
     .status-card { text-align: center; padding: 30px; border: 2px solid var(--border); background: #06111f; box-shadow: inset 0 0 40px rgba(0,0,0,0.5); }
     #awardStatus { font-size: 34px; font-weight: 900; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
     #vacancyMath { font-size: 15px; color: var(--text-muted); margin-top: 8px; font-weight: 500; }
 
-    /* Override Grid Styles */
     .override-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 15px; }
     .override-input-group { background: #07111f; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
     .override-input-group label { margin-bottom: 4px; font-size: 10px; color: var(--accent); }
@@ -78,7 +75,7 @@
 <body>
   <div class="container">
     <div class="card">
-      <h2 style="text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 900; letter-spacing: -0.5px;">Live Cascade Engine</h2>
+      <h2 style="text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 900; letter-spacing: -0.5px;">System Award Engine</h2>
       <div class="data-dates">
         Seniority Data: FEB 2026 | Bid Data: 06-2026
       </div>
@@ -128,18 +125,18 @@
         <div class="override-input-group"><label>SFO FO</label><input type="number" id="mod_SFO_FO" placeholder="0"></div>
       </div>
       
-      <button id="calcBtn" style="margin-top: 20px;">Run Cascade Simulation</button>
+      <button id="calcBtn" style="margin-top: 20px;">Run Full System Award</button>
     </div>
 
     <div class="card status-card">
-      <label>Projected Award Status</label>
+      <label>Your Projected Award Snapshot</label>
       <div id="awardStatus" style="color: var(--text-muted);">AWAITING DATA</div>
       <div id="vacancyMath">Enter your seniority and run the cascade to see your status.</div>
     </div>
 
     <div class="grid">
       <div class="card" style="text-align:center;">
-        <label>Primary Vacancies (Post-Mod)</label>
+        <label>Target Primary Vacancies</label>
         <div id="primaryResult" class="big-num">-</div>
       </div>
       <div class="card" style="text-align:center;">
@@ -147,16 +144,17 @@
         <div id="secondaryResult" class="big-num" style="color:var(--warning);">-</div>
       </div>
       <div class="card" style="text-align:center; border: 1px solid var(--success); background: rgba(0, 255, 170, 0.05);">
-        <label style="color: var(--success);">Total Available Spots</label>
+        <label style="color: var(--success);">Available At Your Sen #</label>
         <div id="totalSpotsResult" class="big-num" style="color:var(--success);">-</div>
       </div>
     </div>
 
     <div class="card">
       <div class="override-header">
-        <h3>Seniority Log: Interaction with Target Seat</h3>
-        <button id="exportBtn" class="btn-secondary">Export CSV</button>
+        <h3>Master System Award Log</h3>
+        <button id="exportBtn" class="btn-secondary">Export Full System CSV</button>
       </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Displaying pilots who bid into or vacated your Target Seat. Use the Export button to download the entire system movement for all bases.</div>
       <table>
         <thead>
           <tr>
@@ -173,7 +171,8 @@
 
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {};
-let globalEventLog = []; // Stores the log globally so it can be exported
+let fullSystemLog = []; // Stores EVERY pilot's movement for the CSV export
+let uiEventLog = []; // Stores only Target Seat interactions for the UI table
 
 function findCurrent(p) {
   if (!p || !p.current) return "";
@@ -235,7 +234,6 @@ function runAnalysis() {
       if (modInput && modInput.value !== "") {
         modValue = parseInt(modInput.value) || 0;
       }
-      
       runningCapacities[key] = Math.max(0, basePublished + modValue);
     });
   });
@@ -244,13 +242,25 @@ function runAnalysis() {
 
   let categorySeniority = {}; 
   let secondaryVacanciesCreated = 0; 
-  globalEventLog = []; // Reset the global log array
+  
+  fullSystemLog = []; 
+  uiEventLog = []; 
+
+  // Snapshots for the UI Dashboard when it hits the User's seniority
+  let mySnapshotSpots = 0;
+  let mySnapshotSecondary = 0;
 
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
+  // 2. THE FULL SYSTEM CASCADE LOOP
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
-    if (pSen >= mySen) break; 
+
+    // SNAPSHOT LOGIC: Capture the exact numbers the moment it is the User's turn
+    if (pSen === mySen) {
+      mySnapshotSpots = runningCapacities[targetString] || 0;
+      mySnapshotSecondary = secondaryVacanciesCreated;
+    }
 
     const startingSeat = findCurrent(p);
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
@@ -285,9 +295,10 @@ function runAnalysis() {
           
           if (startingSeat !== "") {
             runningCapacities[startingSeat] = (runningCapacities[startingSeat] || 0) + 1;
-            if (startingSeat === targetString) {
+            
+            // Only track Target Seat secondary creations for the UI
+            if (startingSeat === targetString && pSen < mySen) {
               secondaryVacanciesCreated++;
-              actionType = "vacated";
             }
           }
           break; 
@@ -299,17 +310,25 @@ function runAnalysis() {
       categorySeniority[awardedSeat] = (categorySeniority[awardedSeat] || 0) + 1;
     }
 
+    // RECORD FOR SYSTEM-WIDE CSV LOG
+    fullSystemLog.push({
+      sen: pSen,
+      start: startingSeat || "N/A",
+      final: awardedSeat || "N/A",
+      status: (actionType === "awarded") ? "MOVED" : "HELD"
+    });
+
+    // RECORD ONLY TARGET SEAT INTERACTIONS FOR THE UI TABLE
     if (awardedSeat === targetString && actionType === "awarded") {
-      globalEventLog.push({ sen: pSen, start: startingSeat, action: "TOOK VACANCY", final: awardedSeat, css: "action-awarded" });
-    } else if (actionType === "vacated") {
-      globalEventLog.push({ sen: pSen, start: startingSeat, action: "LEFT SEAT", final: awardedSeat, css: "action-vacated" });
+      uiEventLog.push({ sen: pSen, start: startingSeat, action: "TOOK VACANCY", final: awardedSeat, css: "action-awarded" });
+    } else if (startingSeat === targetString && actionType === "awarded") {
+      uiEventLog.push({ sen: pSen, start: startingSeat, action: "LEFT SEAT", final: awardedSeat, css: "action-vacated" });
     } else if (awardedSeat === targetString && actionType === "stay") {
-      globalEventLog.push({ sen: pSen, start: startingSeat, action: "HELD SEAT", final: awardedSeat, css: "action-stay" });
+      uiEventLog.push({ sen: pSen, start: startingSeat, action: "HELD SEAT", final: awardedSeat, css: "action-stay" });
     }
   }
 
-  let spotsRemainingForMe = runningCapacities[targetString] || 0;
-
+  // 3. UI DASHBOARD UPDATE (Based on User's Snapshot)
   const statusBadge = document.getElementById("awardStatus");
   const mathText = document.getElementById("vacancyMath");
 
@@ -317,11 +336,11 @@ function runAnalysis() {
     statusBadge.textContent = "🟢 CURRENTLY HOLDING";
     statusBadge.style.color = "var(--success)";
     mathText.textContent = `You already hold this seat.`;
-  } else if (spotsRemainingForMe > 0) {
+  } else if (mySnapshotSpots > 0) {
     statusBadge.textContent = "🟢 AWARDED";
     statusBadge.style.color = "var(--success)";
     statusBadge.style.borderColor = "var(--success)";
-    mathText.textContent = `The cascade reached you with ${spotsRemainingForMe} spots remaining. You get the seat!`;
+    mathText.textContent = `The cascade reached you with ${mySnapshotSpots} spots remaining. You get the seat!`;
   } else {
     statusBadge.textContent = "🔴 NOT AWARDED";
     statusBadge.style.color = "var(--danger)";
@@ -330,13 +349,14 @@ function runAnalysis() {
   }
 
   document.getElementById("primaryResult").textContent = startingPrimaryForTarget;
-  document.getElementById("secondaryResult").textContent = `+${secondaryVacanciesCreated}`;
-  document.getElementById("totalSpotsResult").textContent = spotsRemainingForMe;
+  document.getElementById("secondaryResult").textContent = `+${mySnapshotSecondary}`;
+  document.getElementById("totalSpotsResult").textContent = mySnapshotSpots;
 
-  document.getElementById("competitorTable").innerHTML = globalEventLog.map(c => `
+  // Render HTML Table (Filtered to Target Seat)
+  document.getElementById("competitorTable").innerHTML = uiEventLog.map(c => `
     <tr>
       <td>${c.sen}</td>
-      <td>${c.start || 'N/A'}</td>
+      <td>${c.start}</td>
       <td><span class="action-pill ${c.css}">${c.action}</span></td>
       <td>${c.final}</td>
     </tr>
@@ -344,25 +364,23 @@ function runAnalysis() {
 }
 
 function exportToCSV() {
-  if (!globalEventLog || globalEventLog.length === 0) {
-    alert("No data to export. Please run the cascade simulation first.");
+  if (!fullSystemLog || fullSystemLog.length === 0) {
+    alert("No data to export. Please run the full system award first.");
     return;
   }
   
-  let csvContent = "Seniority,Starting Seat,Action Taken,Final Award\n";
+  let csvContent = "Seniority,Starting Seat,Final Awarded Seat,Movement Status\n";
   
-  globalEventLog.forEach(row => {
-    const startSeat = row.start || "N/A";
-    csvContent += `${row.sen},${startSeat},${row.action},${row.final}\n`;
+  fullSystemLog.forEach(row => {
+    csvContent += `${row.sen},${row.start},${row.final},${row.status}\n`;
   });
   
-  // Creates a Blob file to safely handle huge downloads without freezing the browser
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", "cascade_transaction_log.csv");
+  link.setAttribute("download", "System_Award_Log.csv");
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
