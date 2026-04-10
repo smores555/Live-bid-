@@ -110,7 +110,7 @@
               <th>Starting Seat</th>
               <th>Final Award</th>
               <th>Status</th>
-              <th>Displacement Ledger Reason (Proffers & Denials)</th>
+              <th>Award Note (Official Ledger Format)</th>
             </tr>
           </thead>
           <tbody id="competitorTable"></tbody>
@@ -201,6 +201,7 @@ function runAnalysis() {
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     const startingSeat = findCurrent(p);
+    const pName = String(p.name || p.pil || p.Pilot || "UNKNOWN");
     
     let is320 = false;
     if (p.current) is320 = Object.values(p.current).some(val => String(val).includes("320"));
@@ -212,7 +213,7 @@ function runAnalysis() {
         start: startingSeat || "N/A",
         final: startingSeat,
         status: "HELD (EXEMPT)",
-        ledger: is320 ? "Exempt - 320 Fleet" : "Exempt - Frozen Bidding Status",
+        ledger: is320 ? "Remain in current position. (320 Fleet)" : "Not allowed to bid. Remain in current position.",
         css: "action-stay"
       });
       continue;
@@ -247,7 +248,7 @@ function runAnalysis() {
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
       if (bplVal > 0 && projectedCatSen > bplVal) {
-        if (isFirst) firstChoiceDeniedReason = `Denied #1 (${bidKey}): Hit BPL Limit`;
+        if (isFirst) firstChoiceDeniedReason = `Hit Base Percentage Limit (BPL).`;
         continue; 
       }
 
@@ -260,29 +261,28 @@ function runAnalysis() {
         
         if (bidKey === startingSeat) {
             actionType = "HELD";
-            ledgerReason = "Awarded Current Position";
+            ledgerReason = "Remain in current position.";
         } else {
             actionType = "MOVED";
-            let pText = "";
+            
             if (seatLedger[awardedSeat].originalVacancies > 0) {
                 seatLedger[awardedSeat].originalVacancies--;
-                pText = "(Open System Vacancy)";
+                ledgerReason = "Open position available.";
             } else if (vacatedSeats[awardedSeat].length > 0) {
-                let profferedBySen = vacatedSeats[awardedSeat].shift();
-                pText = `(Proffered from Sen ${profferedBySen})`;
+                let profferedPilot = vacatedSeats[awardedSeat].shift();
+                ledgerReason = `Open position available. Proffered from ${profferedPilot.sen} - ${profferedPilot.name}.`;
             } else {
-                pText = "(Capacity Expansion)";
+                ledgerReason = "Open position available.";
             }
-            ledgerReason = `Awarded ${bidKey} ${pText}`;
             
-            // Vacate old seat
+            // Vacate old seat and push the pilot's name into the queue
             if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
-                vacatedSeats[startingSeat].push(pSen);
+                vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
             }
         }
         break; 
       } else {
-        if (isFirst) firstChoiceDeniedReason = `Denied #1 (${bidKey}): Seat Full`;
+        if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
       }
     }
 
@@ -291,7 +291,7 @@ function runAnalysis() {
        if (startingSeat && startingSeat !== "N/A" && startingSeat !== "") {
           awardedSeat = startingSeat;
           actionType = "HELD";
-          ledgerReason = "Denied all bids -> Maintained Current Position";
+          ledgerReason = "Remain in current position.";
           
           if (seatLedger[startingSeat]) {
               seatLedger[startingSeat].awardedCount++;
@@ -301,10 +301,10 @@ function runAnalysis() {
           // True unassigned
           awardedSeat = "UNASSIGNED";
           actionType = "LOST";
-          ledgerReason = "No Bids & No Active Position Available";
+          ledgerReason = "Requested position has 0 vacancy and cannot accept additional pilots.";
           
           if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
-              vacatedSeats[startingSeat].push(pSen);
+              vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
           }
        }
     }
@@ -312,7 +312,7 @@ function runAnalysis() {
     // Append Denial Reason if they didn't get their first choice
     let firstBidKey = normalizedBids.length > 0 ? normalizedBids[0].parsedKey : "";
     if (firstChoiceDeniedReason && awardedSeat !== firstBidKey) {
-        ledgerReason += ` | [${firstChoiceDeniedReason}]`;
+        ledgerReason += ` (Denied ${firstBidKey}: ${firstChoiceDeniedReason})`;
     }
 
     fullSystemLog.push({
@@ -344,7 +344,7 @@ function searchPilot() {
     document.getElementById('dashStart').innerText = pilotData.start;
     document.getElementById('dashFinal').innerText = pilotData.final;
     document.getElementById('dashStatus').innerText = pilotData.status;
-    document.getElementById('dashLedger').innerText = "> Ledger Log: " + pilotData.ledger;
+    document.getElementById('dashLedger').innerText = "> Award Note: " + pilotData.ledger;
     
     document.getElementById('dashFinal').style.color = pilotData.css === "action-awarded" ? "var(--success)" : (pilotData.css === "action-danger" ? "var(--danger)" : "var(--accent)");
   } else {
@@ -387,7 +387,7 @@ function renderUI(seatLedger) {
 
 function exportToCSV() {
   if (fullSystemLog.length === 0) return alert("Please run the analysis first.");
-  let csv = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,Displacement Ledger Reason\n";
+  let csv = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,Award Note\n";
   fullSystemLog.forEach(r => {
     csv += `${r.sen},${r.start},${r.final},${r.status},"${r.ledger}"\n`;
   });
@@ -395,7 +395,7 @@ function exportToCSV() {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.setAttribute('href', url);
-  a.setAttribute('download', 'Displacement_Results_With_Proffers.csv');
+  a.setAttribute('download', 'Displacement_Results_Official_Format.csv');
   a.click();
 }
 
