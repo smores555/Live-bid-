@@ -241,6 +241,7 @@ function runAnalysis() {
     let actionType = ""; 
     let ledgerReason = "";
     let resolved = false;
+    let firstChoiceDeniedReason = "";
 
     // Normalize preferences
     let normalizedBids = [];
@@ -261,6 +262,7 @@ function runAnalysis() {
     for (let i = 0; i < normalizedBids.length; i++) {
       const entry = normalizedBids[i];
       const bidKey = entry.parsedKey;
+      const isFirst = (i === 0);
       
       auditLog.push(`Evaluating Bid Preference ${i + 1}: ${bidKey}`);
 
@@ -273,7 +275,9 @@ function runAnalysis() {
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
       if (bplVal > 0 && projectedCatSen > bplVal) {
-        auditLog.push(`<span class="audit-fail">Denied: Hit Base Percentage Limit (BPL restriction).</span>`);
+        const bplReasonText = `Hit Base Percentage Limit (BPL limit: ${bplVal}, pilot would be #${projectedCatSen} in base).`;
+        auditLog.push(`<span class="audit-fail">Denied: ${bplReasonText}</span>`);
+        if (isFirst) firstChoiceDeniedReason = bplReasonText;
         continue; 
       }
 
@@ -314,6 +318,7 @@ function runAnalysis() {
         break; 
       } else {
         auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
+        if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
       }
     }
 
@@ -341,6 +346,12 @@ function runAnalysis() {
               vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
           }
        }
+    }
+
+    // Append Denial Reason if they didn't get their first choice
+    let firstBidKey = normalizedBids.length > 0 ? normalizedBids[0].parsedKey : "";
+    if (firstChoiceDeniedReason && awardedSeat !== firstBidKey) {
+        ledgerReason += ` (Denied ${firstBidKey}: ${firstChoiceDeniedReason})`;
     }
 
     fullSystemLog.push({
