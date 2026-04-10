@@ -252,7 +252,7 @@ function runAnalysis() {
         audit: auditLog,
         css: "action-stay"
       });
-      continue; // Skip the rest of the loop for this pilot
+      continue; 
     }
 
     // 2. STANDARD BIDDING LOGIC
@@ -263,8 +263,9 @@ function runAnalysis() {
     let resolved = false;
     let firstChoiceDeniedReason = "";
 
-    // STRICT DEDUPLICATION OF BIDS: 
-    // A pilot can only evaluate for a specific Base+Seat once. We keep their highest preference.
+    // SMART DEDUPLICATION OF BIDS: 
+    // Key is Base + Seat + BPL Limit. 
+    // This allows cascading fallback bids for the same base if the BPL changes.
     let normalizedBids = [];
     let seenBids = new Set();
     
@@ -276,11 +277,14 @@ function runAnalysis() {
         
         if (bMatch && sMatch) {
           const parsedKey = `${bMatch} ${sMatch}`;
-          if (!seenBids.has(parsedKey)) {
-             seenBids.add(parsedKey);
+          const bplVal = parseInt(entry.bpl_min || 0);
+          const uniqueBidKey = `${parsedKey}_${bplVal}`; 
+          
+          if (!seenBids.has(uniqueBidKey)) {
+             seenBids.add(uniqueBidKey);
              normalizedBids.push({ ...entry, parsedKey: parsedKey });
           } else {
-             auditLog.push(`Skipped duplicate bid entry for ${parsedKey}.`);
+             auditLog.push(`Skipped identical duplicate bid entry: ${parsedKey} (BPL limit: ${bplVal}).`);
           }
         }
       });
@@ -294,16 +298,17 @@ function runAnalysis() {
     for (let i = 0; i < normalizedBids.length; i++) {
       const entry = normalizedBids[i];
       const bidKey = entry.parsedKey;
+      const bplVal = parseInt(entry.bpl_min || 0);
       const isFirst = (i === 0);
       
-      auditLog.push(`Evaluating Bid Preference ${i + 1}: ${bidKey}`);
+      let bplTextLog = bplVal > 0 ? ` (BPL Limit: ${bplVal})` : "";
+      auditLog.push(`Evaluating Bid Preference ${i + 1}: ${bidKey}${bplTextLog}`);
 
       if (!seatLedger[bidKey]) {
           auditLog.push(`<span class="audit-warn">Warning: Seat ${bidKey} does not exist in capacity ledger. Skipping.</span>`);
           continue;
       }
 
-      const bplVal = parseInt(entry.bpl_min || 0);
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
       if (bplVal > 0 && projectedCatSen > bplVal) {
@@ -357,7 +362,7 @@ function runAnalysis() {
             auditLog.push(`-> Reduced vacancy in ${awardedSeat}.`);
         }
         
-        break; // Crucial: Exits the bid loop so they only take 1 slot
+        break; // Exits the bid loop so they only take 1 slot
       } else {
         auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
         if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
