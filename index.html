@@ -289,7 +289,7 @@ function runAnalysis() {
     let actionType = ""; 
     let ledgerReason = "";
     let wasDisplaced = false;
-    let bplActivityLog = []; // NEW: Tracks BPL interactions
+    let bplActivityLog = []; 
 
     let normalizedBids = [];
     if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
@@ -307,7 +307,6 @@ function runAnalysis() {
       }
     }
     
-    let bidIncludesStarting = normalizedBids.some(b => b.parsedKey === startingSeat);
     let resolved = false;
 
     for (const entry of normalizedBids) {
@@ -317,20 +316,16 @@ function runAnalysis() {
       const bplVal = parseInt(entry.bpl_min || 0);
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
-      // BPL Evaluation Check
       if (bplVal > 0) {
         if (projectedCatSen > bplVal) {
-          // BPL Blocked
           bplActivityLog.push(`<span class="val-bpl-fail">Denied ${bidKey}</span> (Limit: ${bplVal}, Proj: ${projectedCatSen})`);
           continue; 
         } else {
-          // BPL Passed Check (Will record if this seat is ultimately awarded)
           bplActivityLog.push(`<span class="val-bpl-pass">Passed ${bidKey}</span> (Limit: ${bplVal}, Proj: ${projectedCatSen})`);
         }
       }
 
       if (seatLedger[bidKey].targetCap > seatLedger[bidKey].awardedCount) {
-        // Seat successfully awarded!
         awardedSeat = bidKey;
         seatLedger[bidKey].awardedCount++;
         seatLedger[bidKey].juniorSen = pSen; 
@@ -352,13 +347,16 @@ function runAnalysis() {
       }
     }
 
-    if (!resolved && startingSeat !== "" && seatLedger[startingSeat] && !bidIncludesStarting) {
+    // THE SAFETY NET FIX:
+    // If they missed all their bids (either failed BPLs, or bids were full), 
+    // keep them in their starting seat IF there is physical room for them!
+    if (!resolved && startingSeat !== "" && seatLedger[startingSeat]) {
        if (seatLedger[startingSeat].targetCap > seatLedger[startingSeat].awardedCount) {
           awardedSeat = startingSeat;
           seatLedger[startingSeat].awardedCount++;
           seatLedger[startingSeat].juniorSen = pSen; 
           actionType = "HELD";
-          ledgerReason = `Held Seat Implicitly (Spot ${seatLedger[startingSeat].awardedCount} of ${seatLedger[startingSeat].targetCap})`;
+          ledgerReason = `Held Starting Seat (Spot ${seatLedger[startingSeat].awardedCount} of ${seatLedger[startingSeat].targetCap})`;
           resolved = true;
        } else {
           wasDisplaced = true;
@@ -384,7 +382,7 @@ function runAnalysis() {
       final: awardedSeat,
       status: uiAction,
       bplNotes: bplActivityLog.length > 0 ? bplActivityLog.join('<br>') : "None",
-      bplExportText: bplActivityLog.length > 0 ? bplActivityLog.map(str => str.replace(/<[^>]+>/g, '')).join(' | ') : "None", // Clean text for CSV
+      bplExportText: bplActivityLog.length > 0 ? bplActivityLog.map(str => str.replace(/<[^>]+>/g, '')).join(' | ') : "None",
       ledger: ledgerReason,
       css: cssClass
     });
