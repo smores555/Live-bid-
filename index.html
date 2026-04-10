@@ -172,40 +172,26 @@ async function loadData() {
 
 function runAnalysis() {
   let seatLedger = {};
-  let vacatedSeats = {}; // Queue to track who vacated a seat
-  let startingHeadcount = {};
-
-  // 1. Calculate the active bidder baseline
-  allBases.forEach(b => allSeats.forEach(s => startingHeadcount[`${b} ${s}`] = 0));
-  ROSTER.forEach(p => {
-    let s = findCurrent(p);
-    let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
-    let isFrozen = NO_BID.has(parseInt(p.sen));
-    
-    // Only count active 737 bidders towards the starting capacity footprint
-    if (!is320 && !isFrozen && startingHeadcount[s] !== undefined) {
-        startingHeadcount[s]++;
-    }
-  });
+  let vacatedSeats = {}; 
   
-  // 2. Initialize ledgers and waterfall tracking
+  // Initialize ledgers and waterfall tracking strictly from capacities.json
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
-      let capObj = CAPACITIES[key] || { delta: 0 };
+      let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
       const modInput = document.getElementById(`mod_${b}_${s}`);
       let modValue = modInput ? parseInt(modInput.value) || 0 : 0;
-      let pubModTotal = capObj.delta + modValue;
+      let pubModTotal = parseInt(capObj.delta) + modValue;
       
       seatLedger[key] = {
         pubDelta: capObj.delta,
         modApplied: modValue,
-        targetCap: Math.max(0, startingHeadcount[key] + pubModTotal),
+        targetCap: Math.max(0, parseInt(capObj.start) + pubModTotal), // Pulls directly from JSON now
         awardedCount: 0,
-        originalVacancies: Math.max(0, pubModTotal), // Open spots before relying on proffers
+        originalVacancies: Math.max(0, pubModTotal),
         juniorSen: "N/A" 
       };
-      vacatedSeats[key] = []; // Will hold array of seniority numbers
+      vacatedSeats[key] = []; 
     });
   });
 
