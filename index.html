@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>  
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Bid Cascade Engine</title>
+  
+  <meta name="robots" content="noindex, nofollow">
+
+  <style>
+    :root {
+      --bg: #0b0f16; --card: #121a27; --accent: #2a66ff;
+      --text: #e8eefc; --border: rgba(255,255,255,.1);
+      --success: #39ff14; --danger: #ff4747; --warning: #ffb732;
+    }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    
+    label { display: block; font-size: 11px; font-weight: 700; opacity: .6; text-transform: uppercase; margin-bottom: 8px; }
+    input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: #0d1420; color: white; box-sizing: border-box; font-size: 14px; }
+    button { background: var(--accent); border: none; font-weight: 800; cursor: pointer; margin-top: 10px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    button:hover { opacity: 0.9; }
+    
+    .big-num { font-size: 32px; font-weight: 900; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    th { color: var(--accent); text-transform: uppercase; font-size: 11px; }
+    
+    .bpl-pill { display: inline-block; padding: 2px 6px; background: rgba(255, 125, 125, 0.15); border: 1px solid var(--danger); border-radius: 4px; color: var(--danger); font-weight: 800; font-size: 10px; margin-left: 8px; }
+    .action-pill { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; text-transform: uppercase; }
+    .action-awarded { background: rgba(57, 255, 20, 0.15); color: var(--success); border: 1px solid var(--success); }
+    .action-stay { background: rgba(255, 255, 255, 0.1); color: #aaa; border: 1px solid #555; }
+    .action-vacated { background: rgba(255, 183, 50, 0.15); color: var(--warning); border: 1px solid var(--warning); }
+
+    .summary-text { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; }
+    .data-dates { text-align: center; font-size: 12px; opacity: 0.6; margin-top: -5px; margin-bottom: 20px; font-weight: 600; line-height: 1.6; text-transform: uppercase; }
+    
+    /* Snapshot Badge Styles */
+    .status-card { text-align: center; padding: 30px; border: 2px solid var(--border); background: #080b10; }
+    #awardStatus { font-size: 32px; font-weight: 900; margin-top: 10px; letter-spacing: 1px; }
+    #vacancyMath { font-size: 15px; opacity: 0.8; margin-top: 8px; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h2 style="text-align: center; margin-bottom: 5px;">Live Cascade Engine</h2>
+      <div class="data-dates">
+        Seniority Data: FEB 2026 | Bid Data: 06-2026<br>
+        (Anonymized)
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Your Seniority #</label>
+          <input id="senInput" type="number" placeholder="e.g. 2670">
+          <div id="userStatusSummary" class="summary-text"></div>
+        </div>
+        <div>
+          <label>Target Base</label>
+          <select id="baseSelect">
+            <option value="ANC">ANC</option><option value="LAX">LAX</option>
+            <option value="PDX">PDX</option><option value="SAN">SAN</option>
+            <option value="SEA">SEA</option><option value="SFO">SFO</option>
+          </select>
+        </div>
+        <div>
+          <label>Target Seat</label>
+          <select id="seatSelect">
+            <option value="CA">Captain (CA)</option>
+            <option value="FO">First Officer (FO)</option>
+          </select>
+        </div>
+        <div>
+          <label>Vacancy Override</label>
+          <input id="overrideInput" type="number" placeholder="Loading...">
+          <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Leave blank to use default</div>
+        </div>
+      </div>
+      <button id="calcBtn">Run Cascade Simulation</button>
+    </div>
+
+    <div class="card status-card">
+      <label>Projected Award Status</label>
+      <div id="awardStatus" style="color: #666;">AWAITING DATA</div>
+      <div id="vacancyMath">Enter your seniority and run the cascade to see your status.</div>
+    </div>
+
+    <div class="grid">
+      <div class="card" style="text-align:center;">
+        <label>Primary Vacancies</label>
+        <div id="primaryResult" class="big-num">-</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <label>Secondary Vacancies Created</label>
+        <div id="secondaryResult" class="big-num" style="color:var(--warning);">-</div>
+      </div>
+      <div class="card" style="text-align:center; border: 1px solid var(--success);">
+        <label>Total Available Spots</label>
+        <div id="totalSpotsResult" class="big-num" style="color:var(--success);">-</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Seniority Log: Interaction with Target Seat</label>
+      <table>
+        <thead>
+          <tr>
+            <th>Sen #</th>
+            <th>Starting Seat</th>
+            <th>Action Taken</th>
+            <th>Final Award</th>
+          </tr>
+        </thead>
+        <tbody id="competitorTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+let ROSTER = [], PREFS = {}, CAPACITIES = {};
+
+function findCurrent(p) {
+  if (!p || !p.current) return "";
+  const b = p.current.base || "";
+  const s = p.current.seat || "";
+  return `${String(b).trim()} ${String(s).trim()}`;
+}
+
+function updatePlaceholder() {
+  if (Object.keys(CAPACITIES).length === 0) return;
+  const tBase = document.getElementById("baseSelect").value;
+  const tSeat = document.getElementById("seatSelect").value;
+  const targetString = `${tBase} ${tSeat}`;
+  
+  let defCap = parseInt(CAPACITIES[targetString]) || 0;
+  if (defCap < 0) defCap = 0;
+  
+  document.getElementById("overrideInput").placeholder = `Default: ${defCap}`;
+}
+
+document.getElementById("baseSelect").addEventListener("change", updatePlaceholder);
+document.getElementById("seatSelect").addEventListener("change", updatePlaceholder);
+
+async function loadData() {
+  try {
+    const [r, p, c] = await Promise.all([
+      fetch('./roster.json').then(res => res.json()),
+      fetch('./preferences.json').then(res => res.json()),
+      fetch('./capacities.json').then(res => res.json())
+    ]);
+    ROSTER = Array.isArray(r) ? r : Object.values(r);
+    PREFS = p;
+    CAPACITIES = c;
+    updatePlaceholder(); // Update the UI immediately after load
+  } catch (e) { 
+    console.error("Error loading JSON files."); 
+  }
+}
+
+function runAnalysis() {
+  const mySen = parseInt(document.getElementById("senInput").value);
+  const tBase = document.getElementById("baseSelect").value;
+  const tSeat = document.getElementById("seatSelect").value;
+  const targetString = `${tBase} ${tSeat}`;
+
+  const user = ROSTER.find(p => parseInt(p.sen) === mySen);
+  if (!user) return alert("Pilot not found in roster.");
+
+  const myStartingSeat = findCurrent(user);
+  document.getElementById("userStatusSummary").textContent = `Starting Seat: ${myStartingSeat}`;
+
+  // 1. Initialize the running counters
+  let runningCapacities = { ...CAPACITIES };
+  
+  // Apply Vacancy Override if the user typed something
+  const overrideVal = document.getElementById("overrideInput").value;
+  let startingPrimary = parseInt(CAPACITIES[targetString]) || 0;
+  if (startingPrimary < 0) startingPrimary = 0; 
+  let isOverridden = false;
+
+  if (overrideVal !== "") {
+    startingPrimary = Math.max(0, parseInt(overrideVal));
+    runningCapacities[targetString] = startingPrimary;
+    isOverridden = true;
+  } else {
+    runningCapacities[targetString] = startingPrimary;
+  }
+  
+  let categorySeniority = {}; 
+  let secondaryVacanciesCreated = 0; 
+  let eventLog = [];
+
+  const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
+
+  // 2. THE CASCADE LOOP
+  for (const p of sortedRoster) {
+    const pSen = parseInt(p.sen);
+    if (pSen >= mySen) break; 
+
+    const startingSeat = findCurrent(p);
+    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
+    
+    let awardedSeat = startingSeat; 
+    let actionType = "stay"; 
+
+    if (pPrefObj && pPrefObj.preferences && pPrefObj.preferences.length > 0) {
+      for (const entry of pPrefObj.preferences) {
+        const bidStr = String(entry.bid || "").trim();
+        if (bidStr === "") continue;
+
+        // BPL Check
+        const bplVal = parseInt(entry.bpl_min || 0);
+        const projectedCatSen = (categorySeniority[bidStr] || 0) + 1; 
+
+        if (bplVal > 0 && projectedCatSen > bplVal) {
+          continue; 
+        }
+
+        // Capacity Check
+        if (bidStr === startingSeat) {
+          awardedSeat = startingSeat;
+          actionType = "stay";
+          break;
+        }
+
+        let availableSpots = runningCapacities[bidStr] || 0;
+        if (availableSpots > 0) {
+          awardedSeat = bidStr;
+          actionType = "awarded";
+          
+          runningCapacities[bidStr]--; 
+          
+          if (startingSeat !== "") {
+            runningCapacities[startingSeat] = (runningCapacities[startingSeat] || 0) + 1;
+            if (startingSeat === targetString) {
+              secondaryVacanciesCreated++;
+              actionType = "vacated";
+            }
+          }
+          break; 
+        }
+      }
+    }
+
+    if (awardedSeat !== "") {
+      categorySeniority[awardedSeat] = (categorySeniority[awardedSeat] || 0) + 1;
+    }
+
+    if (awardedSeat === targetString && actionType === "awarded") {
+      eventLog.push({ sen: pSen, start: startingSeat, action: "TOOK VACANCY", final: awardedSeat, css: "action-awarded" });
+    } else if (actionType === "vacated") {
+      eventLog.push({ sen: pSen, start: startingSeat, action: "LEFT SEAT", final: awardedSeat, css: "action-vacated" });
+    } else if (awardedSeat === targetString && actionType === "stay") {
+      eventLog.push({ sen: pSen, start: startingSeat, action: "HELD SEAT", final: awardedSeat, css: "action-stay" });
+    }
+  }
+
+  // 3. CALCULATE YOUR RESULT
+  let spotsRemainingForMe = runningCapacities[targetString] || 0;
+
+  const statusBadge = document.getElementById("awardStatus");
+  const mathText = document.getElementById("vacancyMath");
+
+  if (myStartingSeat === targetString) {
+    statusBadge.textContent = "🟢 CURRENTLY HOLDING";
+    statusBadge.style.color = "var(--success)";
+    mathText.textContent = `You already hold this seat.`;
+  } else if (spotsRemainingForMe > 0) {
+    statusBadge.textContent = "🟢 AWARDED";
+    statusBadge.style.color = "var(--success)";
+    statusBadge.style.borderColor = "var(--success)";
+    mathText.textContent = `The cascade reached you with ${spotsRemainingForMe} spots remaining. You get the seat!`;
+  } else {
+    statusBadge.textContent = "🔴 NOT AWARDED";
+    statusBadge.style.color = "var(--danger)";
+    statusBadge.style.borderColor = "var(--danger)";
+    mathText.textContent = `The cascade reached your seniority, but 0 vacancies remain.`;
+  }
+
+  // Update Dashboard Numbers
+  document.getElementById("primaryResult").textContent = isOverridden ? `${startingPrimary} (OVR)` : startingPrimary;
+  document.getElementById("secondaryResult").textContent = `+${secondaryVacanciesCreated}`;
+  document.getElementById("totalSpotsResult").textContent = spotsRemainingForMe;
+
+  // Render Table 
+  document.getElementById("competitorTable").innerHTML = eventLog.map(c => `
+    <tr>
+      <td>${c.sen}</td>
+      <td>${c.start || 'N/A'}</td>
+      <td><span class="action-pill ${c.css}">${c.action}</span></td>
+      <td>${c.final}</td>
+    </tr>
+  `).join("");
+}
+
+document.getElementById("calcBtn").addEventListener("click", runAnalysis);
+loadData();
+</script>
+</body>
+</html>
