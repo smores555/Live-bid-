@@ -35,13 +35,17 @@
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
-    .ledger-text { font-family: monospace; font-size: 12px; color: var(--warning); }
-    .val-bpl-fail { color: var(--danger); }
     
-    /* Search Dashboard Styles */
+    /* Search Dashboard & Audit Trail Styles */
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .audit-trail { font-family: monospace; font-size: 12px; color: var(--text-muted); background: #040c17; padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-top: 15px; list-style-type: none; }
+    .audit-trail li { margin-bottom: 6px; padding-left: 15px; position: relative; }
+    .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
+    .audit-success { color: var(--success); }
+    .audit-fail { color: var(--danger); }
+    .audit-warn { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -56,7 +60,7 @@
           <button onclick="runAnalysis()" style="margin-top:0; padding: 15px;">Run Full System Award</button>
         </div>
         <div style="flex: 1;">
-          <label>Search Pilot Outcome</label>
+          <label>Search Pilot Outcome & Audit Trail</label>
           <div style="display: flex; gap: 10px;">
             <input type="number" id="senInput" placeholder="Enter Seniority #">
             <button class="btn-secondary" onclick="searchPilot()" style="margin: 0; padding: 0 20px;">Find</button>
@@ -65,14 +69,15 @@
       </div>
 
       <div class="dash-box" id="personalDash">
-        <h3 style="margin-top:0; color:var(--success);">Pilot Outcome Search</h3>
+        <h3 style="margin-top:0; color:var(--success);">Pilot Transaction Log</h3>
         <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
           <div><div class="dash-label">Seniority</div><div class="dash-stat" id="dashSen">-</div></div>
+          <div><div class="dash-label">Pilot Name</div><div class="dash-stat" id="dashName" style="color: #fff;">-</div></div>
           <div><div class="dash-label">Starting Seat</div><div class="dash-stat" id="dashStart" style="color: #fff;">-</div></div>
           <div><div class="dash-label">Final Award</div><div class="dash-stat" id="dashFinal">-</div></div>
           <div><div class="dash-label">Status</div><div class="dash-stat" id="dashStatus" style="color: #fff;">-</div></div>
         </div>
-        <div style="margin-top: 15px; font-family: monospace; font-size: 13px; color: var(--warning);" id="dashLedger"></div>
+        <ul class="audit-trail" id="dashAudit"></ul>
       </div>
     </div>
 
@@ -98,9 +103,12 @@
     </div>
 
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3>Displacement & Vacancy Ledger</h3>
-        <button onclick="exportToCSV()" class="btn-secondary">Export CSV Ledger</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <h3 style="margin: 0;">Displacement & Vacancy Ledger</h3>
+        <div style="display: flex; gap: 10px;">
+          <button onclick="exportFinalAwardsCSV()" class="btn-secondary" style="border-color: var(--success); color: var(--success);">Export Final Awards</button>
+          <button onclick="exportAuditCSV()" class="btn-secondary">Export Full Audit Trail</button>
+        </div>
       </div>
       <div class="table-container">
         <table>
@@ -110,7 +118,7 @@
               <th>Starting Seat</th>
               <th>Final Award</th>
               <th>Status</th>
-              <th>Award Note (Official Ledger Format)</th>
+              <th>Final Transaction Note</th>
             </tr>
           </thead>
           <tbody id="competitorTable"></tbody>
@@ -206,14 +214,22 @@ function runAnalysis() {
     let is320 = false;
     if (p.current) is320 = Object.values(p.current).some(val => String(val).includes("320"));
 
+    let auditLog = []; 
+
     // 1. FROZEN OR 320 PILOT LOGIC
     if (NO_BID.has(pSen) || is320) {
+      const reason = is320 ? "320 Fleet" : "Frozen Bidding Status";
+      auditLog.push(`Pilot identified as exempt (${reason}).`);
+      auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
+      
       fullSystemLog.push({
         sen: pSen,
+        name: pName,
         start: startingSeat || "N/A",
         final: startingSeat,
         status: "HELD (EXEMPT)",
         ledger: is320 ? "Remain in current position. (320 Fleet)" : "Not allowed to bid. Remain in current position.",
+        audit: auditLog,
         css: "action-stay"
       });
       continue;
@@ -225,7 +241,6 @@ function runAnalysis() {
     let actionType = ""; 
     let ledgerReason = "";
     let resolved = false;
-    let firstChoiceDeniedReason = "";
 
     // Normalize preferences
     let normalizedBids = [];
@@ -238,17 +253,27 @@ function runAnalysis() {
       });
     }
 
-    // Process Bids
-    for (const entry of normalizedBids) {
+    if (normalizedBids.length === 0) {
+        auditLog.push(`No valid bids found for this pilot.`);
+    }
+
+    // Process Bids sequentially
+    for (let i = 0; i < normalizedBids.length; i++) {
+      const entry = normalizedBids[i];
       const bidKey = entry.parsedKey;
-      const isFirst = (entry === normalizedBids[0]);
-      if (!seatLedger[bidKey]) continue;
+      
+      auditLog.push(`Evaluating Bid Preference ${i + 1}: ${bidKey}`);
+
+      if (!seatLedger[bidKey]) {
+          auditLog.push(`<span class="audit-warn">Warning: Seat ${bidKey} does not exist in capacity ledger. Skipping.</span>`);
+          continue;
+      }
 
       const bplVal = parseInt(entry.bpl_min || 0);
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
       if (bplVal > 0 && projectedCatSen > bplVal) {
-        if (isFirst) firstChoiceDeniedReason = `Hit Base Percentage Limit (BPL).`;
+        auditLog.push(`<span class="audit-fail">Denied: Hit Base Percentage Limit (BPL restriction).</span>`);
         continue; 
       }
 
@@ -262,36 +287,44 @@ function runAnalysis() {
         if (bidKey === startingSeat) {
             actionType = "HELD";
             ledgerReason = "Remain in current position.";
+            auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
         } else {
             actionType = "MOVED";
             
             if (seatLedger[awardedSeat].originalVacancies > 0) {
                 seatLedger[awardedSeat].originalVacancies--;
                 ledgerReason = "Open position available.";
+                auditLog.push(`<span class="audit-success">Awarded: Open system vacancy available.</span>`);
             } else if (vacatedSeats[awardedSeat].length > 0) {
                 let profferedPilot = vacatedSeats[awardedSeat].shift();
                 ledgerReason = `Open position available. Proffered from ${profferedPilot.sen} - ${profferedPilot.name}.`;
+                auditLog.push(`<span class="audit-success">Awarded: Proffered from ${profferedPilot.sen} - ${profferedPilot.name}.</span>`);
             } else {
                 ledgerReason = "Open position available.";
+                auditLog.push(`<span class="audit-success">Awarded: Open position available (Capacity Override).</span>`);
             }
             
             // Vacate old seat and push the pilot's name into the queue
             if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
                 vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
+                auditLog.push(`-> Increased vacancy in ${startingSeat} (Added to Proffer Queue).`);
             }
+            auditLog.push(`-> Reduced vacancy in ${awardedSeat}.`);
         }
         break; 
       } else {
-        if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
+        auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
       }
     }
 
     // 3. THE "STAY PUT" SAFETY NET (DENIED ALL BIDS)
     if (!resolved) {
+       auditLog.push(`All preferences evaluated and denied, or no valid bids submitted.`);
        if (startingSeat && startingSeat !== "N/A" && startingSeat !== "") {
           awardedSeat = startingSeat;
           actionType = "HELD";
           ledgerReason = "Remain in current position.";
+          auditLog.push(`<span class="audit-success">Fallback Awarded: Remain in current position.</span>`);
           
           if (seatLedger[startingSeat]) {
               seatLedger[startingSeat].awardedCount++;
@@ -302,6 +335,7 @@ function runAnalysis() {
           awardedSeat = "UNASSIGNED";
           actionType = "LOST";
           ledgerReason = "Requested position has 0 vacancy and cannot accept additional pilots.";
+          auditLog.push(`<span class="audit-fail">No current active position to fall back to (Section 24.K returnee). Marked UNASSIGNED.</span>`);
           
           if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
               vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
@@ -309,18 +343,14 @@ function runAnalysis() {
        }
     }
 
-    // Append Denial Reason if they didn't get their first choice
-    let firstBidKey = normalizedBids.length > 0 ? normalizedBids[0].parsedKey : "";
-    if (firstChoiceDeniedReason && awardedSeat !== firstBidKey) {
-        ledgerReason += ` (Denied ${firstBidKey}: ${firstChoiceDeniedReason})`;
-    }
-
     fullSystemLog.push({
       sen: pSen,
+      name: pName,
       start: startingSeat || "N/A",
       final: awardedSeat,
       status: actionType,
       ledger: ledgerReason,
+      audit: auditLog,
       css: actionType === "MOVED" ? "action-awarded" : (actionType === "LOST" ? "action-danger" : "action-stay")
     });
   }
@@ -337,14 +367,23 @@ function searchPilot() {
   
   const pilotData = fullSystemLog.find(p => p.sen === senNum);
   const dash = document.getElementById('personalDash');
+  const auditUl = document.getElementById('dashAudit');
   
   if (pilotData) {
     dash.style.display = 'block';
     document.getElementById('dashSen').innerText = pilotData.sen;
+    document.getElementById('dashName').innerText = pilotData.name;
     document.getElementById('dashStart').innerText = pilotData.start;
     document.getElementById('dashFinal').innerText = pilotData.final;
     document.getElementById('dashStatus').innerText = pilotData.status;
-    document.getElementById('dashLedger').innerText = "> Award Note: " + pilotData.ledger;
+    
+    // Render the audit trail step-by-step
+    auditUl.innerHTML = "";
+    pilotData.audit.forEach(logLine => {
+        const li = document.createElement('li');
+        li.innerHTML = logLine;
+        auditUl.appendChild(li);
+    });
     
     document.getElementById('dashFinal').style.color = pilotData.css === "action-awarded" ? "var(--success)" : (pilotData.css === "action-danger" ? "var(--danger)" : "var(--accent)");
   } else {
@@ -380,22 +419,63 @@ function renderUI(seatLedger) {
       <td>${c.start}</td>
       <td><span style="color:var(--accent); font-weight:800">${c.final}</span></td>
       <td><span class="action-pill ${c.css}">${c.status}</span></td>
-      <td class="ledger-text">${c.ledger}</td>
+      <td class="ledger-text" style="font-size: 11px;">${c.ledger}</td>
     </tr>
   `).join("");
 }
 
-function exportToCSV() {
+// EXPORT 1: Simplified Final Awards Output
+function exportFinalAwardsCSV() {
   if (fullSystemLog.length === 0) return alert("Please run the analysis first.");
-  let csv = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,Award Note\n";
+  
+  let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
+  
   fullSystemLog.forEach(r => {
-    csv += `${r.sen},${r.start},${r.final},${r.status},"${r.ledger}"\n`;
+    let base = "UNASSIGNED";
+    let seat = "UNASSIGNED";
+    
+    // If the pilot was awarded a valid seat like "SEA CA", split it into Base and Seat
+    if (r.final && r.final !== "UNASSIGNED" && r.final !== "N/A") {
+      const parts = r.final.trim().split(" ");
+      if (parts.length >= 2) {
+        base = parts[0];
+        seat = parts[1];
+      } else {
+        base = r.final; // Fallback if formatting is weird
+        seat = "";
+      }
+    }
+    
+    csv += `"${r.sen}","${r.name}","${base}","${seat}"\n`;
   });
+  
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.setAttribute('href', url);
-  a.setAttribute('download', 'Displacement_Results_Official_Format.csv');
+  a.setAttribute('download', 'Final_Awards_Summary.csv');
+  a.click();
+}
+
+// EXPORT 2: Detailed Audit Trail Output
+function exportAuditCSV() {
+  if (fullSystemLog.length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Seniority,Pilot Name,Starting Seat,Final Awarded Seat,Movement Status,Final Note,Audit Trail\n";
+  
+  fullSystemLog.forEach(r => {
+    // Strip HTML tags for the CSV export of the audit trail and join with newlines
+    const plainTextAudit = r.audit.map(str => str.replace(/<[^>]+>/g, '')).join('\n');
+    
+    // Wrap strings in quotes to handle commas and newlines inside the fields safely
+    csv += `"${r.sen}","${r.name}","${r.start}","${r.final}","${r.status}","${r.ledger}","${plainTextAudit}"\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', 'Displacement_Results_With_Audit_Trail.csv');
   a.click();
 }
 
