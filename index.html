@@ -56,6 +56,7 @@
     .action-vacated { background: rgba(255, 207, 51, 0.1); color: var(--warning); border: 1px solid var(--warning); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
     .ledger-text { font-family: monospace; font-size: 12px; color: var(--warning); }
+    .bpl-text { font-family: monospace; font-size: 11px; color: var(--text-muted); }
 
     .summary-text { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; }
     .data-dates { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: -5px; margin-bottom: 24px; font-weight: 600; line-height: 1.6; text-transform: uppercase; letter-spacing: 1px; }
@@ -76,6 +77,8 @@
     .summary-table td { font-weight: 600; font-size: 14px; }
     .val-danger { color: var(--danger); }
     .val-success { color: var(--success); }
+    .val-bpl-pass { color: var(--success); font-weight: 800; }
+    .val-bpl-fail { color: var(--danger); font-weight: 800; }
 
     @media (max-width: 800px) {
       .override-grid { grid-template-columns: repeat(3, 1fr); }
@@ -178,6 +181,7 @@
               <th>Starting Seat</th>
               <th>Final Award</th>
               <th>Status</th>
+              <th>BPL Activity</th>
               <th>Vacancy/Displacement Ledger</th>
             </tr>
           </thead>
@@ -285,9 +289,8 @@ function runAnalysis() {
     let actionType = ""; 
     let ledgerReason = "";
     let wasDisplaced = false;
+    let bplActivityLog = []; // NEW: Tracks BPL interactions
 
-    // --- FIX: THE BID PARSER ---
-    // This strips out "73G" and matches directly to the Base/Seat keys
     let normalizedBids = [];
     if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
       for (const entry of pPrefObj.preferences) {
@@ -314,12 +317,20 @@ function runAnalysis() {
       const bplVal = parseInt(entry.bpl_min || 0);
       const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
 
-      if (bplVal > 0 && projectedCatSen > bplVal) {
-        continue; // Blocked by BPL
+      // BPL Evaluation Check
+      if (bplVal > 0) {
+        if (projectedCatSen > bplVal) {
+          // BPL Blocked
+          bplActivityLog.push(`<span class="val-bpl-fail">Denied ${bidKey}</span> (Limit: ${bplVal}, Proj: ${projectedCatSen})`);
+          continue; 
+        } else {
+          // BPL Passed Check (Will record if this seat is ultimately awarded)
+          bplActivityLog.push(`<span class="val-bpl-pass">Passed ${bidKey}</span> (Limit: ${bplVal}, Proj: ${projectedCatSen})`);
+        }
       }
 
       if (seatLedger[bidKey].targetCap > seatLedger[bidKey].awardedCount) {
-        // Seat successfully awarded! This triggers the cascade.
+        // Seat successfully awarded!
         awardedSeat = bidKey;
         seatLedger[bidKey].awardedCount++;
         seatLedger[bidKey].juniorSen = pSen; 
@@ -341,7 +352,6 @@ function runAnalysis() {
       }
     }
 
-    // Fallback if they didn't get a new bid, stay put UNLESS displaced
     if (!resolved && startingSeat !== "" && seatLedger[startingSeat] && !bidIncludesStarting) {
        if (seatLedger[startingSeat].targetCap > seatLedger[startingSeat].awardedCount) {
           awardedSeat = startingSeat;
@@ -373,6 +383,8 @@ function runAnalysis() {
       start: startingSeat || "N/A",
       final: awardedSeat,
       status: uiAction,
+      bplNotes: bplActivityLog.length > 0 ? bplActivityLog.join('<br>') : "None",
+      bplExportText: bplActivityLog.length > 0 ? bplActivityLog.map(str => str.replace(/<[^>]+>/g, '')).join(' | ') : "None", // Clean text for CSV
       ledger: ledgerReason,
       css: cssClass
     });
@@ -413,7 +425,7 @@ function runAnalysis() {
   });
   summaryTbody.innerHTML = summaryHTML;
 
-  // 4. RENDER PERSONAL UI (If a Sen # is entered)
+  // 4. RENDER PERSONAL UI
   const mySenInput = document.getElementById("senInput").value;
   if (mySenInput !== "") {
     const mySen = parseInt(mySenInput);
@@ -431,7 +443,7 @@ function runAnalysis() {
         document.getElementById("awardStatus").style.color = "var(--accent)";
       }
       
-      document.getElementById("vacancyMath").textContent = `Ledger: ${myLog.ledger}`;
+      document.getElementById("vacancyMath").innerHTML = `Ledger: ${myLog.ledger}`;
 
       if (myLog.final !== "UNASSIGNED" && seatLedger[myLog.final]) {
          let capData = seatLedger[myLog.final];
@@ -461,6 +473,7 @@ function runAnalysis() {
       <td>${c.start}</td>
       <td><span style="font-weight: 800; color: ${c.status.includes('LOST') ? 'var(--danger)' : (c.status.includes('MOVED') ? 'var(--success)' : 'var(--text-muted)')}">${c.final}</span></td>
       <td><span class="action-pill ${c.css}">${c.status}</span></td>
+      <td class="bpl-text">${c.bplNotes}</td>
       <td class="ledger-text">${c.ledger}</td>
     </tr>
   `).join("");
@@ -472,10 +485,10 @@ function exportToCSV() {
     return;
   }
   
-  let csvContent = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,Displacement Ledger Source\n";
+  let csvContent = "Seniority,Starting Seat,Final Awarded Seat,Movement Status,BPL Details,Displacement Ledger Source\n";
   
   fullSystemLog.forEach(row => {
-    csvContent += `${row.sen},${row.start},${row.final},${row.status},"${row.ledger}"\n`;
+    csvContent += `${row.sen},${row.start},${row.final},${row.status},"${row.bplExportText}","${row.ledger}"\n`;
   });
   
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
