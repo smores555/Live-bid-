@@ -131,7 +131,7 @@
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set();
 let fullSystemLog = []; 
-let globalSeatLedger = {}; // Global reference for the BPL export
+let globalSeatLedger = {}; 
 
 const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
 const allSeats = ["CA", "FO"];
@@ -161,7 +161,14 @@ async function loadData() {
       fetch('./nobidpilots.json').then(res => res.json())
     ]);
     
-    ROSTER = Array.isArray(r) ? r : Object.values(r);
+    // Deduplicate Roster by Seniority to prevent any double-evaluation bugs
+    let uniqueRosterMap = new Map();
+    let rawRoster = Array.isArray(r) ? r : Object.values(r);
+    rawRoster.forEach(pilot => {
+        if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot);
+    });
+    ROSTER = Array.from(uniqueRosterMap.values());
+    
     PREFS = p;
     NO_BID = new Set(nb.map(x => parseInt(x.sen)));
     
@@ -174,7 +181,7 @@ async function loadData() {
         };
       });
     }
-    console.log("Data loaded successfully.");
+    console.log(`Data loaded successfully. Total Unique Pilots: ${ROSTER.length}`);
   } catch (e) { 
     console.error("Error loading JSON files. Check if they exist in the folder."); 
   }
@@ -200,7 +207,7 @@ function runAnalysis() {
         awardedCount: 0,
         originalVacancies: Math.max(0, pubModTotal),
         juniorSen: "N/A",
-        awardedPilots: [] // NEW: Array to track who is sitting in this seat and their BPL spot
+        awardedPilots: [] 
       };
       vacatedSeats[key] = []; 
     });
@@ -245,7 +252,7 @@ function runAnalysis() {
         audit: auditLog,
         css: "action-stay"
       });
-      continue;
+      continue; // Skip the rest of the loop for this pilot
     }
 
     // 2. STANDARD BIDDING LOGIC
@@ -256,14 +263,26 @@ function runAnalysis() {
     let resolved = false;
     let firstChoiceDeniedReason = "";
 
-    // Normalize preferences
+    // STRICT DEDUPLICATION OF BIDS: 
+    // A pilot can only evaluate for a specific Base+Seat once. We keep their highest preference.
     let normalizedBids = [];
+    let seenBids = new Set();
+    
     if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
       pPrefObj.preferences.forEach(entry => {
         let rawBid = String(entry.bid || "").toUpperCase();
         let bMatch = allBases.find(b => rawBid.includes(b));
         let sMatch = allSeats.find(s => rawBid.includes(s));
-        if (bMatch && sMatch) normalizedBids.push({ ...entry, parsedKey: `${bMatch} ${sMatch}` });
+        
+        if (bMatch && sMatch) {
+          const parsedKey = `${bMatch} ${sMatch}`;
+          if (!seenBids.has(parsedKey)) {
+             seenBids.add(parsedKey);
+             normalizedBids.push({ ...entry, parsedKey: parsedKey });
+          } else {
+             auditLog.push(`Skipped duplicate bid entry for ${parsedKey}.`);
+          }
+        }
       });
     }
 
@@ -337,7 +356,8 @@ function runAnalysis() {
             }
             auditLog.push(`-> Reduced vacancy in ${awardedSeat}.`);
         }
-        break; 
+        
+        break; // Crucial: Exits the bid loop so they only take 1 slot
       } else {
         auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
         if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
@@ -365,7 +385,7 @@ function runAnalysis() {
               });
           }
        } else {
-          // True unassigned
+          // True unassigned (Section 24.K)
           awardedSeat = "UNASSIGNED";
           actionType = "LOST";
           ledgerReason = "Requested position has 0 vacancy and cannot accept additional pilots.";
@@ -395,7 +415,7 @@ function runAnalysis() {
     });
   }
 
-  globalSeatLedger = seatLedger; // Expose globally for the BPL export
+  globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
 }
 
