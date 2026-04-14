@@ -128,29 +128,6 @@
     </div>
   </div>
 
-  <div id="bplDebuggerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; backdrop-filter: blur(5px);">
-    <div style="background: var(--card); border: 1px solid var(--warning); border-radius: 12px; width: 90%; max-width: 1000px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 50px rgba(0,0,0,0.7);">
-      <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: #06111f;">
-        <h2 style="margin: 0; color: var(--warning);">Secret Debugger: BPLs & Passes</h2>
-        <button onclick="document.getElementById('bplDebuggerModal').style.display='none'" style="width: auto; margin: 0; padding: 8px 20px; background: rgba(255, 71, 114, 0.1); border: 1px solid var(--danger); color: var(--danger);">Close (ESC)</button>
-      </div>
-      <div style="padding: 0; overflow-y: auto; flex: 1;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead style="position: sticky; top: 0; background: var(--card); z-index: 5; border-bottom: 1px solid var(--warning);">
-            <tr>
-              <th style="color: var(--warning); padding: 15px;">Sen</th>
-              <th style="color: var(--warning); padding: 15px;">Name</th>
-              <th style="color: var(--warning); padding: 15px;">Event Type</th>
-              <th style="color: var(--warning); padding: 15px;">Audit Details</th>
-            </tr>
-          </thead>
-          <tbody id="bplDebuggerBody">
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set();
 let fullSystemLog = []; 
@@ -213,6 +190,11 @@ async function loadData() {
 function runAnalysis() {
   let seatLedger = {};
   let vacatedSeats = {}; 
+  
+  // Clean console for a fresh run
+  console.clear();
+  console.log("Starting Full System Award Analysis...");
+  console.log("----------------------------------------");
   
   // Initialize ledgers and waterfall tracking strictly from capacities.json
   allBases.forEach(b => {
@@ -287,8 +269,6 @@ function runAnalysis() {
     let firstChoiceDeniedReason = "";
 
     // SMART DEDUPLICATION OF BIDS: 
-    // Key is Base + Seat + BPL Limit. 
-    // This allows cascading fallback bids for the same base if the BPL changes.
     let normalizedBids = [];
     let seenBids = new Set();
     
@@ -308,6 +288,7 @@ function runAnalysis() {
              normalizedBids.push({ ...entry, parsedKey: parsedKey });
           } else {
              auditLog.push(`Skipped identical duplicate bid entry: ${parsedKey} (BPL limit: ${bplVal}).`);
+             console.log(`[DUP SKIP] Pilot ${pSen} (${pName}) skipped duplicate bid for ${parsedKey}.`);
           }
         }
       });
@@ -337,6 +318,10 @@ function runAnalysis() {
       if (bplVal > 0 && projectedCatSen > bplVal) {
         const bplReasonText = `Hit Base Percentage Limit (BPL limit: ${bplVal}, pilot would be #${projectedCatSen} in base).`;
         auditLog.push(`<span class="audit-fail">Denied: ${bplReasonText}</span>`);
+        
+        // --- CONSOLE DEBUGGER OUTPUT ---
+        console.warn(`[BPL DENIAL] Pilot ${pSen} (${pName}) denied ${bidKey}. Limit: ${bplVal}, Projected rank: ${projectedCatSen}`);
+        
         if (isFirst) firstChoiceDeniedReason = bplReasonText;
         continue; 
       }
@@ -388,6 +373,10 @@ function runAnalysis() {
         break; // Exits the bid loop so they only take 1 slot
       } else {
         auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
+        
+        // --- CONSOLE DEBUGGER OUTPUT ---
+        console.log(`[CAPACITY PASS] Pilot ${pSen} (${pName}) passed over for ${bidKey}. Capacity full (Target: ${seatLedger[bidKey].targetCap}).`);
+        
         if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
       }
     }
@@ -445,6 +434,31 @@ function runAnalysis() {
 
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
+  
+  console.log("----------------------------------------");
+  console.log("FINAL SEAT ROSTERS & BPL SPOT RANKINGS");
+  console.log("----------------------------------------");
+  
+  // Dump the full roster for each seat into the console
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      const data = seatLedger[key];
+      
+      if (data && data.awardedPilots.length > 0) {
+        // console.group creates a neat, collapsible list in Chrome DevTools
+        console.group(`--- ${key} (Total Awarded: ${data.awardedCount} / Target Cap: ${data.targetCap}) ---`);
+        
+        data.awardedPilots.forEach(pilot => {
+            console.log(`Spot ${pilot.spot}: Sen ${pilot.sen} (${pilot.name}) | Start: ${pilot.start} | Status: ${pilot.status}`);
+        });
+        
+        console.groupEnd();
+      }
+    });
+  });
+
+  console.log("Analysis Complete.");
 }
 
 function searchPilot() {
@@ -584,73 +598,6 @@ function triggerDownload(blob, filename) {
   a.setAttribute('href', url);
   a.setAttribute('download', filename);
   a.click();
-}
-
-// --- NEW: HIDDEN DEBUGGER LOGIC ---
-document.addEventListener('keydown', function(e) {
-  // Trigger on Ctrl + Shift + I
-  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i') {
-    e.preventDefault(); // Attempt to stop browser dev tools
-    toggleBPLDebugger();
-  }
-  
-  // Close on Escape key
-  if (e.key === 'Escape') {
-    const modal = document.getElementById('bplDebuggerModal');
-    if (modal && modal.style.display !== 'none') {
-        modal.style.display = 'none';
-    }
-  }
-});
-
-function toggleBPLDebugger() {
-  const modal = document.getElementById('bplDebuggerModal');
-  const tbody = document.getElementById('bplDebuggerBody');
-  
-  if (modal.style.display === 'none') {
-    if (fullSystemLog.length === 0) {
-        alert("Please run the Full System Award analysis first to generate debugger data.");
-        return;
-    }
-    
-    tbody.innerHTML = '';
-    let rowCount = 0;
-    
-    fullSystemLog.forEach(pilot => {
-        pilot.audit.forEach(log => {
-            let eventType = null;
-            let cleanLog = log.replace(/<[^>]*>?/gm, ''); // Strip HTML tags for clean reading
-            
-            if (cleanLog.includes('Hit Base Percentage Limit')) {
-                eventType = '<span style="color: var(--warning); font-weight: 900;">BPL DENIAL</span>';
-            } else if (cleanLog.includes('Requested position has 0 vacancy')) {
-                eventType = '<span style="color: var(--danger); font-weight: 900;">CAPACITY PASS</span>';
-            } else if (cleanLog.includes('Skipped identical duplicate bid')) {
-                eventType = '<span style="color: var(--text-muted); font-weight: 900;">DUP PASS</span>';
-            }
-            
-            if (eventType) {
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <td style="padding: 10px 15px;">${pilot.sen}</td>
-                        <td style="padding: 10px 15px;">${pilot.name}</td>
-                        <td style="padding: 10px 15px;">${eventType}</td>
-                        <td style="font-size: 11px; color: var(--text-muted); padding: 10px 15px;">${cleanLog}</td>
-                    </tr>
-                `;
-                rowCount++;
-            }
-        });
-    });
-    
-    if (rowCount === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--text-muted);">No BPL Denials or Capacity Passes recorded during this run.</td></tr>';
-    }
-    
-    modal.style.display = 'flex';
-  } else {
-    modal.style.display = 'none';
-  }
 }
 
 window.onload = loadData;
