@@ -288,7 +288,7 @@ function runAnalysis() {
              normalizedBids.push({ ...entry, parsedKey: parsedKey });
           } else {
              auditLog.push(`Skipped identical duplicate bid entry: ${parsedKey} (BPL limit: ${bplVal}).`);
-             console.log(`[DUP SKIP] Pilot ${pSen} (${pName}) skipped duplicate bid for ${parsedKey}.`);
+             // Removed DUP PASS from console to keep it cleaner
           }
         }
       });
@@ -319,8 +319,8 @@ function runAnalysis() {
         const bplReasonText = `Hit Base Percentage Limit (BPL limit: ${bplVal}, pilot would be #${projectedCatSen} in base).`;
         auditLog.push(`<span class="audit-fail">Denied: ${bplReasonText}</span>`);
         
-        // --- CONSOLE DEBUGGER OUTPUT ---
-        console.warn(`[BPL DENIAL] Pilot ${pSen} (${pName}) denied ${bidKey}. Limit: ${bplVal}, Projected rank: ${projectedCatSen}`);
+        // --- UPDATED CONSOLE FRACTION FORMAT ---
+        console.warn(`[BPL DENIAL] Pilot ${pSen} (${pName}) denied ${bidKey}. Rank: ${projectedCatSen}/${bplVal} (Hit BPL Limit)`);
         
         if (isFirst) firstChoiceDeniedReason = bplReasonText;
         continue; 
@@ -374,8 +374,8 @@ function runAnalysis() {
       } else {
         auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
         
-        // --- CONSOLE DEBUGGER OUTPUT ---
-        console.log(`[CAPACITY PASS] Pilot ${pSen} (${pName}) passed over for ${bidKey}. Capacity full (Target: ${seatLedger[bidKey].targetCap}).`);
+        // --- UPDATED CONSOLE FRACTION FORMAT ---
+        console.log(`[CAPACITY PASS] Pilot ${pSen} (${pName}) passed over for ${bidKey}. Rank: ${projectedCatSen}/${seatLedger[bidKey].targetCap} (Capacity Full)`);
         
         if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
       }
@@ -435,25 +435,24 @@ function runAnalysis() {
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
   
+  // --- UPDATED FINAL ROSTER DUMP FORMAT ---
   console.log("----------------------------------------");
-  console.log("FINAL SEAT ROSTERS & BPL SPOT RANKINGS");
+  console.log("FINAL SEAT ROSTERS (SENIORITY & [SPOT/CAP])");
   console.log("----------------------------------------");
   
-  // Dump the full roster for each seat into the console
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       const data = seatLedger[key];
       
       if (data && data.awardedPilots.length > 0) {
-        // console.group creates a neat, collapsible list in Chrome DevTools
-        console.group(`--- ${key} (Total Awarded: ${data.awardedCount} / Target Cap: ${data.targetCap}) ---`);
-        
-        data.awardedPilots.forEach(pilot => {
-            console.log(`Spot ${pilot.spot}: Sen ${pilot.sen} (${pilot.name}) | Start: ${pilot.start} | Status: ${pilot.status}`);
+        // Create an array mapping: "1353 [164/160]"
+        let pilotList = data.awardedPilots.map(p => {
+            let spotText = p.spot === "EXEMPT" ? "EXEMPT" : `${p.spot}/${data.targetCap}`;
+            return `${p.sen} [${spotText}]`;
         });
         
-        console.groupEnd();
+        console.log(`${key} Pilots: ${pilotList.join(', ')}`);
       }
     });
   });
