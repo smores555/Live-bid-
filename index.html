@@ -36,13 +36,16 @@
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
     
-    /* Dash & Audit Trail */
+    /* Search Dashboard & Audit Trail Styles */
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
     .audit-trail { font-family: monospace; font-size: 12px; color: var(--text-muted); background: #040c17; padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-top: 15px; list-style-type: none; }
     .audit-trail li { margin-bottom: 6px; padding-left: 15px; position: relative; }
     .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
+    .audit-success { color: var(--success); }
+    .audit-fail { color: var(--danger); }
+    .audit-warn { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -50,7 +53,8 @@
   <div class="container">
     <div class="card">
       <h2 style="margin-top:0; color:var(--accent);">System Parameters & Overrides</h2>
-      <div class="grid" id="modifierGrid"></div>
+      <div class="grid" id="modifierGrid">
+        </div>
       <div style="margin-top: 20px; display: flex; gap: 15px; align-items: flex-end;">
         <div style="flex: 1;">
           <button onclick="runAnalysis()" style="margin-top:0; padding: 15px;">Run Full System Award</button>
@@ -77,35 +81,9 @@
       </div>
     </div>
 
-    <div class="card" style="border-left: 4px solid var(--warning);">
-      <h3 style="margin-top: 0; color: var(--warning);">BPL Debugger: Seat Occupancy Review</h3>
-      <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px;">Select a seat to see exactly who is filling the BPL spots in order of seniority.</p>
-      <div style="display: flex; gap: 15px; align-items: flex-end; margin-bottom: 15px;">
-        <div style="flex: 1;">
-          <label>Select Seat to Inspect</label>
-          <select id="bplSeatSelector" onchange="debugBPL()"></select>
-        </div>
-      </div>
-      <div class="table-container" style="max-height: 300px;">
-        <table>
-          <thead>
-            <tr>
-              <th>Spot #</th>
-              <th>Sen #</th>
-              <th>Pilot Name</th>
-              <th>Original Seat</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="bplDebugTable">
-            <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Run analysis and select a seat to view data</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
     <div class="card">
       <h3>Active Bidding System Capacity Summary</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px;">Note: 320 and Frozen pilots bypass this capacity logic entirely.</p>
       <div class="table-container">
         <table>
           <thead>
@@ -114,8 +92,8 @@
               <th>Pub Delta</th>
               <th>Manual Mod</th>
               <th>Target Cap</th>
-              <th>Awarded</th>
-              <th>Remaining</th>
+              <th>Awarded (Active 737)</th>
+              <th>Remaining Spots</th>
               <th>Junior Sen</th>
             </tr>
           </thead>
@@ -130,6 +108,7 @@
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button onclick="exportFinalAwardsCSV()" class="btn-secondary" style="border-color: var(--success); color: var(--success);">Export Final Awards</button>
           <button onclick="exportAuditCSV()" class="btn-secondary">Export Full Audit Trail</button>
+          <button onclick="exportBPLRostersCSV()" class="btn-secondary" style="border-color: var(--warning); color: var(--warning);">Export BPL Seat Rosters</button>
         </div>
       </div>
       <div class="table-container">
@@ -149,6 +128,29 @@
     </div>
   </div>
 
+  <div id="bplDebuggerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; backdrop-filter: blur(5px);">
+    <div style="background: var(--card); border: 1px solid var(--warning); border-radius: 12px; width: 90%; max-width: 1000px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 50px rgba(0,0,0,0.7);">
+      <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: #06111f;">
+        <h2 style="margin: 0; color: var(--warning);">Secret Debugger: BPLs & Passes</h2>
+        <button onclick="document.getElementById('bplDebuggerModal').style.display='none'" style="width: auto; margin: 0; padding: 8px 20px; background: rgba(255, 71, 114, 0.1); border: 1px solid var(--danger); color: var(--danger);">Close (ESC)</button>
+      </div>
+      <div style="padding: 0; overflow-y: auto; flex: 1;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead style="position: sticky; top: 0; background: var(--card); z-index: 5; border-bottom: 1px solid var(--warning);">
+            <tr>
+              <th style="color: var(--warning); padding: 15px;">Sen</th>
+              <th style="color: var(--warning); padding: 15px;">Name</th>
+              <th style="color: var(--warning); padding: 15px;">Event Type</th>
+              <th style="color: var(--warning); padding: 15px;">Audit Details</th>
+            </tr>
+          </thead>
+          <tbody id="bplDebuggerBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set();
 let fullSystemLog = []; 
@@ -157,21 +159,14 @@ let globalSeatLedger = {};
 const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
 const allSeats = ["CA", "FO"];
 
+// Initialization: Create the modifier inputs
 const grid = document.getElementById('modifierGrid');
-const bplSelector = document.getElementById('bplSeatSelector');
-
-// Initialize inputs and dropdowns
 allBases.forEach(b => {
   allSeats.forEach(s => {
-    const key = `${b} ${s}`;
     const div = document.createElement('div');
-    div.innerHTML = `<label>${key} Mod</label><input type="number" id="mod_${b}_${s}" placeholder="0">`;
+    div.innerHTML = `<label>${b} ${s} Mod</label>
+                     <input type="number" id="mod_${b}_${s}" placeholder="0">`;
     grid.appendChild(div);
-
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.innerText = key;
-    bplSelector.appendChild(opt);
   });
 });
 
@@ -189,31 +184,43 @@ async function loadData() {
       fetch('./nobidpilots.json').then(res => res.json())
     ]);
     
+    // Deduplicate Roster by Seniority to prevent any double-evaluation bugs
     let uniqueRosterMap = new Map();
     let rawRoster = Array.isArray(r) ? r : Object.values(r);
-    rawRoster.forEach(pilot => { if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot); });
+    rawRoster.forEach(pilot => {
+        if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot);
+    });
     ROSTER = Array.from(uniqueRosterMap.values());
     
     PREFS = p;
     NO_BID = new Set(nb.map(x => parseInt(x.sen)));
+    
     CAPACITIES = {};
     if (Array.isArray(c)) {
       c.forEach(item => {
-        CAPACITIES[`${item.base} ${item.seat}`] = { start: item.startCapacity || 0, delta: item.delta || 0 };
+        CAPACITIES[`${item.base} ${item.seat}`] = {
+          start: item.startCapacity || 0,
+          delta: item.delta || 0
+        };
       });
     }
-  } catch (e) { console.error("Data load failed.", e); }
+    console.log(`Data loaded successfully. Total Unique Pilots: ${ROSTER.length}`);
+  } catch (e) { 
+    console.error("Error loading JSON files. Check if they exist in the folder."); 
+  }
 }
 
 function runAnalysis() {
   let seatLedger = {};
   let vacatedSeats = {}; 
   
+  // Initialize ledgers and waterfall tracking strictly from capacities.json
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
-      let modValue = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
+      const modInput = document.getElementById(`mod_${b}_${s}`);
+      let modValue = modInput ? parseInt(modInput.value) || 0 : 0;
       let pubModTotal = parseInt(capObj.delta) + modValue;
       
       seatLedger[key] = {
@@ -235,85 +242,243 @@ function runAnalysis() {
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     const startingSeat = findCurrent(p);
-    const pName = p.name || "UNKNOWN";
-    let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
+    const pName = String(p.name || p.pil || p.Pilot || "UNKNOWN");
+    
+    let is320 = false;
+    if (p.current) is320 = Object.values(p.current).some(val => String(val).includes("320"));
+
     let auditLog = []; 
 
+    // 1. FROZEN OR 320 PILOT LOGIC
     if (NO_BID.has(pSen) || is320) {
+      const reason = is320 ? "320 Fleet" : "Frozen Bidding Status";
+      auditLog.push(`Pilot identified as exempt (${reason}).`);
+      auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
+      
       if (startingSeat && seatLedger[startingSeat]) {
-        seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+          seatLedger[startingSeat].awardedPilots.push({
+              spot: "EXEMPT",
+              sen: pSen,
+              name: pName,
+              start: startingSeat,
+              status: "HELD (EXEMPT)"
+          });
       }
-      fullSystemLog.push({ sen: pSen, name: pName, start: startingSeat, final: startingSeat, status: "HELD", ledger: "Exempt Status", audit: ["Exempt from bidding."], css: "action-stay" });
+
+      fullSystemLog.push({
+        sen: pSen,
+        name: pName,
+        start: startingSeat || "N/A",
+        final: startingSeat,
+        status: "HELD (EXEMPT)",
+        ledger: is320 ? "Remain in current position. (320 Fleet)" : "Not allowed to bid. Remain in current position.",
+        audit: auditLog,
+        css: "action-stay"
+      });
       continue; 
     }
 
+    // 2. STANDARD BIDDING LOGIC
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
     let awardedSeat = ""; 
+    let actionType = ""; 
+    let ledgerReason = "";
     let resolved = false;
+    let firstChoiceDeniedReason = "";
 
-    let bids = (pPrefObj && Array.isArray(pPrefObj.preferences)) ? pPrefObj.preferences : [];
+    // SMART DEDUPLICATION OF BIDS: 
+    // Key is Base + Seat + BPL Limit. 
+    // This allows cascading fallback bids for the same base if the BPL changes.
+    let normalizedBids = [];
+    let seenBids = new Set();
+    
+    if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
+      pPrefObj.preferences.forEach(entry => {
+        let rawBid = String(entry.bid || "").toUpperCase();
+        let bMatch = allBases.find(b => rawBid.includes(b));
+        let sMatch = allSeats.find(s => rawBid.includes(s));
+        
+        if (bMatch && sMatch) {
+          const parsedKey = `${bMatch} ${sMatch}`;
+          const bplVal = parseInt(entry.bpl_min || 0);
+          const uniqueBidKey = `${parsedKey}_${bplVal}`; 
+          
+          if (!seenBids.has(uniqueBidKey)) {
+             seenBids.add(uniqueBidKey);
+             normalizedBids.push({ ...entry, parsedKey: parsedKey });
+          } else {
+             auditLog.push(`Skipped identical duplicate bid entry: ${parsedKey} (BPL limit: ${bplVal}).`);
+          }
+        }
+      });
+    }
 
-    for (let i = 0; i < bids.length; i++) {
-      let rawBid = String(bids[i].bid || "").toUpperCase();
-      let bMatch = allBases.find(b => rawBid.includes(b));
-      let sMatch = allSeats.find(s => rawBid.includes(s));
-      if (!bMatch || !sMatch) continue;
+    if (normalizedBids.length === 0) {
+        auditLog.push(`No valid bids found for this pilot.`);
+    }
+
+    // Process Bids sequentially
+    for (let i = 0; i < normalizedBids.length; i++) {
+      const entry = normalizedBids[i];
+      const bidKey = entry.parsedKey;
+      const bplVal = parseInt(entry.bpl_min || 0);
+      const isFirst = (i === 0);
       
-      const bidKey = `${bMatch} ${sMatch}`;
-      const bplVal = parseInt(bids[i].bpl_min || 0);
-      const projectedCatSen = seatLedger[bidKey].awardedCount + 1;
+      let bplTextLog = bplVal > 0 ? ` (BPL Limit: ${bplVal})` : "";
+      auditLog.push(`Evaluating Bid Preference ${i + 1}: ${bidKey}${bplTextLog}`);
 
-      if (bplVal > 0 && projectedCatSen > bplVal) {
-        auditLog.push(`BPL Denied: ${bidKey} (Limit ${bplVal}, would be ${projectedCatSen})`);
-        continue;
+      if (!seatLedger[bidKey]) {
+          auditLog.push(`<span class="audit-warn">Warning: Seat ${bidKey} does not exist in capacity ledger. Skipping.</span>`);
+          continue;
       }
 
+      const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
+
+      if (bplVal > 0 && projectedCatSen > bplVal) {
+        const bplReasonText = `Hit Base Percentage Limit (BPL limit: ${bplVal}, pilot would be #${projectedCatSen} in base).`;
+        auditLog.push(`<span class="audit-fail">Denied: ${bplReasonText}</span>`);
+        if (isFirst) firstChoiceDeniedReason = bplReasonText;
+        continue; 
+      }
+
+      // Check if there's room in the target capacity
       if (seatLedger[bidKey].targetCap > seatLedger[bidKey].awardedCount) {
         awardedSeat = bidKey;
         seatLedger[bidKey].awardedCount++;
-        seatLedger[bidKey].juniorSen = pSen;
-        seatLedger[bidKey].awardedPilots.push({ spot: seatLedger[bidKey].awardedCount, sen: pSen, name: pName, start: startingSeat, status: bidKey === startingSeat ? "HELD" : "MOVED" });
+        seatLedger[bidKey].juniorSen = pSen; 
         resolved = true;
-        break;
+        
+        // Log the pilot into the seat's roster queue
+        seatLedger[bidKey].awardedPilots.push({
+            spot: seatLedger[bidKey].awardedCount,
+            sen: pSen,
+            name: pName,
+            start: startingSeat,
+            status: (bidKey === startingSeat) ? "HELD" : "MOVED"
+        });
+        
+        if (bidKey === startingSeat) {
+            actionType = "HELD";
+            ledgerReason = "Remain in current position.";
+            auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
+        } else {
+            actionType = "MOVED";
+            
+            if (seatLedger[awardedSeat].originalVacancies > 0) {
+                seatLedger[awardedSeat].originalVacancies--;
+                ledgerReason = "Open position available.";
+                auditLog.push(`<span class="audit-success">Awarded: Open system vacancy available.</span>`);
+            } else if (vacatedSeats[awardedSeat].length > 0) {
+                let profferedPilot = vacatedSeats[awardedSeat].shift();
+                ledgerReason = `Open position available. Proffered from ${profferedPilot.sen} - ${profferedPilot.name}.`;
+                auditLog.push(`<span class="audit-success">Awarded: Proffered from ${profferedPilot.sen} - ${profferedPilot.name}.</span>`);
+            } else {
+                ledgerReason = "Open position available.";
+                auditLog.push(`<span class="audit-success">Awarded: Open position available (Capacity Override).</span>`);
+            }
+            
+            // Vacate old seat and push the pilot's name into the queue
+            if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
+                vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
+                auditLog.push(`-> Increased vacancy in ${startingSeat} (Added to Proffer Queue).`);
+            }
+            auditLog.push(`-> Reduced vacancy in ${awardedSeat}.`);
+        }
+        
+        break; // Exits the bid loop so they only take 1 slot
+      } else {
+        auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy and cannot accept additional pilots.</span>`);
+        if (isFirst) firstChoiceDeniedReason = `Requested position has 0 vacancy and cannot accept additional pilots.`;
       }
     }
 
+    // 3. THE "STAY PUT" SAFETY NET (DENIED ALL BIDS)
     if (!resolved) {
-      awardedSeat = startingSeat || "UNASSIGNED";
-      if (seatLedger[awardedSeat]) {
-        seatLedger[awardedSeat].awardedCount++;
-        seatLedger[awardedSeat].awardedPilots.push({ spot: seatLedger[awardedSeat].awardedCount, sen: pSen, name: pName, start: startingSeat, status: "HELD" });
-      }
+       auditLog.push(`All preferences evaluated and denied, or no valid bids submitted.`);
+       if (startingSeat && startingSeat !== "N/A" && startingSeat !== "") {
+          awardedSeat = startingSeat;
+          actionType = "HELD";
+          ledgerReason = "Remain in current position.";
+          auditLog.push(`<span class="audit-success">Fallback Awarded: Remain in current position.</span>`);
+          
+          if (seatLedger[startingSeat]) {
+              seatLedger[startingSeat].awardedCount++;
+              seatLedger[startingSeat].juniorSen = pSen;
+              seatLedger[startingSeat].awardedPilots.push({
+                  spot: seatLedger[startingSeat].awardedCount,
+                  sen: pSen,
+                  name: pName,
+                  start: startingSeat,
+                  status: "HELD"
+              });
+          }
+       } else {
+          // True unassigned (Section 24.K)
+          awardedSeat = "UNASSIGNED";
+          actionType = "LOST";
+          ledgerReason = "Requested position has 0 vacancy and cannot accept additional pilots.";
+          auditLog.push(`<span class="audit-fail">No current active position to fall back to (Section 24.K returnee). Marked UNASSIGNED.</span>`);
+          
+          if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
+              vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
+          }
+       }
+    }
+
+    // Append Denial Reason if they didn't get their first choice
+    let firstBidKey = normalizedBids.length > 0 ? normalizedBids[0].parsedKey : "";
+    if (firstChoiceDeniedReason && awardedSeat !== firstBidKey) {
+        ledgerReason += ` (Denied ${firstBidKey}: ${firstChoiceDeniedReason})`;
     }
 
     fullSystemLog.push({
-      sen: pSen, name: pName, start: startingSeat, final: awardedSeat,
-      status: awardedSeat === startingSeat ? "HELD" : "MOVED",
-      ledger: "Processed", audit: auditLog,
-      css: awardedSeat === startingSeat ? "action-stay" : "action-awarded"
+      sen: pSen,
+      name: pName,
+      start: startingSeat || "N/A",
+      final: awardedSeat,
+      status: actionType,
+      ledger: ledgerReason,
+      audit: auditLog,
+      css: actionType === "MOVED" ? "action-awarded" : (actionType === "LOST" ? "action-danger" : "action-stay")
     });
   }
 
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
-  debugBPL(); // Update debugger view
 }
 
-function debugBPL() {
-  const selectedSeat = bplSelector.value;
-  const tbody = document.getElementById("bplDebugTable");
-  if (!globalSeatLedger[selectedSeat]) return;
-
-  const pilots = globalSeatLedger[selectedSeat].awardedPilots;
-  tbody.innerHTML = pilots.length ? pilots.map(p => `
-    <tr>
-      <td style="color:var(--accent); font-weight:bold;">${p.spot}</td>
-      <td>${p.sen}</td>
-      <td>${p.name}</td>
-      <td style="color:var(--text-muted)">${p.start}</td>
-      <td><span class="action-pill ${p.status === 'MOVED' ? 'action-awarded' : 'action-stay'}">${p.status}</span></td>
-    </tr>
-  `).join("") : '<tr><td colspan="5" style="text-align:center;">No pilots awarded to this seat.</td></tr>';
+function searchPilot() {
+  const senNum = parseInt(document.getElementById('senInput').value);
+  if (!senNum || fullSystemLog.length === 0) {
+    alert("Please run the analysis first, and ensure you entered a valid seniority number.");
+    return;
+  }
+  
+  const pilotData = fullSystemLog.find(p => p.sen === senNum);
+  const dash = document.getElementById('personalDash');
+  const auditUl = document.getElementById('dashAudit');
+  
+  if (pilotData) {
+    dash.style.display = 'block';
+    document.getElementById('dashSen').innerText = pilotData.sen;
+    document.getElementById('dashName').innerText = pilotData.name;
+    document.getElementById('dashStart').innerText = pilotData.start;
+    document.getElementById('dashFinal').innerText = pilotData.final;
+    document.getElementById('dashStatus').innerText = pilotData.status;
+    
+    // Render the audit trail step-by-step
+    auditUl.innerHTML = "";
+    pilotData.audit.forEach(logLine => {
+        const li = document.createElement('li');
+        li.innerHTML = logLine;
+        auditUl.appendChild(li);
+    });
+    
+    document.getElementById('dashFinal').style.color = pilotData.css === "action-awarded" ? "var(--success)" : (pilotData.css === "action-danger" ? "var(--danger)" : "var(--accent)");
+  } else {
+    alert(`Seniority ${senNum} not found in the final ledger.`);
+    dash.style.display = 'none';
+  }
 }
 
 function renderUI(seatLedger) {
@@ -343,25 +508,149 @@ function renderUI(seatLedger) {
       <td>${c.start}</td>
       <td><span style="color:var(--accent); font-weight:800">${c.final}</span></td>
       <td><span class="action-pill ${c.css}">${c.status}</span></td>
-      <td style="font-size: 11px;">${c.ledger}</td>
+      <td class="ledger-text" style="font-size: 11px;">${c.ledger}</td>
     </tr>
   `).join("");
 }
 
-function searchPilot() {
-  const senNum = parseInt(document.getElementById('senInput').value);
-  const pilotData = fullSystemLog.find(p => p.sen === senNum);
-  if (!pilotData) return alert("Pilot not found.");
+// EXPORT 1: Simplified Final Awards Output
+function exportFinalAwardsCSV() {
+  if (fullSystemLog.length === 0) return alert("Please run the analysis first.");
   
-  document.getElementById('personalDash').style.display = 'block';
-  document.getElementById('dashSen').innerText = pilotData.sen;
-  document.getElementById('dashName').innerText = pilotData.name;
-  document.getElementById('dashStart').innerText = pilotData.start;
-  document.getElementById('dashFinal').innerText = pilotData.final;
-  document.getElementById('dashStatus').innerText = pilotData.status;
+  let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
   
-  const auditUl = document.getElementById('dashAudit');
-  auditUl.innerHTML = pilotData.audit.map(log => `<li>${log}</li>`).join("");
+  fullSystemLog.forEach(r => {
+    let base = "UNASSIGNED";
+    let seat = "UNASSIGNED";
+    
+    if (r.final && r.final !== "UNASSIGNED" && r.final !== "N/A") {
+      const parts = r.final.trim().split(" ");
+      if (parts.length >= 2) {
+        base = parts[0];
+        seat = parts[1];
+      } else {
+        base = r.final;
+        seat = "";
+      }
+    }
+    
+    csv += `"${r.sen}","${r.name}","${base}","${seat}"\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  triggerDownload(blob, 'Final_Awards_Summary.csv');
+}
+
+// EXPORT 2: Detailed Audit Trail Output
+function exportAuditCSV() {
+  if (fullSystemLog.length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Seniority,Pilot Name,Starting Seat,Final Awarded Seat,Movement Status,Final Note,Audit Trail\n";
+  
+  fullSystemLog.forEach(r => {
+    const plainTextAudit = r.audit.map(str => str.replace(/<[^>]+>/g, '')).join('\n');
+    csv += `"${r.sen}","${r.name}","${r.start}","${r.final}","${r.status}","${r.ledger}","${plainTextAudit}"\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  triggerDownload(blob, 'Displacement_Results_With_Audit_Trail.csv');
+}
+
+// EXPORT 3: BPL Seat Rosters (Queue mapping)
+function exportBPLRostersCSV() {
+  if (Object.keys(globalSeatLedger).length === 0 || fullSystemLog.length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Awarded Seat,BPL Spot #,Pilot Seniority,Pilot Name,Starting Seat,Movement Status\n";
+  
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      if (globalSeatLedger[key] && globalSeatLedger[key].awardedPilots) {
+          globalSeatLedger[key].awardedPilots.forEach(pilot => {
+              csv += `"${key}","${pilot.spot}","${pilot.sen}","${pilot.name}","${pilot.start}","${pilot.status}"\n`;
+          });
+      }
+    });
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  triggerDownload(blob, 'BPL_Seat_Rosters.csv');
+}
+
+// Helper to trigger file downloads
+function triggerDownload(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', filename);
+  a.click();
+}
+
+// --- NEW: HIDDEN DEBUGGER LOGIC ---
+document.addEventListener('keydown', function(e) {
+  // Trigger on Ctrl + Shift + I
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i') {
+    e.preventDefault(); // Attempt to stop browser dev tools
+    toggleBPLDebugger();
+  }
+  
+  // Close on Escape key
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('bplDebuggerModal');
+    if (modal && modal.style.display !== 'none') {
+        modal.style.display = 'none';
+    }
+  }
+});
+
+function toggleBPLDebugger() {
+  const modal = document.getElementById('bplDebuggerModal');
+  const tbody = document.getElementById('bplDebuggerBody');
+  
+  if (modal.style.display === 'none') {
+    if (fullSystemLog.length === 0) {
+        alert("Please run the Full System Award analysis first to generate debugger data.");
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    let rowCount = 0;
+    
+    fullSystemLog.forEach(pilot => {
+        pilot.audit.forEach(log => {
+            let eventType = null;
+            let cleanLog = log.replace(/<[^>]*>?/gm, ''); // Strip HTML tags for clean reading
+            
+            if (cleanLog.includes('Hit Base Percentage Limit')) {
+                eventType = '<span style="color: var(--warning); font-weight: 900;">BPL DENIAL</span>';
+            } else if (cleanLog.includes('Requested position has 0 vacancy')) {
+                eventType = '<span style="color: var(--danger); font-weight: 900;">CAPACITY PASS</span>';
+            } else if (cleanLog.includes('Skipped identical duplicate bid')) {
+                eventType = '<span style="color: var(--text-muted); font-weight: 900;">DUP PASS</span>';
+            }
+            
+            if (eventType) {
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <td style="padding: 10px 15px;">${pilot.sen}</td>
+                        <td style="padding: 10px 15px;">${pilot.name}</td>
+                        <td style="padding: 10px 15px;">${eventType}</td>
+                        <td style="font-size: 11px; color: var(--text-muted); padding: 10px 15px;">${cleanLog}</td>
+                    </tr>
+                `;
+                rowCount++;
+            }
+        });
+    });
+    
+    if (rowCount === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--text-muted);">No BPL Denials or Capacity Passes recorded during this run.</td></tr>';
+    }
+    
+    modal.style.display = 'flex';
+  } else {
+    modal.style.display = 'none';
+  }
 }
 
 window.onload = loadData;
