@@ -2760,16 +2760,6 @@
     }
   },
   {
-    "id": "pil288",
-    "sen": 288,
-    "name": "DOYEL, JOHN M.",
-    "current": {
-      "equip": "737",
-      "base": "LAX",
-      "seat": "CA"
-    }
-  },
-  {
     "id": "pil289",
     "sen": 289,
     "name": "VAN STEENKIST, GRANT",
