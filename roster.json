@@ -3080,16 +3080,6 @@
     }
   },
   {
-    "id": "pil319",
-    "sen": 319,
-    "name": "LENNOX, SHAUN",
-    "current": {
-      "equip": "737",
-      "base": "LAX",
-      "seat": "CA"
-    }
-  },
-  {
     "id": "pil320",
     "sen": 320,
     "name": "MAHONEY, MATTHEW",
