@@ -154,11 +154,12 @@ function findCurrent(p) {
 
 async function loadData() {
   try {
-    const [r, p, c, nb] = await Promise.all([
+    const [r, p, c, nb, ret] = await Promise.all([
       fetch('./roster.json').then(res => res.json()),
       fetch('./preferences.json').then(res => res.json()),
       fetch('./capacities.json').then(res => res.json()),
-      fetch('./nobidpilots.json').then(res => res.json())
+      fetch('./nobidpilots.json').then(res => res.json()),
+      fetch('./retired_pilots.json').then(res => res.ok ? res.json() : []).catch(() => [])
     ]);
     
     // Deduplicate Roster by Seniority to prevent any double-evaluation bugs
@@ -171,6 +172,7 @@ async function loadData() {
     
     PREFS = p;
     NO_BID = new Set(nb.map(x => parseInt(x.sen)));
+    RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen) || parseInt(x.seniority)));
     
     CAPACITIES = {};
     if (Array.isArray(c)) {
@@ -223,6 +225,14 @@ function runAnalysis() {
 
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
+    
+    // 0. RETIRED OR RESIGNED PILOT LOGIC
+    // Ignore them completely. Do not count in bidding, do not hold seat, do not evaluate.
+    if (RETIRED_PILOTS.has(pSen)) {
+       // Optional: Could add console log here if tracking them is desired
+       continue;
+    }
+
     const startingSeat = findCurrent(p);
     const pName = String(p.name || p.pil || p.Pilot || "UNKNOWN");
     
