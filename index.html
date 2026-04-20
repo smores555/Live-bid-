@@ -196,6 +196,7 @@ async function loadData() {
 
 function runAnalysis() {
   let seatLedger = {};
+  let iceBox = []; // ADDED: The Displacement Ice Box
   
   allBases.forEach(b => {
     allSeats.forEach(s => {
@@ -220,6 +221,7 @@ function runAnalysis() {
   singlePilotSummary = [];
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
+  // --- ROUND 1: STANDARD BIDDING ---
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
@@ -274,8 +276,9 @@ function runAnalysis() {
           break; 
       }
 
-      // VACANCY CHECK (FIX FOR CUMMINGS 1235)
-      if (ledger.currentVacancy > 0 || bidKey === startingSeat) {
+      // VACANCY CHECK & DISPLACEMENT CHECK
+      // Note: We check if there's a vacancy, OR if it's their current seat AND holding it wouldn't exceed the target capacity
+      if (ledger.currentVacancy > 0 || (bidKey === startingSeat && ledger.awardedCount < ledger.targetCap)) {
         awardedSeat = bidKey;
         ledger.awardedCount++;
         ledger.juniorSen = pSen;
@@ -308,20 +311,64 @@ function runAnalysis() {
       }
     }
 
-    // 3. FALLBACK
+    // 3. IF UNRESOLVED, PILOT IS DISPLACED -> TO ICE BOX
     if (!resolved) {
-       if (startingSeat && seatLedger[startingSeat]) {
-          awardedSeat = startingSeat;
-          seatLedger[startingSeat].awardedCount++;
-          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...auditLog], start: startingSeat });
-       } else {
-          awardedSeat = "UNASSIGNED";
-          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "No fallback available.", css: "action-danger", audit: [...auditLog], start: startingSeat });
-       }
+        auditLog.push(`<span class="audit-warn">DISPLACED: No vacancy found. Entering Ice Box.</span>`);
+        iceBox.push({ pSen, pName, startingSeat, prefs: pPrefObj.preferences, auditLog, pilotRows });
+    } else {
+        detailedLedgerLog.push(...pilotRows);
+        singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
     }
-    detailedLedgerLog.push(...pilotRows);
-    singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
   }
+
+  // --- ROUND 2: THE ICE BOX (Displacement Awards) ---
+  for (const ice of iceBox) {
+      let resolved = false;
+      let awardedSeat = "";
+
+      for (let i = 0; i < ice.prefs.length; i++) {
+          const entry = ice.prefs[i];
+          let rawBid = String(entry.bid || "").toUpperCase();
+          let bMatch = allBases.find(b => rawBid.includes(b));
+          let sMatch = allSeats.find(s => rawBid.includes(s));
+          if (!bMatch || !sMatch) continue;
+
+          const bidKey = `${bMatch} ${sMatch}`;
+          const ledger = seatLedger[bidKey];
+          const prefNum = i + 1;
+
+          ice.auditLog.push(`Ice Box Eval ${prefNum}: ${bidKey}`);
+
+          // Can they displace? They must be more senior than the junior-most pilot in the base
+          if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
+              awardedSeat = bidKey;
+              ledger.awardedCount++;
+              // Update junior sen if this is the first one in, otherwise leave it (since they are senior to the junior guy)
+              ledger.juniorSen = Math.max(ledger.juniorSen === "N/A" ? 0 : ledger.juniorSen, ice.pSen);
+              ledger.currentVacancy--; // This drops into the negative, properly reflecting the overage
+
+              ledger.awardedPilots.push({ spot: ledger.awardedCount + " (DISP)", sen: ice.pSen, name: ice.pName, start: ice.startingSeat, status: "DISPLACED-IN" });
+
+              let note = `Displacement Award. Bumped junior pilot.`;
+              ice.auditLog.push(`<span class="audit-success">${note}</span>`);
+              ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [...ice.auditLog], start: ice.startingSeat });
+
+              resolved = true;
+              break;
+          } else {
+              ice.auditLog.push(`<span class="audit-fail">Denied: Not senior enough to displace in ${bidKey}.</span>`);
+          }
+      }
+
+      if (!resolved) {
+          ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "Ice Box Exhausted. No fallback available.", css: "action-danger", audit: [...ice.auditLog], start: ice.startingSeat });
+          awardedSeat = "UNASSIGNED";
+      }
+
+      detailedLedgerLog.push(...ice.pilotRows);
+      singlePilotSummary.push({sen: ice.pSen, name: ice.pName, final: awardedSeat});
+  }
+
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
 }
