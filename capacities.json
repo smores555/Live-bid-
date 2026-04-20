@@ -15,7 +15,7 @@
     "base": "LAX",
     "seat": "CA",
     "startCapacity": 268,
-    "delta": 0
+    "delta": -45
   },
   {
     "base": "LAX",
@@ -32,7 +32,7 @@
   {
     "base": "PDX",
     "seat": "FO",
-    "startCapacity": 227,
+    "startCapacity": 226,
     "delta": 0
   },
   {
