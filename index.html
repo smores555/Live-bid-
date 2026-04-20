@@ -152,15 +152,15 @@ allBases.forEach(b => {
     const div = document.createElement('div');
     div.innerHTML = `<label>${b} ${s} Mod</label>
                      <input type="number" id="mod_${b}_${s}" placeholder="0">`;
+    grid.appendChild(grid.firstChild ? grid.firstChild : div); 
+    // Grid management simplified for rewrite
     grid.appendChild(div);
   });
 });
 
 function findCurrent(p) {
   if (!p || !p.current) return "UNASSIGNED";
-  let b = String(p.current.base || "").trim();
-  let s = String(p.current.seat || "").trim();
-  return b && s ? `${b} ${s}` : "UNASSIGNED";
+  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`;
 }
 
 async function loadData() {
@@ -196,6 +196,7 @@ async function loadData() {
 function runAnalysis() {
   let seatLedger = {};
   
+  // 1. Initialize Ledger
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
@@ -219,6 +220,7 @@ function runAnalysis() {
   singlePilotSummary = [];
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
+  // --- SENIORITY-BASED AWARD PASS ---
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
@@ -228,12 +230,13 @@ function runAnalysis() {
     let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
     
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
-    let isNoBid = NO_BID.has(pSen);
-    let hasNoPrefs = (!pPrefObj.preferences || pPrefObj.preferences.length === 0);
-    let isStayOnly = (isNoBid || is320 || hasNoPrefs);
-
-    // FIX: If a pilot has no preferences or is No Bid, they hold their current seat by seniority right
-    let effectivePrefs = isStayOnly ? [{ bid: startingSeat }] : pPrefObj.preferences;
+    
+    // FIX: Check if they have ANY valid preference string.
+    // If not, they are treated as "No Bid" and effectively bid for their current seat.
+    let hasValidBid = pPrefObj.preferences && pPrefObj.preferences.some(e => e.bid && e.bid.trim() !== "");
+    
+    let isExempt = (NO_BID.has(pSen) || is320 || !hasValidBid);
+    let effectivePrefs = isExempt ? [{ bid: startingSeat }] : pPrefObj.preferences;
 
     let resolved = false;
     let auditLog = [];
@@ -244,15 +247,17 @@ function runAnalysis() {
       let rawBid = String(entry.bid || "").toUpperCase();
       let bMatch = allBases.find(b => rawBid.includes(b));
       let sMatch = allSeats.find(s => rawBid.includes(s));
+      
+      // If we are trying to process a preference but the string is blank, skip it.
       if (!bMatch || !sMatch) continue;
       
       const bidKey = `${bMatch} ${sMatch}`;
       const ledger = seatLedger[bidKey];
-      const prefNum = isStayOnly ? "1" : (i + 1);
+      const prefNum = isExempt ? "1" : (i + 1);
 
       // AWARD RULE:
       // 1. You get it if you are senior enough to fit in the Target Capacity.
-      // 2. OR you are staying in your CURRENT seat (Seniority Right).
+      // 2. OR you are staying in your CURRENT seat (Seniority Right to hold).
       if (bidKey === startingSeat || (ledger && ledger.awardedCount < ledger.targetCap)) {
         let oldVac = ledger.currentVacancy;
         ledger.awardedCount++;
@@ -261,8 +266,8 @@ function runAnalysis() {
         
         ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
         
-        let statusStr = isStayOnly ? "No Bid" : "Awarded";
-        let cssStr = isStayOnly ? "action-stay" : "action-awarded";
+        let statusStr = isExempt ? "No Bid" : "Awarded";
+        let cssStr = isExempt ? "action-stay" : "action-awarded";
         let note = "Remain in current position.";
         
         if (bidKey !== startingSeat) {
@@ -277,7 +282,7 @@ function runAnalysis() {
                 note += ` Increase vacancy in ${startingSeat} from ${oldStartVac} to ${sL.currentVacancy}. Proffered from ${startingSeat}.`;
             }
         } else {
-            note = is320 ? "320 Fleet. Remain in current position." : (hasNoPrefs ? "No bid submitted. Remain in current position." : "Not allowed to bid. Remain in current position.");
+            note = is320 ? "320 Fleet. Remain in current position." : (isExempt ? "Not allowed to bid. Remain in current position." : "Remain in current position.");
             auditLog.push(`<span class="audit-success">Awarded via Seniority Right.</span>`);
         }
         
@@ -293,13 +298,14 @@ function runAnalysis() {
     }
 
     if (!resolved) {
+        // Only hits if seniority is somehow lost or seat is unassigned
         detailedLedgerLog.push(...pilotRows);
         detailedLedgerLog.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Displaced", note: "Seniority insufficient to hold preferences.", css: "action-danger", audit: auditLog, start: startingSeat });
         singlePilotSummary.push({sen: pSen, name: pName, final: "UNASSIGNED"});
         if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) seatLedger[startingSeat].currentVacancy++;
     } else {
         detailedLedgerLog.push(...pilotRows);
-        singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
+        singlePilotSummary.push({sen: pSen, name: pName, final: pilotRows[pilotRows.length-1].pos.replace('737 ','')});
     }
   }
 
