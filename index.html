@@ -143,7 +143,7 @@
 
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set(), RETIRED_PILOTS = new Set();
-let detailedLedgerLog = [], singlePilotSummary = [], globalSeatLedger = {}, pilotStatusMap = {}; 
+let detailedLedgerLog = [], singlePilotSummary = [], globalSeatLedger = {}; 
 
 const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
 const allSeats = ["CA", "FO"];
@@ -198,295 +198,197 @@ async function loadData() {
 function runAnalysis() {
   let seatLedger = {};
   let iceBox = []; 
-  let currentStaffing = {};
-  const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
-  pilotStatusMap = {};
-  detailedLedgerLog = [];
-  singlePilotSummary = [];
-
-  // Count Incumbents for initial Capacity Setup
-  sortedRoster.forEach(p => {
-      let pSen = parseInt(p.sen);
-      if (RETIRED_PILOTS.has(pSen)) return;
-      let s = findCurrent(p);
-      if (s !== "UNASSIGNED") {
-          currentStaffing[s] = (currentStaffing[s] || 0) + 1;
-      }
-  });
-
-  // Init Seat Ledger
+  
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
       let modValue = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
       let pubDelta = parseInt(capObj.delta) || 0;
-      let targetCap = (parseInt(capObj.start) || 0) + pubDelta + modValue;
+      let targetCap = parseInt(capObj.start) + pubDelta + modValue;
       
       seatLedger[key] = {
         pubDelta: pubDelta,
+        modApplied: modValue,
         targetCap: targetCap,
-        awardedCount: currentStaffing[key] || 0, // Starts at incumbent staffing!
-        trackingVacancy: pubDelta + modValue,
-        awardedPilots: [],
-        juniorSen: "N/A"
+        awardedCount: 0, // MUST start at 0 for accurate BPL and Target Cap checks
+        currentVacancy: pubDelta + modValue, 
+        juniorSen: "N/A",
+        awardedPilots: [] 
       };
     });
   });
 
-  // Init Pilot Objects
-  sortedRoster.forEach(p => {
-      let pSen = parseInt(p.sen);
-      let s = findCurrent(p);
-      let pName = String(p.name || p.pil || "UNKNOWN");
-      
-      let pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
-      let prefs = [];
-      pPrefObj.preferences.forEach(entry => {
-          let rawBid = String(entry.bid || "").toUpperCase();
-          let bMatch = allBases.find(b => rawBid.includes(b));
-          let sMatch = allSeats.find(s => rawBid.includes(s));
-          if (bMatch && sMatch) {
-              prefs.push({ seat: `${bMatch} ${sMatch}`, bplVal: parseInt(entry.bpl_min || 0) });
-          }
-      });
-      
-      pilotStatusMap[pSen] = {
-          sen: pSen, name: pName, startingSeat: s, currentAward: s,
-          prefIndex: 999, isDisplaced: false, auditLog: [], pilotRows: [], prefs: prefs, 
-          hasValidBidStrings: prefs.length > 0,
-          is320: p.current && Object.values(p.current).some(val => String(val).includes("320")),
-          isNoBid: NO_BID.has(pSen)
-      };
-  });
+  detailedLedgerLog = []; 
+  singlePilotSummary = [];
+  const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
-  // Backfill Upward Cascade logic
-  function tryUpgrades(vacatedSeat, vacatingName, vacatingSen) {
-      if (seatLedger[vacatedSeat].awardedCount >= seatLedger[vacatedSeat].targetCap) return;
-
-      for (let c of sortedRoster) {
-          let cSen = parseInt(c.sen);
-          if (cSen >= vacatingSen) break; // Only check strictly senior pilots
-          
-          let ps = pilotStatusMap[cSen];
-          if (!ps || ps.isDisplaced || ps.isNoBid || ps.is320) continue;
-          
-          for (let i = 0; i < ps.prefs.length; i++) {
-              if (i >= ps.prefIndex) break; // Only look at BETTER preferences
-              let prefObj = ps.prefs[i];
-              
-              if (prefObj.seat === vacatedSeat) {
-                  let ledger = seatLedger[vacatedSeat];
-                  if (prefObj.bplVal > 0 && (ledger.awardedCount + 1) > prefObj.bplVal) continue; // Fails BPL
-                  
-                  // UPGRADE!
-                  let oldSeat = ps.currentAward;
-                  if (oldSeat !== "UNASSIGNED" && seatLedger[oldSeat]) seatLedger[oldSeat].awardedCount--;
-                  ledger.awardedCount++;
-                  
-                  ps.currentAward = vacatedSeat;
-                  ps.prefIndex = i;
-                  
-                  let oldVac = ledger.trackingVacancy;
-                  ledger.trackingVacancy--;
-                  let note = `Open position available. Reduce vacancy in ${vacatedSeat} from ${oldVac} to ${ledger.trackingVacancy}.`;
-                  
-                  if (oldSeat !== "UNASSIGNED" && seatLedger[oldSeat]) {
-                      let osL = seatLedger[oldSeat];
-                      let oldStartVac = osL.trackingVacancy;
-                      osL.trackingVacancy++;
-                      note += ` Increase vacancy in ${oldSeat} from ${oldStartVac} to ${osL.trackingVacancy}. Proffered from ${vacatingSen} - ${vacatingName}.`;
-                  }
-                  
-                  ps.pilotRows.push({
-                      sen: cSen, name: ps.name, pos: `737 ${vacatedSeat}`, pref: i + 1, status: "Awarded",
-                      note: note, css: "action-awarded", audit: ["Upgraded via backfill cascade."], start: ps.startingSeat
-                  });
-                  
-                  // Recursively backfill the seat they just abandoned
-                  if (oldSeat !== "UNASSIGNED" && seatLedger[oldSeat]) tryUpgrades(oldSeat, ps.name, cSen);
-                  return; // Vacancy claimed.
-              }
-          }
-      }
-  }
-
-  // --- ROUND 1: MAIN AWARDS (SENIOR TO JUNIOR) ---
+  // --- ROUND 1: STRICT SENIOR-TO-JUNIOR AWARD PASS ---
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
-    
-    let ps = pilotStatusMap[pSen];
-    
-    // 1. ADMIN NO BID
-    if (ps.isNoBid || ps.is320) {
-      let note = ps.is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.";
-      ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${ps.startingSeat}`, pref: "1", status: "No Bid", note: note, css: "action-stay", audit: ["Administrative"], start: ps.startingSeat});
-      continue; 
-    }
 
-    // 2. NO PREFS SUBMITTED
-    if (!ps.hasValidBidStrings) {
-      ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${ps.startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-awarded", audit: ["Stay via seniority right."], start: ps.startingSeat});
-      continue; 
-    }
+    const startingSeat = findCurrent(p);
+    const pName = String(p.name || p.pil || "UNKNOWN");
+    
+    let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
+    let isNoBidList = NO_BID.has(pSen);
+    
+    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
+    let hasValidBidStrings = pPrefObj.preferences && pPrefObj.preferences.some(e => e.bid && e.bid.trim() !== "");
 
-    // 3. EVALUATE PREFERENCES
+    let auditLog = [];
+    let pilotRows = [];
     let resolved = false;
-    for (let i = 0; i < ps.prefs.length; i++) {
-      let prefObj = ps.prefs[i];
-      let seat = prefObj.seat;
-      let ledger = seatLedger[seat];
-      let prefNum = i + 1;
+    let awardedSeat = "";
 
-      // BPL Check
-      if (prefObj.bplVal > 0 && (ledger.awardedCount + 1) > prefObj.bplVal) {
-          ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Denied", note: `Bid request does not meet BPL requirement.\nRequested BPL = ${prefObj.bplVal}. BPL if awarded = ${ledger.awardedCount + 1}.`, css: "action-danger", audit: [], start: ps.startingSeat});
-          continue; 
+    // 1. ADMINISTRATIVE HOLDS
+    if (isNoBidList || is320) {
+      if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+          seatLedger[startingSeat].awardedCount++;
+          seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+      }
+      let note = is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.";
+      pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "NO BID", note: note, css: "action-stay", audit: ["Admin Hold"], start: startingSeat });
+      detailedLedgerLog.push(...pilotRows);
+      singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
+      continue; 
+    }
+
+    // Determine the effective preferences (If no valid string, synthesize a bid for current seat)
+    let effectivePrefs = hasValidBidStrings ? pPrefObj.preferences : [{ bid: startingSeat, bpl_min: 0, isSynthetic: true }];
+
+    // 2. EVALUATE PREFERENCES
+    for (let i = 0; i < effectivePrefs.length; i++) {
+      const entry = effectivePrefs[i];
+      let rawBid = String(entry.bid || "").toUpperCase();
+      let bMatch = allBases.find(b => rawBid.includes(b));
+      let sMatch = allSeats.find(s => rawBid.includes(s));
+      if (!bMatch || !sMatch) continue;
+      
+      const bidKey = `${bMatch} ${sMatch}`;
+      const ledger = seatLedger[bidKey];
+      const prefNum = entry.isSynthetic ? "-" : (i + 1);
+      
+      // BPL CHECK
+      let bplVal = parseInt(entry.bpl_min || 0);
+      if (bplVal > 0 && (ledger.awardedCount + 1) > bplVal) {
+          pilotRows.push({ 
+              sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
+              note: `Bid request does not meet BPL requirement. Requested BPL = ${bplVal}. BPL if awarded = ${ledger.awardedCount + 1}.`, 
+              css: "action-danger", audit: [...auditLog], start: startingSeat 
+          });
+          continue; // Move to the next preference!
       }
 
       // CAPACITY CHECK
-      if (ledger.awardedCount < ledger.targetCap || seat === ps.startingSeat) {
-        if (seat !== ps.startingSeat) {
-            // MOVING (Voluntary)
-            let oldVac = ledger.trackingVacancy;
-            ledger.trackingVacancy--;
-            let note = `Open position available. Reduce vacancy in ${seat} from ${oldVac} to ${ledger.trackingVacancy}.`;
+      if (ledger.awardedCount < ledger.targetCap) {
+        awardedSeat = bidKey;
+        let oldVac = ledger.currentVacancy;
+        ledger.awardedCount++;
+        ledger.juniorSen = pSen;
+        resolved = true;
+        
+        ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
+        
+        let note = entry.isSynthetic ? "No preferences submitted. Remain in current position." : "Remain in current position.";
+        
+        if (bidKey !== startingSeat) {
+            ledger.currentVacancy--; // Claim the spot
+            note = `Open position available. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
             
-            let oldSeat = ps.startingSeat;
-            if (oldSeat !== "UNASSIGNED" && seatLedger[oldSeat]) {
-                let osL = seatLedger[oldSeat];
-                let oldStartVac = osL.trackingVacancy;
-                osL.trackingVacancy++;
-                note += ` Increase vacancy in ${oldSeat} from ${oldStartVac} to ${osL.trackingVacancy}. Proffered from Vacancy.`;
+            if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+                let sL = seatLedger[startingSeat];
+                let oldStartVac = sL.currentVacancy;
+                sL.currentVacancy++; // Vacate old spot
+                note += ` Increase vacancy in ${startingSeat} from ${oldStartVac} to ${sL.currentVacancy}. Proffered from ${startingSeat}.`;
             }
-            ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [], start: ps.startingSeat});
-            
-            ledger.awardedCount++;
-            if (oldSeat !== "UNASSIGNED" && seatLedger[oldSeat]) seatLedger[oldSeat].awardedCount--;
-            
-            ps.currentAward = seat;
-            ps.prefIndex = i;
-            resolved = true;
-            
-            // FIRE UPWARD CASCADE
-            if (oldSeat !== "UNASSIGNED" && seatLedger[oldSeat]) tryUpgrades(oldSeat, ps.name, pSen);
-            break;
-        } else {
-            // BIDDING TO STAY IN CURRENT
-            ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Awarded", note: "Remain in current position.", css: "action-awarded", audit: [], start: ps.startingSeat});
-            ps.currentAward = seat;
-            ps.prefIndex = i;
-            resolved = true;
-            break;
         }
+        
+        pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "AWARDED", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
+        break; // Successfully awarded, stop checking preferences
       } else {
-        ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Denied", note: `Requested position has ${ledger.pubDelta} vacancy and cannot accept additional pilots.`, css: "action-danger", audit: [], start: ps.startingSeat});
+        pilotRows.push({ 
+            sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
+            note: `Requested position has ${ledger.pubDelta} vacancy and cannot accept additional pilots.`, 
+            css: "action-danger", audit: [...auditLog], start: startingSeat 
+        });
       }
     }
 
-    // 4. FALLBACK & DISPLACEMENT
-    if (!resolved) {
-        let s = ps.startingSeat;
-        if (s !== "UNASSIGNED" && seatLedger[s]) {
-            let seniorCount = 0;
-            for (let c of sortedRoster) {
-                let cSen = parseInt(c.sen);
-                if (cSen > pSen) break;
-                if (pilotStatusMap[cSen].currentAward === s) seniorCount++;
-            }
+    // 3. FALLBACK TO CURRENT SEAT (If no preferences were awarded)
+    if (!resolved && startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+        let sLedger = seatLedger[startingSeat];
+        
+        if (sLedger.awardedCount < sLedger.targetCap) {
+            awardedSeat = startingSeat;
+            sLedger.awardedCount++;
+            sLedger.juniorSen = pSen;
+            resolved = true;
+            sLedger.awardedPilots.push({ spot: sLedger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: "HELD" });
             
-            if (seniorCount <= seatLedger[s].targetCap) {
-                // Retention Success
-                ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${s}`, pref: "-", status: "Awarded", note: "No preferences were available. Remain in current position.", css: "action-awarded", audit: [], start: ps.startingSeat});
-                ps.currentAward = s;
-                ps.prefIndex = 999;
-            } else {
-                // DISPLACED!
-                ps.isDisplaced = true;
-                ps.currentAward = "UNASSIGNED";
-                ps.prefIndex = Infinity;
-                seatLedger[s].awardedCount--; 
-                
-                ps.pilotRows.push({sen: pSen, name: ps.name, pos: `737 ${s}`, pref: "X", status: "Reduction", note: "Seniority is not high enough to hold position due to reductions.", css: "action-danger", audit: [], start: s});
-                iceBox.push(pSen);
-            }
+            pilotRows.push({ 
+                sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "AWARDED", 
+                note: "Remain in current position.", css: "action-awarded", audit: [...auditLog], start: startingSeat 
+            });
         }
+    }
+
+    // 4. DISPLACED
+    if (!resolved) {
+        iceBox.push({ pSen, pName, startingSeat, prefs: pPrefObj.preferences, auditLog, pilotRows });
+        
+        if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+            seatLedger[startingSeat].currentVacancy++; // Vacancy opens up because they are displaced
+        }
+    } else {
+        detailedLedgerLog.push(...pilotRows);
+        singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
     }
   }
 
-  // --- ROUND 2: THE ICE BOX (Displacement Awards) ---
-  for (let i = 0; i < iceBox.length; i++) {
-      let iceSen = iceBox[i];
-      let ps = pilotStatusMap[iceSen];
+  // --- ROUND 2: DISPLACEMENT AWARDS (ICE BOX) ---
+  for (const ice of iceBox) {
       let resolved = false;
+      let awardedSeat = "";
 
-      for (let j = 0; j < ps.prefs.length; j++) {
-          let prefObj = ps.prefs[j];
-          let seat = prefObj.seat;
-          let ledger = seatLedger[seat];
-          let prefNum = j + 1;
+      for (let i = 0; i < ice.prefs.length; i++) {
+          const entry = ice.prefs[i];
+          let rawBid = String(entry.bid || "").toUpperCase();
+          let bMatch = allBases.find(b => rawBid.includes(b));
+          let sMatch = allSeats.find(s => rawBid.includes(s));
+          if (!bMatch || !sMatch) continue;
 
-          // Open System Vacancy
-          if (ledger.awardedCount < ledger.targetCap) {
+          const bidKey = `${bMatch} ${sMatch}`;
+          const ledger = seatLedger[bidKey];
+          const prefNum = i + 1;
+
+          // Bump logic: Displace the junior-most pilot in the target base
+          if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
+              awardedSeat = bidKey;
+              let oldVac = ledger.currentVacancy;
               ledger.awardedCount++;
-              ps.currentAward = seat;
-              ps.prefIndex = j;
-              ps.isDisplaced = false;
+              ledger.juniorSen = Math.max(ledger.juniorSen === "N/A" ? 0 : ledger.juniorSen, ice.pSen);
+              ledger.currentVacancy--; 
+
+              ledger.awardedPilots.push({ spot: ledger.awardedCount + " (DISP)", sen: ice.pSen, name: ice.pName, start: ice.startingSeat, status: "DISPLACED-IN" });
+
+              let note = `Displacement Award. Bumped junior pilot. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
+              ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: `737 ${bidKey}`, pref: prefNum, status: "AWARDED", note: note, css: "action-awarded", audit: [...ice.auditLog], start: ice.startingSeat });
+
               resolved = true;
-              
-              let oldVac = ledger.trackingVacancy;
-              ledger.trackingVacancy--;
-              ps.pilotRows.push({sen: iceSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Awarded", note: `Vacancy available. Reduce vacancy in ${seat} from ${oldVac} to ${ledger.trackingVacancy}. Proffered from Vacancy.`, css: "action-awarded", audit: [], start: ps.startingSeat});
               break;
-          } else {
-              // Attempt Bump
-              let juniorMostSen = -1;
-              for (let c of [...sortedRoster].reverse()) {
-                  let cSen = parseInt(c.sen);
-                  if (pilotStatusMap[cSen].currentAward === seat && !pilotStatusMap[cSen].isDisplaced && !pilotStatusMap[cSen].isNoBid) {
-                      juniorMostSen = cSen;
-                      break;
-                  }
-              }
-              
-              if (juniorMostSen !== -1 && iceSen < juniorMostSen) {
-                  // BUMP SUCCESSFUL
-                  let bumpedPs = pilotStatusMap[juniorMostSen];
-                  bumpedPs.isDisplaced = true;
-                  bumpedPs.currentAward = "UNASSIGNED";
-                  bumpedPs.prefIndex = Infinity;
-                  iceBox.push(juniorMostSen); // Add them to Ice Box
-                  
-                  ps.currentAward = seat;
-                  ps.prefIndex = j;
-                  ps.isDisplaced = false;
-                  resolved = true;
-                  
-                  let oldVac = ledger.trackingVacancy;
-                  ledger.trackingVacancy--; // Bumping from outside uses a vacancy tracking number mathematically
-                  ps.pilotRows.push({sen: iceSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Awarded", note: `Vacancy available. Reduce vacancy in ${seat} from ${oldVac} to ${ledger.trackingVacancy}. Proffered from ${juniorMostSen} - ${bumpedPs.name}.`, css: "action-awarded", audit: [], start: ps.startingSeat});
-                  break;
-              } else {
-                  let minSen = juniorMostSen !== -1 ? juniorMostSen : "N/A";
-                  ps.pilotRows.push({sen: iceSen, name: ps.name, pos: `737 ${seat}`, pref: prefNum, status: "Denied", note: `Seniority is not high enough to hold position. Minimum position seniority is ${minSen}.`, css: "action-danger", audit: [], start: ps.startingSeat});
-              }
           }
       }
-      
-      if (!resolved) {
-          ps.pilotRows.push({sen: iceSen, name: ps.name, pos: "UNASSIGNED", pref: "-", status: "Displaced", note: "Ice Box Exhausted. No fallback available.", css: "action-danger", audit: [], start: ps.startingSeat});
-      }
-  }
 
-  // Compile final outputs
-  sortedRoster.forEach(p => {
-      let pSen = parseInt(p.sen);
-      if (RETIRED_PILOTS.has(pSen)) return;
-      let ps = pilotStatusMap[pSen];
-      detailedLedgerLog.push(...ps.pilotRows);
-      singlePilotSummary.push({sen: pSen, name: ps.name, final: ps.currentAward.replace('737 ','')});
-  });
+      if (!resolved) {
+          ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: "UNASSIGNED", pref: "-", status: "DISPLACED", note: "Ice Box Exhausted. No fallback available.", css: "action-danger", audit: [...ice.auditLog], start: ice.startingSeat });
+          awardedSeat = "UNASSIGNED";
+      }
+
+      detailedLedgerLog.push(...ice.pilotRows);
+      singlePilotSummary.push({sen: ice.pSen, name: ice.pName, final: awardedSeat});
+  }
 
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
@@ -502,7 +404,7 @@ function searchPilot() {
     document.getElementById('dashName').innerText = rows[0].name;
     document.getElementById('dashStart').innerText = rows[0].start;
     document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
-    document.getElementById('dashAudit').innerHTML = ""; // Cleaned up for raw data view
+    document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
   } else { alert("Pilot not found."); dash.style.display = 'none'; }
 }
 
@@ -511,23 +413,23 @@ function renderUI(ledger) {
   allBases.forEach(b => { allSeats.forEach(s => {
       const key = `${b} ${s}`, d = ledger[key];
       const displayVacancy = Math.max(0, d.targetCap - d.awardedCount);
-      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${displayVacancy > 0 ? 'var(--success)' : 'var(--text-muted)'}">${displayVacancy}</td><td>${d.juniorSen}</td></tr>`;
+      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${displayVacancy > 0 ? 'var(--success)' : 'var(--danger)'}">${displayVacancy}</td><td>${d.juniorSen}</td></tr>`;
   }); });
   document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
   document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
 }
 
 function exportFinalAwardsCSV() {
-  let csv = "Seniority,Pilot Name,final award,Bid Preference,Award Status,Award Note\n";
+  let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
   singlePilotSummary.forEach(r => {
-    let p = (r.final || "UNASSIGNED UNASSIGNED").split(" ");
-    csv += `"${r.sen}","${r.name}","737 ${r.final}","1","Awarded","See Full Ledger for Note"\n`;
+    let p = r.final.split(" ");
+    csv += `"${r.sen}","${r.name}","${p[0] || "UNASSIGNED"}","${p[1] || ""}"\n`;
   });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Final_Awards.csv');
 }
 
 function exportAuditCSV() {
-  let csv = "Seniority,Pilot Name,Position,Bid Preference,Award Status,Award Note\n";
+  let csv = "Sen,Name,Position,Pref,Status,Note\n";
   detailedLedgerLog.forEach(r => { csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.status}","${r.note}"\n`; });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Full_Ledger.csv');
 }
