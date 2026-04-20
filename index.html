@@ -274,8 +274,10 @@ function runAnalysis() {
           break; 
       }
 
-      // VACANCY CHECK (FIX FOR CUMMINGS 1235)
-      if (ledger.currentVacancy > 0 || bidKey === startingSeat) {
+      // CAPACITY CHECK (Strict Enforcment)
+      let isSeatFull = ledger.awardedCount >= ledger.targetCap;
+
+      if (!isSeatFull) {
         awardedSeat = bidKey;
         ledger.awardedCount++;
         ledger.juniorSen = pSen;
@@ -288,8 +290,10 @@ function runAnalysis() {
             ledger.currentVacancy--; // Junior takes a real spot
             note = "Awarded system vacancy.";
             auditLog.push(`<span class="audit-success">Awarded: Open vacancy.</span>`);
+            
+            // Vacating their old seat creates an opening there
             if (startingSeat && seatLedger[startingSeat]) {
-                seatLedger[startingSeat].currentVacancy++; // Moving out clears deficit
+                seatLedger[startingSeat].currentVacancy++; 
                 auditLog.push(`-> Increased vacancy in ${startingSeat}.`);
             }
         } else {
@@ -299,7 +303,7 @@ function runAnalysis() {
         pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
         break;
       } else {
-        let countNote = `Requested position has ${ledger.currentVacancy} vacancy and cannot accept additional pilots.`;
+        let countNote = `Requested position is full (Cap: ${ledger.targetCap}).`;
         auditLog.push(`<span class="audit-fail">Denied: ${countNote}</span>`);
         pilotRows.push({ 
             sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", 
@@ -310,13 +314,22 @@ function runAnalysis() {
 
     // 3. FALLBACK
     if (!resolved) {
-       if (startingSeat && seatLedger[startingSeat]) {
+       let startLedger = startingSeat ? seatLedger[startingSeat] : null;
+       
+       if (startLedger && startLedger.awardedCount < startLedger.targetCap) {
           awardedSeat = startingSeat;
-          seatLedger[startingSeat].awardedCount++;
-          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...auditLog], start: startingSeat });
+          startLedger.awardedCount++;
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position (Fallback).", css: "action-stay", audit: [...auditLog], start: startingSeat });
        } else {
           awardedSeat = "UNASSIGNED";
-          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "No fallback available.", css: "action-danger", audit: [...auditLog], start: startingSeat });
+          
+          // If displaced to UNASSIGNED, they have vacated their starting seat.
+          if (startLedger) {
+              startLedger.currentVacancy++;
+              auditLog.push(`-> Increased vacancy in ${startingSeat} due to displacement.`);
+          }
+          
+          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "Displaced (Seat Full). No fallback available.", css: "action-danger", audit: [...auditLog], start: startingSeat });
        }
     }
     detailedLedgerLog.push(...pilotRows);
