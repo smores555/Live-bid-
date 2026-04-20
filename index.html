@@ -196,7 +196,7 @@ async function loadData() {
 
 function runAnalysis() {
   let seatLedger = {};
-  let iceBox = []; // ADDED: The Displacement Ice Box
+  let iceBox = []; // The Displacement Ice Box
   
   allBases.forEach(b => {
     allSeats.forEach(s => {
@@ -276,9 +276,8 @@ function runAnalysis() {
           break; 
       }
 
-      // VACANCY CHECK & DISPLACEMENT CHECK
-      // Note: We check if there's a vacancy, OR if it's their current seat AND holding it wouldn't exceed the target capacity
-      if (ledger.currentVacancy > 0 || (bidKey === startingSeat && ledger.awardedCount < ledger.targetCap)) {
+      // VACANCY CHECK (Fixed logic to allow holding current seat regardless of targetCap constraints)
+      if (ledger.currentVacancy > 0 || bidKey === startingSeat) {
         awardedSeat = bidKey;
         ledger.awardedCount++;
         ledger.juniorSen = pSen;
@@ -287,12 +286,23 @@ function runAnalysis() {
         ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
         
         let note = "Remain in current position.";
+        
+        // DYNAMIC LEDGER FORMATTING (Company Style)
         if (bidKey !== startingSeat) {
+            let oldVac = ledger.currentVacancy;
             ledger.currentVacancy--; // Junior takes a real spot
-            note = "Awarded system vacancy.";
+            let newVac = ledger.currentVacancy;
+            
+            note = `Open position available. Reduce vacancy in ${bidKey} from ${oldVac} to ${newVac}.`;
             auditLog.push(`<span class="audit-success">Awarded: Open vacancy.</span>`);
+            
             if (startingSeat && seatLedger[startingSeat]) {
-                seatLedger[startingSeat].currentVacancy++; // Moving out clears deficit
+                let startLedger = seatLedger[startingSeat];
+                let oldStartVac = startLedger.currentVacancy;
+                startLedger.currentVacancy++; // Moving out clears deficit/creates vacancy
+                let newStartVac = startLedger.currentVacancy;
+                
+                note += ` Increase vacancy in ${startingSeat} from ${oldStartVac} to ${newStartVac}. Proffered from ${startingSeat}.`;
                 auditLog.push(`-> Increased vacancy in ${startingSeat}.`);
             }
         } else {
@@ -339,13 +349,12 @@ function runAnalysis() {
 
           ice.auditLog.push(`Ice Box Eval ${prefNum}: ${bidKey}`);
 
-          // Can they displace? They must be more senior than the junior-most pilot in the base
+          // Displacement Check
           if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
               awardedSeat = bidKey;
               ledger.awardedCount++;
-              // Update junior sen if this is the first one in, otherwise leave it (since they are senior to the junior guy)
               ledger.juniorSen = Math.max(ledger.juniorSen === "N/A" ? 0 : ledger.juniorSen, ice.pSen);
-              ledger.currentVacancy--; // This drops into the negative, properly reflecting the overage
+              ledger.currentVacancy--; 
 
               ledger.awardedPilots.push({ spot: ledger.awardedCount + " (DISP)", sen: ice.pSen, name: ice.pName, start: ice.startingSeat, status: "DISPLACED-IN" });
 
