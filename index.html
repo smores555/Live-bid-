@@ -18,34 +18,148 @@
       --danger: #ff4772; 
       --warning: #ffcf33;
     }
-    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-    .container { max-width: 1200px; margin: 0 auto; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-    label { display: block; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
-    input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #07111f; color: #fff; box-sizing: border-box; font-size: 14px; outline: none; }
-    button { background: var(--accent); color: #021024; border: none; font-weight: 900; cursor: pointer; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; }
-    button:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    .btn-secondary { background: transparent; border: 1px solid var(--accent); color: var(--accent); width: auto; padding: 6px 16px; font-size: 12px; margin-top: 0; }
-    .table-container { max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 15px; background: #07111f; }
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      margin: 0; 
+      padding: 20px; 
+      line-height: 1.5;
+    }
+    .container { 
+      max-width: 1200px; 
+      margin: 0 auto; 
+    }
+    .card { 
+      background: var(--card); 
+      border: 1px solid var(--border); 
+      border-radius: 16px; 
+      padding: 24px; 
+      margin-bottom: 20px; 
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); 
+    }
+    .grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+      gap: 15px; 
+    }
+    label { 
+      display: block; 
+      font-size: 11px; 
+      font-weight: 800; 
+      color: var(--text-muted); 
+      text-transform: uppercase; 
+      margin-bottom: 8px; 
+      letter-spacing: 0.5px; 
+    }
+    input, select, button { 
+      width: 100%; 
+      padding: 12px; 
+      border-radius: 8px; 
+      border: 1px solid var(--border); 
+      background: #07111f; 
+      color: #fff; 
+      box-sizing: border-box; 
+      font-size: 14px; 
+      outline: none; 
+      transition: all 0.2s;
+    }
+    button { 
+      background: var(--accent); 
+      color: #021024; 
+      border: none; 
+      font-weight: 900; 
+      cursor: pointer; 
+      margin-top: 10px; 
+      text-transform: uppercase; 
+      letter-spacing: 1px; 
+    }
+    button:hover { 
+      background: var(--accent-hover); 
+      transform: translateY(-1px); 
+    }
+    .btn-secondary { 
+      background: transparent; 
+      border: 1px solid var(--accent); 
+      color: var(--accent); 
+      width: auto; 
+      padding: 6px 16px; 
+      font-size: 12px; 
+      margin-top: 0; 
+    }
+    .table-container { 
+      max-height: 500px; 
+      overflow-y: auto; 
+      border: 1px solid var(--border); 
+      border-radius: 8px; 
+      margin-top: 15px; 
+      background: #07111f; 
+    }
     table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
-    th { color: var(--accent); text-transform: uppercase; font-size: 11px; position: sticky; top: 0; background: #0b192c; z-index: 10; }
-    .action-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; }
-    .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
-    .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
-    .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
-    
-    /* Search Dashboard & Audit Trail Styles */
-    .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
+    th, td { 
+      padding: 12px 16px; 
+      text-align: left; 
+      border-bottom: 1px solid rgba(255,255,255,0.05); 
+      font-size: 13px; 
+    }
+    th { 
+      color: var(--accent); 
+      text-transform: uppercase; 
+      font-size: 11px; 
+      position: sticky; 
+      top: 0; 
+      background: #0b192c; 
+      z-index: 10; 
+      border-bottom: 2px solid var(--border);
+    }
+    .action-pill { 
+      display: inline-block; 
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      font-weight: 800; 
+      font-size: 10px; 
+      text-transform: uppercase; 
+    }
+    .action-stay { 
+      background: rgba(255, 255, 255, 0.05); 
+      color: var(--text-muted); 
+      border: 1px solid rgba(255,255,255,0.2); 
+    }
+    .action-awarded { 
+      background: rgba(0, 255, 170, 0.1); 
+      color: var(--success); 
+      border: 1px solid var(--success); 
+    }
+    .action-danger { 
+      background: rgba(255, 71, 114, 0.15); 
+      color: var(--danger); 
+      border: 1px solid var(--danger); 
+    }
+    .dash-box { 
+      background: #06111f; 
+      padding: 15px; 
+      border-radius: 8px; 
+      border: 1px solid var(--border); 
+      margin-top: 15px; 
+      display: none; 
+    }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .audit-trail { font-family: monospace; font-size: 12px; color: var(--text-muted); background: #040c17; padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-top: 15px; list-style-type: none; }
+    .audit-trail { 
+      font-family: monospace; 
+      font-size: 12px; 
+      color: var(--text-muted); 
+      background: #040c17; 
+      padding: 15px; 
+      border-radius: 8px; 
+      border: 1px solid rgba(255,255,255,0.05); 
+      margin-top: 15px; 
+      list-style-type: none; 
+    }
     .audit-trail li { margin-bottom: 6px; padding-left: 15px; position: relative; }
     .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
-    .audit-warn { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -55,9 +169,7 @@
       <h2 style="margin-top:0; color:var(--accent);">System Parameters & Overrides</h2>
       <div class="grid" id="modifierGrid"></div>
       <div style="margin-top: 20px; display: flex; gap: 15px; align-items: flex-end;">
-        <div style="flex: 1;">
-          <button onclick="runAnalysis()" style="margin-top:0; padding: 15px;">Run Full System Award</button>
-        </div>
+        <div style="flex: 1;"><button onclick="runAnalysis()" style="margin-top:0; padding: 15px;">Run Full System Award</button></div>
         <div style="flex: 1;">
           <label>Search Pilot Outcome</label>
           <div style="display: flex; gap: 10px;">
@@ -66,7 +178,6 @@
           </div>
         </div>
       </div>
-
       <div class="dash-box" id="personalDash">
         <h3 style="margin-top:0; color:var(--success);">Pilot Evaluation Log</h3>
         <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
@@ -75,28 +186,17 @@
           <div><div class="dash-label">Starting Seat</div><div class="dash-stat" id="dashStart" style="color: #fff;">-</div></div>
         </div>
         <div class="table-container" style="max-height: 250px; margin-top: 15px;">
-            <table class="search-results-table">
-                <thead>
-                    <tr>
-                        <th>Position</th>
-                        <th>Pref</th>
-                        <th>Status</th>
-                        <th>Note</th>
-                    </tr>
-                </thead>
-                <tbody id="dashDetailedTable"></tbody>
-            </table>
+          <table>
+            <thead><tr><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
+            <tbody id="dashDetailedTable"></tbody>
+          </table>
         </div>
-        <div style="margin-top: 15px;">
-            <div class="dash-label">Internal Audit Log</div>
-            <ul class="audit-trail" id="dashAudit"></ul>
-        </div>
+        <ul class="audit-trail" id="dashAudit"></ul>
       </div>
     </div>
 
     <div class="card">
       <h3>Active Bidding System Capacity Summary</h3>
-      <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px;">Note: 320 and Frozen pilots bypass this capacity logic entirely.</p>
       <div class="table-container">
         <table>
           <thead>
@@ -105,7 +205,7 @@
               <th>Pub Delta</th>
               <th>Manual Mod</th>
               <th>Target Cap</th>
-              <th>Awarded (Active 737)</th>
+              <th>Awarded (737)</th>
               <th>Current Vacancy</th>
               <th>Junior Sen</th>
             </tr>
@@ -145,23 +245,21 @@
 <script>
 let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set(), RETIRED_PILOTS = new Set();
 let detailedLedgerLog = [], singlePilotSummary = [], globalSeatLedger = {}; 
+const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"], allSeats = ["CA", "FO"];
 
-const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
-const allSeats = ["CA", "FO"];
-
+// Initialization: Create inputs
 const grid = document.getElementById('modifierGrid');
-allBases.forEach(b => {
+allBases.forEach(b => { 
   allSeats.forEach(s => {
     const div = document.createElement('div');
-    div.innerHTML = `<label>${b} ${s} Mod</label>
-                     <input type="number" id="mod_${b}_${s}" placeholder="0">`;
+    div.innerHTML = `<label>${b} ${s} Mod</label><input type="number" id="mod_${b}_${s}" placeholder="0">`;
     grid.appendChild(div);
-  });
+  }); 
 });
 
-function findCurrent(p) {
+function findCurrent(p) { 
   if (!p || !p.current) return "";
-  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`;
+  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`; 
 }
 
 async function loadData() {
@@ -173,204 +271,122 @@ async function loadData() {
       fetch('./nobidpilots.json').then(res => res.json()),
       fetch('./retired_pilots.json').then(res => res.ok ? res.json() : []).catch(() => [])
     ]);
-    
     let uniqueRosterMap = new Map();
     let rawRoster = Array.isArray(r) ? r : Object.values(r);
-    rawRoster.forEach(pilot => {
-        if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot);
-    });
+    rawRoster.forEach(pilot => { if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot); });
     ROSTER = Array.from(uniqueRosterMap.values());
-    
-    PREFS = p;
-    NO_BID = new Set(nb.map(x => parseInt(x.sen)));
+    PREFS = p; NO_BID = new Set(nb.map(x => parseInt(x.sen)));
     RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen) || parseInt(x.seniority)));
-    
     CAPACITIES = {};
-    if (Array.isArray(c)) {
-      c.forEach(item => {
-        CAPACITIES[`${item.base} ${item.seat}`] = { start: item.startCapacity || 0, delta: item.delta || 0 };
-      });
-    }
-  } catch (e) { console.error("Data load failed."); }
+    if (Array.isArray(c)) c.forEach(item => { CAPACITIES[`${item.base} ${item.seat}`] = { start: item.startCapacity || 0, delta: item.delta || 0 }; });
+  } catch (e) { console.error("Data Load Failed."); }
 }
 
 function runAnalysis() {
   let seatLedger = {};
-  let iceBox = []; // ADDED: The Displacement Ice Box
-  
-  allBases.forEach(b => {
+  allBases.forEach(b => { 
     allSeats.forEach(s => {
-      const key = `${b} ${s}`;
-      let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
-      let modValue = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
-      let netVacancy = parseInt(capObj.delta) + modValue;
-      
-      seatLedger[key] = {
-        pubDelta: capObj.delta,
-        modApplied: modValue,
-        targetCap: Math.max(0, parseInt(capObj.start) + netVacancy),
-        awardedCount: 0,
-        currentVacancy: netVacancy, // TRACKING ACTUAL DEFICIT/SURPLUS
-        juniorSen: "N/A",
+      const key = `${b} ${s}`, cap = CAPACITIES[key] || { start: 0, delta: 0 };
+      const mod = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
+      const net = parseInt(cap.delta) + mod;
+      seatLedger[key] = { 
+        pubDelta: cap.delta, 
+        modApplied: mod, 
+        targetCap: Math.max(0, parseInt(cap.start) + net), 
+        awardedCount: 0, 
+        currentVacancy: net, 
+        juniorSen: "N/A", 
         awardedPilots: [] 
       };
-    });
+    }); 
   });
 
   detailedLedgerLog = []; 
   singlePilotSummary = [];
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
-  // --- ROUND 1: STANDARD BIDDING ---
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
-
-    const startingSeat = findCurrent(p);
-    const pName = String(p.name || p.pil || "UNKNOWN");
-    let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
-    let auditLog = [], pilotRows = [];
+    const startingSeat = findCurrent(p), pName = String(p.name || p.pil || "UNKNOWN");
+    let is320 = p.current && Object.values(p.current).some(v => String(v).includes("320")), auditLog = [], pilotRows = [];
+    let isUltimateDisplaced = false;
 
     // 1. EXEMPT PILOTS
     if (NO_BID.has(pSen) || is320) {
-      if (startingSeat && seatLedger[startingSeat]) {
-          seatLedger[startingSeat].awardedCount++;
-          seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+      if (startingSeat && seatLedger[startingSeat]) { 
+        seatLedger[startingSeat].awardedCount++; 
+        seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD" }); 
       }
-      pilotRows.push({ 
-          sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "No Bid", 
-          note: is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.", 
-          css: "action-stay", audit: ["Exempt status."], start: startingSeat 
-      });
-      detailedLedgerLog.push(...pilotRows);
-      singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
-      continue; 
+      pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "No Bid", note: "Remain in current position.", css: "action-stay", audit: ["Exempt status."], start: startingSeat });
+      detailedLedgerLog.push(...pilotRows); singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat}); continue;
     }
 
-    // 2. STANDARD BIDDING
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
-    let resolved = false;
-    let awardedSeat = "";
+    let resolved = false, awardedSeat = "";
 
+    // 2. EVALUATION LOOP
     for (let i = 0; i < pPrefObj.preferences.length; i++) {
       const entry = pPrefObj.preferences[i];
-      let rawBid = String(entry.bid || "").toUpperCase();
-      let bMatch = allBases.find(b => rawBid.includes(b));
-      let sMatch = allSeats.find(s => rawBid.includes(s));
+      let bMatch = allBases.find(b => String(entry.bid).toUpperCase().includes(b)), sMatch = allSeats.find(s => String(entry.bid).toUpperCase().includes(s));
       if (!bMatch || !sMatch) continue;
-      
-      const bidKey = `${bMatch} ${sMatch}`;
-      const ledger = seatLedger[bidKey];
-      const prefNum = i + 1;
-      const bplVal = parseInt(entry.bpl_min || 0);
+      const bidKey = `${bMatch} ${sMatch}`, ledger = seatLedger[bidKey], prefNum = i + 1, bpl = parseInt(entry.bpl_min || 0);
 
       auditLog.push(`Evaluating Bid Preference ${prefNum}: ${bidKey}`);
 
       // BPL CHECK
-      if (bplVal > 0 && (ledger.awardedCount + 1) > bplVal) {
-          pilotRows.push({ 
-              sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", 
-              note: `Hit Base Percentage Limit (${bplVal}).`, css: "action-danger", audit: [...auditLog], start: startingSeat 
-          });
+      if (bpl > 0 && (ledger.awardedCount + 1) > bpl) {
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", note: `Hit BPL limit (${bpl}).`, css: "action-danger", audit: [...auditLog], start: startingSeat });
           auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit.</span>`);
           break; 
       }
 
-      // VACANCY CHECK & DISPLACEMENT CHECK
-      // Note: We check if there's a vacancy, OR if it's their current seat AND holding it wouldn't exceed the target capacity
-      if (ledger.currentVacancy > 0 || (bidKey === startingSeat && ledger.awardedCount < ledger.targetCap)) {
-        awardedSeat = bidKey;
-        ledger.awardedCount++;
-        ledger.juniorSen = pSen;
-        resolved = true;
-        
-        ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
+      // DISPLACEMENT TRIGGER: Denied current seat due to reduction = Ultimate Bumping Rights
+      if (bidKey === startingSeat && ledger.currentVacancy <= 0) {
+          isUltimateDisplaced = true;
+          auditLog.push(`<span class="audit-fail">Displaced: Denied current position (${bidKey}). Gaining Ultimate Bumping Rights.</span>`);
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", note: `Requested position has ${ledger.currentVacancy} vacancy and cannot accept additional pilots.`, css: "action-danger", audit: [...auditLog], start: startingSeat });
+          continue; 
+      }
+
+      // AWARD CHECK: Displaced pilots bypass capacity walls (Ultimate Rights)
+      if (ledger.currentVacancy > 0 || isUltimateDisplaced || bidKey === startingSeat) {
+        awardedSeat = bidKey; ledger.awardedCount++; ledger.juniorSen = pSen; resolved = true;
+        ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
         
         let note = "Remain in current position.";
         if (bidKey !== startingSeat) {
-            ledger.currentVacancy--; // Junior takes a real spot
-            note = "Awarded system vacancy.";
-            auditLog.push(`<span class="audit-success">Awarded: Open vacancy.</span>`);
-            if (startingSeat && seatLedger[startingSeat]) {
-                seatLedger[startingSeat].currentVacancy++; // Moving out clears deficit
-                auditLog.push(`-> Increased vacancy in ${startingSeat}.`);
+            note = isUltimateDisplaced ? "Ultimate displacement bump." : "Awarded system vacancy.";
+            auditLog.push(`<span class="audit-success">${note}</span>`);
+            if (!isUltimateDisplaced) ledger.currentVacancy--; // Displaced bumps don't deplete voluntary vacancies
+            
+            if (startingSeat && seatLedger[startingSeat]) { 
+              seatLedger[startingSeat].currentVacancy++; 
+              auditLog.push(`-> Increased vacancy in ${startingSeat}.`); 
             }
-        } else {
-            auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
         }
-        
         pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
         break;
       } else {
-        let countNote = `Requested position has ${ledger.currentVacancy} vacancy and cannot accept additional pilots.`;
+        let countNote = `Requested position has ${ledger.currentVacancy} vacancy.`;
         auditLog.push(`<span class="audit-fail">Denied: ${countNote}</span>`);
-        pilotRows.push({ 
-            sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", 
-            note: countNote, css: "action-danger", audit: [...auditLog], start: startingSeat 
-        });
+        pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", note: countNote, css: "action-danger", audit: [...auditLog], start: startingSeat });
       }
     }
 
-    // 3. IF UNRESOLVED, PILOT IS DISPLACED -> TO ICE BOX
+    // 3. FALLBACK
     if (!resolved) {
-        auditLog.push(`<span class="audit-warn">DISPLACED: No vacancy found. Entering Ice Box.</span>`);
-        iceBox.push({ pSen, pName, startingSeat, prefs: pPrefObj.preferences, auditLog, pilotRows });
-    } else {
-        detailedLedgerLog.push(...pilotRows);
-        singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
-    }
-  }
-
-  // --- ROUND 2: THE ICE BOX (Displacement Awards) ---
-  for (const ice of iceBox) {
-      let resolved = false;
-      let awardedSeat = "";
-
-      for (let i = 0; i < ice.prefs.length; i++) {
-          const entry = ice.prefs[i];
-          let rawBid = String(entry.bid || "").toUpperCase();
-          let bMatch = allBases.find(b => rawBid.includes(b));
-          let sMatch = allSeats.find(s => rawBid.includes(s));
-          if (!bMatch || !sMatch) continue;
-
-          const bidKey = `${bMatch} ${sMatch}`;
-          const ledger = seatLedger[bidKey];
-          const prefNum = i + 1;
-
-          ice.auditLog.push(`Ice Box Eval ${prefNum}: ${bidKey}`);
-
-          // Can they displace? They must be more senior than the junior-most pilot in the base
-          if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
-              awardedSeat = bidKey;
-              ledger.awardedCount++;
-              // Update junior sen if this is the first one in, otherwise leave it (since they are senior to the junior guy)
-              ledger.juniorSen = Math.max(ledger.juniorSen === "N/A" ? 0 : ledger.juniorSen, ice.pSen);
-              ledger.currentVacancy--; // This drops into the negative, properly reflecting the overage
-
-              ledger.awardedPilots.push({ spot: ledger.awardedCount + " (DISP)", sen: ice.pSen, name: ice.pName, start: ice.startingSeat, status: "DISPLACED-IN" });
-
-              let note = `Displacement Award. Bumped junior pilot.`;
-              ice.auditLog.push(`<span class="audit-success">${note}</span>`);
-              ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [...ice.auditLog], start: ice.startingSeat });
-
-              resolved = true;
-              break;
-          } else {
-              ice.auditLog.push(`<span class="audit-fail">Denied: Not senior enough to displace in ${bidKey}.</span>`);
-          }
-      }
-
-      if (!resolved) {
-          ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "Ice Box Exhausted. No fallback available.", css: "action-danger", audit: [...ice.auditLog], start: ice.startingSeat });
+       if (startingSeat && seatLedger[startingSeat]) {
+          awardedSeat = startingSeat; seatLedger[startingSeat].awardedCount++;
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...auditLog], start: startingSeat });
+       } else {
           awardedSeat = "UNASSIGNED";
-      }
-
-      detailedLedgerLog.push(...ice.pilotRows);
-      singlePilotSummary.push({sen: ice.pSen, name: ice.pName, final: awardedSeat});
+          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "Involuntary displacement.", css: "action-danger", audit: [...auditLog], start: startingSeat });
+       }
+    }
+    detailedLedgerLog.push(...pilotRows); singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
   }
-
-  globalSeatLedger = seatLedger; 
-  renderUI(seatLedger);
+  globalSeatLedger = seatLedger; renderUI(seatLedger);
 }
 
 function searchPilot() {
@@ -378,53 +394,63 @@ function searchPilot() {
   const rows = detailedLedgerLog.filter(p => p.sen === senNum);
   const dash = document.getElementById('personalDash');
   if (rows.length > 0) {
-    dash.style.display = 'block';
-    document.getElementById('dashSen').innerText = rows[0].sen;
-    document.getElementById('dashName').innerText = rows[0].name;
+    dash.style.display = 'block'; 
+    document.getElementById('dashSen').innerText = rows[0].sen; 
+    document.getElementById('dashName').innerText = rows[0].name; 
     document.getElementById('dashStart').innerText = rows[0].start;
     document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
     document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
-  } else { alert("Pilot not found."); dash.style.display = 'none'; }
+  } else { 
+    alert("Pilot not found."); dash.style.display = 'none'; 
+  }
 }
 
 function renderUI(ledger) {
   let summaryHTML = "";
-  allBases.forEach(b => { allSeats.forEach(s => {
+  allBases.forEach(b => { 
+    allSeats.forEach(s => {
       const key = `${b} ${s}`, d = ledger[key], v = d.currentVacancy;
-      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${d.juniorSen}</td></tr>`;
-  }); });
+      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td style="color:var(--warning)">${d.juniorSen}</td></tr>`;
+    }); 
+  });
   document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
   document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
 }
 
 function exportFinalAwardsCSV() {
   let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
-  singlePilotSummary.forEach(r => {
-    let p = r.final.split(" ");
-    csv += `"${r.sen}","${r.name}","${p[0] || "UNASSIGNED"}","${p[1] || ""}"\n`;
+  singlePilotSummary.forEach(r => { 
+    let p = r.final.split(" "); 
+    csv += `"${r.sen}","${r.name}","${p[0] || "UN"}","${p[1] || ""}"\n`; 
   });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Final_Awards.csv');
 }
 
 function exportAuditCSV() {
   let csv = "Sen,Name,Position,Pref,Status,Note\n";
-  detailedLedgerLog.forEach(r => { csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.status}","${r.note}"\n`; });
+  detailedLedgerLog.forEach(r => { 
+    csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.status}","${r.note}"\n`; 
+  });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Full_Ledger.csv');
 }
 
 function exportBPLRostersCSV() {
   let csv = "Seat,Spot,Sen,Name,Status\n";
-  allBases.forEach(b => { allSeats.forEach(s => {
-    const key = `${b} ${s}`;
-    if (globalSeatLedger[key]) globalSeatLedger[key].awardedPilots.forEach(p => { csv += `"${key}","${p.spot}","${p.sen}","${p.name}","${p.status}"\n`; });
-  }); });
+  allBases.forEach(b => { 
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      if (globalSeatLedger[key]) globalSeatLedger[key].awardedPilots.forEach(p => { 
+        csv += `"${key}","${p.spot}","${p.sen}","${p.name}","${p.status}"\n`; 
+      });
+    }); 
+  });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'BPL_Rosters.csv');
 }
 
-function triggerDownload(blob, filename) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+function triggerDownload(blob, filename) { 
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(blob); 
+  a.download = filename; a.click(); 
 }
 
 window.onload = loadData;
