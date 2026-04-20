@@ -36,7 +36,6 @@
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
     
-    /* Search Dashboard & Audit Trail Styles */
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -237,7 +236,10 @@ function runAnalysis() {
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
     let hasValidBidStrings = pPrefObj.preferences && pPrefObj.preferences.some(e => e.bid && e.bid.trim() !== "");
 
-    let auditLog = [], pilotRows = [];
+    let resolved = false;
+    let auditLog = [];
+    let pilotRows = [];
+    let awardedSeat = "";
 
     // 1. ADMINISTRATIVE NO BID (No Bid List or 320 Fleet)
     if (isNoBidList || is320) {
@@ -255,27 +257,11 @@ function runAnalysis() {
       continue; 
     }
 
-    // 2. NO PREFERENCES SUBMITTED (Orazem/Rhodes fix)
-    if (!hasValidBidStrings) {
-      if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
-          seatLedger[startingSeat].awardedCount++;
-          seatLedger[startingSeat].awardedPilots.push({ spot: "HELD", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
-      }
-      pilotRows.push({ 
-          sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "AWARDED", 
-          note: "No preferences submitted. Remain in current position.", css: "action-awarded", audit: ["Stay via seniority right."], start: startingSeat 
-      });
-      detailedLedgerLog.push(...pilotRows);
-      singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
-      continue; 
-    }
+    // 2. EVALUATE STANDARD PREFERENCES
+    let prefsToTry = hasValidBidStrings ? pPrefObj.preferences : [];
 
-    // 3. STANDARD BIDDING
-    let resolved = false;
-    let awardedSeat = "";
-
-    for (let i = 0; i < pPrefObj.preferences.length; i++) {
-      const entry = pPrefObj.preferences[i];
+    for (let i = 0; i < prefsToTry.length; i++) {
+      const entry = prefsToTry[i];
       let rawBid = String(entry.bid || "").toUpperCase();
       let bMatch = allBases.find(b => rawBid.includes(b));
       let sMatch = allSeats.find(s => rawBid.includes(s));
@@ -288,7 +274,7 @@ function runAnalysis() {
 
       auditLog.push(`Evaluating Bid Preference ${prefNum}: ${bidKey}`);
 
-      // BPL CHECK (Restored from the good index)
+      // BPL CHECK
       if (bplVal > 0 && (ledger.awardedCount + 1) > bplVal) {
           pilotRows.push({ 
               sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
@@ -298,8 +284,8 @@ function runAnalysis() {
           break; 
       }
 
-      // VACANCY & TARGET CAP CHECK (The core seniority fix)
-      if (ledger.awardedCount < ledger.targetCap || bidKey === startingSeat) {
+      // TARGET CAPACITY CHECK
+      if (ledger.awardedCount < ledger.targetCap) {
         awardedSeat = bidKey;
         let oldVac = ledger.currentVacancy;
         ledger.awardedCount++;
@@ -310,7 +296,7 @@ function runAnalysis() {
         
         let note = "Remain in current position.";
         
-        // Dynamic Company Ledger Formatting Fix
+        // Dynamic Company Ledger Formatting
         if (bidKey !== startingSeat) {
             ledger.currentVacancy--; // Move-in reduces vacancy
             note = `Open position available. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
@@ -339,10 +325,47 @@ function runAnalysis() {
       }
     }
 
-    // 4. IF UNRESOLVED, PILOT IS DISPLACED -> TO ICE BOX
+    // 3. FALLBACK TO CURRENT SEAT (If no bids resolved)
+    if (!resolved && startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+        let sLedger = seatLedger[startingSeat];
+        auditLog.push(`Evaluating Fallback to Current Seat: ${startingSeat}`);
+        
+        if (sLedger.awardedCount < sLedger.targetCap) {
+            awardedSeat = startingSeat;
+            sLedger.awardedCount++;
+            sLedger.juniorSen = pSen;
+            resolved = true;
+            
+            sLedger.awardedPilots.push({ spot: sLedger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+            
+            let note = hasValidBidStrings 
+                ? "Bids denied. Retained current position." 
+                : "No preferences submitted. Remain in current position.";
+                
+            auditLog.push(`<span class="audit-success">Awarded: Fallback to current position.</span>`);
+            pilotRows.push({ 
+                sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: hasValidBidStrings ? "-" : "1", status: "AWARDED", 
+                note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat 
+            });
+        } else {
+            auditLog.push(`<span class="audit-fail">Denied: Current position is full (Displaced).</span>`);
+            pilotRows.push({ 
+                sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "DENIED", 
+                note: `Current position full. Seniority insufficient to hold.`, css: "action-danger", audit: [...auditLog], start: startingSeat 
+            });
+        }
+    }
+
+    // 4. IF STILL UNRESOLVED, PILOT IS DISPLACED -> TO ICE BOX
     if (!resolved) {
         auditLog.push(`<span class="audit-warn">DISPLACED: No vacancy found. Entering Ice Box.</span>`);
         iceBox.push({ pSen, pName, startingSeat, prefs: pPrefObj.preferences, auditLog, pilotRows });
+        
+        // Displaced pilots are leaving their starting seat, so we increase its system vacancy
+        if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+            seatLedger[startingSeat].currentVacancy++;
+            auditLog.push(`-> Increased vacancy in ${startingSeat} due to displacement.`);
+        }
     } else {
         detailedLedgerLog.push(...pilotRows);
         singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
@@ -367,7 +390,7 @@ function runAnalysis() {
 
           ice.auditLog.push(`Ice Box Eval ${prefNum}: ${bidKey}`);
 
-          // Displacement Check
+          // Displacement Check: Bump the junior-most pilot
           if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
               awardedSeat = bidKey;
               let oldVac = ledger.currentVacancy;
