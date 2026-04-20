@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Master Command Center | Displacement Logic</title>
+  <meta name="robots" content="noindex, nofollow">
   <style>
     :root {
       --bg: #040c17; 
@@ -34,6 +35,8 @@
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
+    
+    /* Search Dashboard & Audit Trail Styles */
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -43,6 +46,7 @@
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
     .audit-warn { color: var(--warning); }
+    .search-results-table { margin-top: 15px; width: 100%; }
   </style>
 </head>
 <body>
@@ -50,13 +54,14 @@
   <div class="container">
     <div class="card">
       <h2 style="margin-top:0; color:var(--accent);">System Parameters & Overrides</h2>
-      <div class="grid" id="modifierGrid"></div>
+      <div class="grid" id="modifierGrid">
+        </div>
       <div style="margin-top: 20px; display: flex; gap: 15px; align-items: flex-end;">
         <div style="flex: 1;">
           <button onclick="runAnalysis()" style="margin-top:0; padding: 15px;">Run Full System Award</button>
         </div>
         <div style="flex: 1;">
-          <label>Search Pilot Outcome & Audit Trail</label>
+          <label>Search Pilot Outcome</label>
           <div style="display: flex; gap: 10px;">
             <input type="number" id="senInput" placeholder="Enter Seniority #">
             <button class="btn-secondary" onclick="searchPilot()" style="margin: 0; padding: 0 20px;">Find</button>
@@ -65,29 +70,45 @@
       </div>
 
       <div class="dash-box" id="personalDash">
-        <h3 style="margin-top:0; color:var(--success);">Pilot Transaction Log</h3>
+        <h3 style="margin-top:0; color:var(--success);">Pilot Evaluation Log</h3>
         <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
           <div><div class="dash-label">Seniority</div><div class="dash-stat" id="dashSen">-</div></div>
           <div><div class="dash-label">Pilot Name</div><div class="dash-stat" id="dashName" style="color: #fff;">-</div></div>
           <div><div class="dash-label">Starting Seat</div><div class="dash-stat" id="dashStart" style="color: #fff;">-</div></div>
-          <div><div class="dash-label">Final Award</div><div class="dash-stat" id="dashFinal">-</div></div>
-          <div><div class="dash-label">Status</div><div class="dash-stat" id="dashStatus" style="color: #fff;">-</div></div>
         </div>
-        <ul class="audit-trail" id="dashAudit"></ul>
+        <div class="table-container" style="max-height: 250px; margin-top: 15px;">
+            <table class="search-results-table">
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Pref</th>
+                        <th>Status</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody id="dashDetailedTable"></tbody>
+            </table>
+        </div>
+        <div style="margin-top: 15px;">
+            <div class="dash-label">Internal Audit Log</div>
+            <ul class="audit-trail" id="dashAudit"></ul>
+        </div>
       </div>
     </div>
 
     <div class="card">
       <h3>Active Bidding System Capacity Summary</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px;">Note: 320 and Frozen pilots bypass this capacity logic entirely.</p>
       <div class="table-container">
         <table>
           <thead>
             <tr>
               <th>Seat</th>
               <th>Pub Delta</th>
-              <th>Current Vacancy</th>
+              <th>Manual Mod</th>
               <th>Target Cap</th>
-              <th>Awarded</th>
+              <th>Awarded (Active 737)</th>
+              <th>Current Vacancy</th>
               <th>Junior Sen</th>
             </tr>
           </thead>
@@ -97,16 +118,24 @@
     </div>
 
     <div class="card">
-      <h3>Final Award Ledger</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <h3 style="margin: 0;">Displacement & Vacancy Ledger</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button onclick="exportFinalAwardsCSV()" class="btn-secondary" style="border-color: var(--success); color: var(--success);">Export Final Awards</button>
+          <button onclick="exportAuditCSV()" class="btn-secondary">Export Full Ledger</button>
+          <button onclick="exportBPLRostersCSV()" class="btn-secondary" style="border-color: var(--warning); color: var(--warning);">Export BPL Seat Rosters</button>
+        </div>
+      </div>
       <div class="table-container">
         <table>
           <thead>
             <tr>
-              <th>Sen #</th>
-              <th>Starting Seat</th>
-              <th>Final Award</th>
+              <th>Sen</th>
+              <th>Name</th>
+              <th>Position</th>
+              <th>Pref</th>
               <th>Status</th>
-              <th>Transaction Note</th>
+              <th>Note</th>
             </tr>
           </thead>
           <tbody id="competitorTable"></tbody>
@@ -116,20 +145,29 @@
   </div>
 
 <script>
-let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set(), RETIRED_PILOTS = new Set();
-let fullSystemLog = []; 
+let ROSTER = [], PREFS = {}, CAPACITIES = {}, NO_BID = new Set();
+let detailedLedgerLog = []; // Replaces fullSystemLog for line-by-line view
+let singlePilotSummary = []; // Keeps track of final awards for CSV
 let globalSeatLedger = {}; 
 
 const allBases = ["ANC", "LAX", "PDX", "SAN", "SEA", "SFO"];
 const allSeats = ["CA", "FO"];
 
+// Initialization: Create the modifier inputs
+const grid = document.getElementById('modifierGrid');
 allBases.forEach(b => {
   allSeats.forEach(s => {
     const div = document.createElement('div');
-    div.innerHTML = `<label>${b} ${s} Mod</label><input type="number" id="mod_${b}_${s}" placeholder="0">`;
-    document.getElementById('modifierGrid').appendChild(div);
+    div.innerHTML = `<label>${b} ${s} Mod</label>
+                     <input type="number" id="mod_${b}_${s}" placeholder="0">`;
+    grid.appendChild(div);
   });
 });
+
+function findCurrent(p) {
+  if (!p || !p.current) return "";
+  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`;
+}
 
 async function loadData() {
   try {
@@ -140,39 +178,58 @@ async function loadData() {
       fetch('./nobidpilots.json').then(res => res.json()),
       fetch('./retired_pilots.json').then(res => res.ok ? res.json() : []).catch(() => [])
     ]);
-    ROSTER = Array.isArray(r) ? r : Object.values(r);
+    
+    // Deduplicate Roster by Seniority to prevent any double-evaluation bugs
+    let uniqueRosterMap = new Map();
+    let rawRoster = Array.isArray(r) ? r : Object.values(r);
+    rawRoster.forEach(pilot => {
+        if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot);
+    });
+    ROSTER = Array.from(uniqueRosterMap.values());
+    
     PREFS = p;
     NO_BID = new Set(nb.map(x => parseInt(x.sen)));
-    RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen)));
+    RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen) || parseInt(x.seniority)));
+    
+    CAPACITIES = {};
     if (Array.isArray(c)) {
       c.forEach(item => {
-        CAPACITIES[`${item.base} ${item.seat}`] = { start: item.startCapacity || 0, delta: item.delta || 0 };
+        CAPACITIES[`${item.base} ${item.seat}`] = {
+          start: item.startCapacity || 0,
+          delta: item.delta || 0
+        };
       });
     }
-  } catch (e) { console.error("Error loading data."); }
-}
-
-function findCurrent(p) {
-  if (!p || !p.current) return "";
-  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`;
+    console.log(`Data loaded successfully. Total Unique Pilots: ${ROSTER.length}`);
+  } catch (e) { 
+    console.error("Error loading JSON files. Check if they exist in the folder."); 
+  }
 }
 
 function runAnalysis() {
   let seatLedger = {};
   let vacatedSeats = {}; 
   
+  // Clean console for a fresh run
+  console.clear();
+  console.log("Starting Full System Award Analysis...");
+  console.log("----------------------------------------");
+  
+  // Initialize ledgers and waterfall tracking strictly from capacities.json
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
-      let modVal = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
-      let netVac = parseInt(capObj.delta) + modVal;
+      const modInput = document.getElementById(`mod_${b}_${s}`);
+      let modValue = modInput ? parseInt(modInput.value) || 0 : 0;
+      let pubModTotal = parseInt(capObj.delta) + modValue;
       
       seatLedger[key] = {
         pubDelta: capObj.delta,
-        targetCap: Math.max(0, parseInt(capObj.start) + netVac),
+        modApplied: modValue,
+        targetCap: Math.max(0, parseInt(capObj.start) + pubModTotal),
         awardedCount: 0,
-        currentVacancy: netVac, 
+        currentVacancy: pubModTotal, // Tracks actual positive or negative vacancy
         juniorSen: "N/A",
         awardedPilots: [] 
       };
@@ -180,109 +237,309 @@ function runAnalysis() {
     });
   });
 
-  fullSystemLog = []; 
+  detailedLedgerLog = []; 
+  singlePilotSummary = [];
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
+    
+    // 0. RETIRED OR RESIGNED PILOT LOGIC
     if (RETIRED_PILOTS.has(pSen)) continue;
 
     const startingSeat = findCurrent(p);
-    const pName = p.name || "PILOT";
-    let is320 = p.current && Object.values(p.current).some(v => String(v).includes("320"));
-    let auditLog = [];
+    const pName = String(p.name || p.pil || p.Pilot || "UNKNOWN");
+    
+    let is320 = false;
+    if (p.current) is320 = Object.values(p.current).some(val => String(val).includes("320"));
 
+    let auditLog = []; 
+    let pilotRows = [];
+
+    // 1. FROZEN OR 320 PILOT LOGIC
     if (NO_BID.has(pSen) || is320) {
+      const reason = is320 ? "320 Fleet" : "Frozen Bidding Status";
+      auditLog.push(`Pilot identified as exempt (${reason}).`);
+      auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
+      
       if (startingSeat && seatLedger[startingSeat]) {
-        seatLedger[startingSeat].awardedCount++;
-        seatLedger[startingSeat].awardedPilots.push({ sen: pSen, name: pName, status: "HELD" });
+          seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD (EXEMPT)" });
       }
-      fullSystemLog.push({ sen: pSen, name: pName, start: startingSeat, final: startingSeat, status: "HELD", ledger: "Remain in current position.", audit: ["Pilot exempt from bidding."], css: "action-stay" });
-      continue;
+
+      let equipmentStr = is320 ? "320" : "737";
+      pilotRows.push({ sen: pSen, name: pName, pos: `${equipmentStr} ${startingSeat}`, pref: "1", status: "No Bid", note: "Not allowed to bid. Remain in current position.", css: "action-stay", audit: auditLog, start: startingSeat });
+      detailedLedgerLog.push(...pilotRows);
+      singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
+      continue; 
     }
 
-    const pPrefs = (PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] }).preferences;
+    // 2. STANDARD BIDDING LOGIC
+    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen];
     let resolved = false;
+    let awardedSeat = "";
 
-    for (let pref of pPrefs) {
-      let bMatch = allBases.find(b => pref.bid.toUpperCase().includes(b));
-      let sMatch = allSeats.find(s => pref.bid.toUpperCase().includes(s));
-      if (!bMatch || !sMatch) continue;
+    let normalizedBids = [];
+    let seenBids = new Set();
+    
+    if (pPrefObj && Array.isArray(pPrefObj.preferences)) {
+      pPrefObj.preferences.forEach(entry => {
+        let rawBid = String(entry.bid || "").toUpperCase();
+        let bMatch = allBases.find(b => rawBid.includes(b));
+        let sMatch = allSeats.find(s => rawBid.includes(s));
+        
+        if (bMatch && sMatch) {
+          const parsedKey = `${bMatch} ${sMatch}`;
+          const bplVal = parseInt(entry.bpl_min || 0);
+          const uniqueBidKey = `${parsedKey}_${bplVal}`; 
+          
+          if (!seenBids.has(uniqueBidKey)) {
+             seenBids.add(uniqueBidKey);
+             normalizedBids.push({ ...entry, parsedKey: parsedKey });
+          }
+        }
+      });
+    }
+
+    if (normalizedBids.length === 0) {
+        auditLog.push(`No valid bids found for this pilot.`);
+    }
+
+    for (let i = 0; i < normalizedBids.length; i++) {
+      const entry = normalizedBids[i];
+      const bidKey = entry.parsedKey;
+      const bplVal = parseInt(entry.bpl_min || 0);
+      const prefNum = i + 1;
       
-      const bidKey = `${bMatch} ${sMatch}`;
-      const ledger = seatLedger[bidKey];
-      const bpl = parseInt(pref.bpl_min) || 0;
+      let bplTextLog = bplVal > 0 ? ` (BPL Limit: ${bplVal})` : "";
+      auditLog.push(`Evaluating Bid Preference ${prefNum}: ${bidKey}${bplTextLog}`);
 
-      if (bpl > 0 && (ledger.awardedCount + 1) > bpl) {
-        auditLog.push(`Denied: Hit BPL limit of ${bpl}.`);
+      if (!seatLedger[bidKey]) continue;
+
+      const projectedCatSen = seatLedger[bidKey].awardedCount + 1; 
+
+      if (bplVal > 0 && projectedCatSen > bplVal) {
+        pilotRows.push({
+          sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied",
+          note: `Hit Base Percentage Limit (Limit: ${bplVal}).`, css: "action-danger", audit: [...auditLog], start: startingSeat
+        });
+        auditLog.push(`<span class="audit-fail">Denied: Hit Base Percentage Limit. Halting further bids.</span>`);
         break; 
       }
 
-      // THE KEY FIX: Must have currentVacancy > 0 or be moving back to current seat or filling a vacated spot
-      if (ledger.currentVacancy > 0 || bidKey === startingSeat || vacatedSeats[bidKey].length > 0) {
+      // STRICT VACANCY CHECK
+      if (seatLedger[bidKey].currentVacancy > 0 || bidKey === startingSeat || vacatedSeats[bidKey].length > 0) {
+        awardedSeat = bidKey;
+        seatLedger[bidKey].awardedCount++;
+        seatLedger[bidKey].juniorSen = pSen; 
         resolved = true;
-        ledger.awardedCount++;
-        ledger.juniorSen = pSen;
         
-        let note = "";
+        seatLedger[bidKey].awardedPilots.push({ spot: seatLedger[bidKey].awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
+        
+        let successNote = "";
         if (bidKey === startingSeat) {
-          note = "Remain in current position.";
+            successNote = "Remain in current position.";
+            auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
         } else {
-          if (ledger.currentVacancy > 0) {
-            ledger.currentVacancy--;
-            note = "Open position available.";
-          } else {
-            let prof = vacatedSeats[bidKey].shift();
-            note = `Proffered from ${prof.sen}.`;
-          }
-          if (startingSeat && seatLedger[startingSeat]) {
-            seatLedger[startingSeat].currentVacancy++;
-            vacatedSeats[startingSeat].push({ sen: pSen });
-          }
+            if (seatLedger[awardedSeat].currentVacancy > 0) {
+                seatLedger[awardedSeat].currentVacancy--;
+                successNote = "Remain in current position."; // Typically what the spreadsheet shows if they move but then stay there
+                if(bidKey !== startingSeat) successNote = "Awarded system vacancy.";
+                auditLog.push(`<span class="audit-success">Awarded: Open system vacancy available.</span>`);
+            } else {
+                let profferedPilot = vacatedSeats[awardedSeat].shift();
+                successNote = `Awarded backfill. Proffered from ${profferedPilot.sen}.`;
+                auditLog.push(`<span class="audit-success">Awarded: Proffered from ${profferedPilot.sen}.</span>`);
+            }
+            
+            // Vacate old seat
+            if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
+                vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
+                seatLedger[startingSeat].currentVacancy++; 
+                auditLog.push(`-> Increased vacancy in ${startingSeat} (Added to Proffer Queue).`);
+            }
         }
         
-        fullSystemLog.push({ sen: pSen, name: pName, start: startingSeat, final: bidKey, status: bidKey === startingSeat ? "HELD" : "MOVED", ledger: note, audit: auditLog, css: bidKey === startingSeat ? "action-stay" : "action-awarded" });
-        break;
+        pilotRows.push({
+          sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded",
+          note: bidKey === startingSeat ? "Remain in current position." : successNote, css: "action-awarded", audit: [...auditLog], start: startingSeat
+        });
+        break; // Exits the bid loop so they only take 1 slot
       } else {
-        auditLog.push(`Denied: Position has ${ledger.currentVacancy} vacancy.`);
+        let deficit = seatLedger[bidKey].currentVacancy;
+        pilotRows.push({
+          sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied",
+          note: `Requested position has ${deficit} vacancy and cannot accept additional pilots.`, css: "action-danger", audit: [...auditLog], start: startingSeat
+        });
+        auditLog.push(`<span class="audit-fail">Denied: Requested position has ${deficit} vacancy.</span>`);
       }
     }
 
+    // 3. THE "STAY PUT" SAFETY NET (DENIED ALL BIDS)
     if (!resolved) {
-      if (startingSeat && seatLedger[startingSeat]) {
-        seatLedger[startingSeat].awardedCount++;
-        fullSystemLog.push({ sen: pSen, name: pName, start: startingSeat, final: startingSeat, status: "HELD", ledger: "Fallback: Remain in current position.", audit: auditLog, css: "action-stay" });
-      } else {
-        fullSystemLog.push({ sen: pSen, name: pName, start: "N/A", final: "UNASSIGNED", status: "LOST", ledger: "No valid bid or fallback.", audit: auditLog, css: "action-danger" });
-      }
+       auditLog.push(`All preferences evaluated and denied, or no valid bids submitted.`);
+       if (startingSeat && startingSeat !== "N/A" && startingSeat !== "") {
+          awardedSeat = startingSeat;
+          
+          if (seatLedger[startingSeat]) {
+              seatLedger[startingSeat].awardedCount++;
+              seatLedger[startingSeat].juniorSen = pSen;
+              seatLedger[startingSeat].awardedPilots.push({ spot: seatLedger[startingSeat].awardedCount, sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+          }
+          pilotRows.push({
+            sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded",
+            note: "Remain in current position.", css: "action-stay", audit: [...auditLog], start: startingSeat
+          });
+       } else {
+          awardedSeat = "UNASSIGNED";
+          if (startingSeat && vacatedSeats[startingSeat] !== undefined) {
+              vacatedSeats[startingSeat].push({ sen: pSen, name: pName });
+              seatLedger[startingSeat].currentVacancy++;
+          }
+          pilotRows.push({
+            sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied",
+            note: "No current active position to fall back to.", css: "action-danger", audit: [...auditLog], start: startingSeat
+          });
+       }
     }
-  }
-  globalSeatLedger = seatLedger;
-  renderUI(seatLedger);
-}
 
-function renderUI(ledger) {
-  let html = "";
-  for (let key in ledger) {
-    const d = ledger[key];
-    html += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.currentVacancy}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td>${d.juniorSen}</td></tr>`;
+    detailedLedgerLog.push(...pilotRows);
+    singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
   }
-  document.getElementById("globalSummaryTable").innerHTML = html;
-  document.getElementById("competitorTable").innerHTML = fullSystemLog.map(c => `<tr><td>${c.sen}</td><td>${c.start}</td><td>${c.final}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td>${c.ledger}</td></tr>`).join("");
+
+  globalSeatLedger = seatLedger; 
+  renderUI(seatLedger);
+  console.log("Analysis Complete.");
 }
 
 function searchPilot() {
-  const sen = parseInt(document.getElementById('senInput').value);
-  const data = fullSystemLog.find(p => p.sen === sen);
-  if (data) {
-    document.getElementById('personalDash').style.display = 'block';
-    document.getElementById('dashSen').innerText = data.sen;
-    document.getElementById('dashName').innerText = data.name;
-    document.getElementById('dashStart').innerText = data.start;
-    document.getElementById('dashFinal').innerText = data.final;
-    document.getElementById('dashStatus').innerText = data.status;
-    document.getElementById('dashAudit').innerHTML = data.audit.map(l => `<li>${l}</li>`).join("");
+  const senNum = parseInt(document.getElementById('senInput').value);
+  if (!senNum || detailedLedgerLog.length === 0) {
+    alert("Please run the analysis first, and ensure you entered a valid seniority number.");
+    return;
   }
+  
+  const pilotDataRows = detailedLedgerLog.filter(p => p.sen === senNum);
+  const dash = document.getElementById('personalDash');
+  const auditUl = document.getElementById('dashAudit');
+  const dashTable = document.getElementById('dashDetailedTable');
+  
+  if (pilotDataRows.length > 0) {
+    dash.style.display = 'block';
+    document.getElementById('dashSen').innerText = pilotDataRows[0].sen;
+    document.getElementById('dashName').innerText = pilotDataRows[0].name;
+    document.getElementById('dashStart').innerText = pilotDataRows[0].start || "N/A";
+    
+    // Render the table of their bids
+    dashTable.innerHTML = pilotDataRows.map(r => `
+      <tr>
+        <td>${r.pos}</td>
+        <td>${r.pref}</td>
+        <td><span class="action-pill ${r.css}">${r.status}</span></td>
+        <td style="font-size: 11px;">${r.note}</td>
+      </tr>
+    `).join("");
+
+    // Render the audit trail from the LAST row evaluated (which contains the full timeline)
+    const finalAudit = pilotDataRows[pilotDataRows.length - 1].audit;
+    auditUl.innerHTML = "";
+    finalAudit.forEach(logLine => {
+        const li = document.createElement('li');
+        li.innerHTML = logLine;
+        auditUl.appendChild(li);
+    });
+    
+  } else {
+    alert(`Seniority ${senNum} not found in the final ledger.`);
+    dash.style.display = 'none';
+  }
+}
+
+function renderUI(seatLedger) {
+  const summaryTbody = document.getElementById("globalSummaryTable");
+  let summaryHTML = "";
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      const d = seatLedger[key];
+      const currentVac = d.currentVacancy;
+      summaryHTML += `<tr>
+        <td style="color:var(--accent)">${key}</td>
+        <td>${d.pubDelta}</td>
+        <td>${d.modApplied}</td>
+        <td>${d.targetCap}</td>
+        <td>${d.awardedCount}</td>
+        <td style="color:${currentVac >= 0 ? 'var(--success)' : 'var(--danger)'}">${currentVac}</td>
+        <td style="color:var(--warning)">${d.juniorSen}</td>
+      </tr>`;
+    });
+  });
+  summaryTbody.innerHTML = summaryHTML;
+
+  document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `
+    <tr>
+      <td>${c.sen}</td>
+      <td>${c.name}</td>
+      <td><span style="color:var(--accent); font-weight:800">${c.pos}</span></td>
+      <td>${c.pref}</td>
+      <td><span class="action-pill ${c.css}">${c.status}</span></td>
+      <td class="ledger-text" style="font-size: 11px;">${c.note}</td>
+    </tr>
+  `).join("");
+}
+
+// EXPORT 1: Simplified Final Awards Output
+function exportFinalAwardsCSV() {
+  if (singlePilotSummary.length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
+  singlePilotSummary.forEach(r => {
+    let base = "UNASSIGNED", seat = "UNASSIGNED";
+    if (r.final && r.final !== "UNASSIGNED" && r.final !== "N/A") {
+      const parts = r.final.trim().split(" ");
+      if (parts.length >= 2) { base = parts[0]; seat = parts[1]; } 
+      else { base = r.final; seat = ""; }
+    }
+    csv += `"${r.sen}","${r.name}","${base}","${seat}"\n`;
+  });
+  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Final_Awards_Summary.csv');
+}
+
+// EXPORT 2: Detailed Ledger Output
+function exportAuditCSV() {
+  if (detailedLedgerLog.length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Seniority,Pilot Name,Position,Pref,Status,Note\n";
+  detailedLedgerLog.forEach(r => {
+    csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.status}","${r.note}"\n`;
+  });
+  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Detailed_Ledger_Log.csv');
+}
+
+// EXPORT 3: BPL Seat Rosters
+function exportBPLRostersCSV() {
+  if (Object.keys(globalSeatLedger).length === 0) return alert("Please run the analysis first.");
+  
+  let csv = "Awarded Seat,BPL Spot #,Pilot Seniority,Pilot Name,Starting Seat,Movement Status\n";
+  allBases.forEach(b => {
+    allSeats.forEach(s => {
+      const key = `${b} ${s}`;
+      if (globalSeatLedger[key] && globalSeatLedger[key].awardedPilots) {
+          globalSeatLedger[key].awardedPilots.forEach(pilot => {
+              csv += `"${key}","${pilot.spot}","${pilot.sen}","${pilot.name}","${pilot.start}","${pilot.status}"\n`;
+          });
+      }
+    });
+  });
+  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'BPL_Seat_Rosters.csv');
+}
+
+// Helper to trigger file downloads
+function triggerDownload(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', filename);
+  a.click();
 }
 
 window.onload = loadData;
