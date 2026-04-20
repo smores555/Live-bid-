@@ -341,34 +341,32 @@ function runAnalysis() {
           break; 
       }
 
-      // DISPLACEMENT TRIGGER: Denied current seat due to reduction = Ultimate Bumping Rights
-      if (bidKey === startingSeat && ledger.currentVacancy <= 0) {
+      // CAPACITY CHECK
+      let isSeatFull = ledger.awardedCount >= ledger.targetCap;
+
+      // DISPLACEMENT TRIGGER: Denied current seat due to reduction
+      if (bidKey === startingSeat && isSeatFull) {
           isUltimateDisplaced = true;
-          auditLog.push(`<span class="audit-fail">Displaced: Denied current position (${bidKey}). Gaining Ultimate Bumping Rights.</span>`);
-          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", note: `Requested position has ${ledger.currentVacancy} vacancy and cannot accept additional pilots.`, css: "action-danger", audit: [...auditLog], start: startingSeat });
+          auditLog.push(`<span class="audit-fail">Displaced: Denied current position (${bidKey}). Gaining displacement rights.</span>`);
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", note: `Capacity reached (${ledger.targetCap}). Displaced.`, css: "action-danger", audit: [...auditLog], start: startingSeat });
           continue; 
       }
 
-      // AWARD CHECK: Displaced pilots bypass capacity walls (Ultimate Rights)
-      if (ledger.currentVacancy > 0 || isUltimateDisplaced || bidKey === startingSeat) {
-        awardedSeat = bidKey; ledger.awardedCount++; ledger.juniorSen = pSen; resolved = true;
+      // AWARD CHECK: Strict enforcement of the Target Cap
+      if (!isSeatFull) {
+        awardedSeat = bidKey; 
+        ledger.awardedCount++; 
+        ledger.juniorSen = pSen; 
+        resolved = true;
         ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
         
-        let note = "Remain in current position.";
-        if (bidKey !== startingSeat) {
-            note = isUltimateDisplaced ? "Ultimate displacement bump." : "Awarded system vacancy.";
-            auditLog.push(`<span class="audit-success">${note}</span>`);
-            if (!isUltimateDisplaced) ledger.currentVacancy--; // Displaced bumps don't deplete voluntary vacancies
-            
-            if (startingSeat && seatLedger[startingSeat]) { 
-              seatLedger[startingSeat].currentVacancy++; 
-              auditLog.push(`-> Increased vacancy in ${startingSeat}.`); 
-            }
-        }
+        let note = (bidKey === startingSeat) ? "Remain in current position." : (isUltimateDisplaced ? "Displacement awarded vacancy." : "Awarded system vacancy.");
+        auditLog.push(`<span class="audit-success">${note}</span>`);
+        
         pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
         break;
       } else {
-        let countNote = `Requested position has ${ledger.currentVacancy} vacancy.`;
+        let countNote = `Requested position is full (Cap: ${ledger.targetCap}).`;
         auditLog.push(`<span class="audit-fail">Denied: ${countNote}</span>`);
         pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", note: countNote, css: "action-danger", audit: [...auditLog], start: startingSeat });
       }
@@ -376,12 +374,14 @@ function runAnalysis() {
 
     // 3. FALLBACK
     if (!resolved) {
-       if (startingSeat && seatLedger[startingSeat]) {
-          awardedSeat = startingSeat; seatLedger[startingSeat].awardedCount++;
-          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...auditLog], start: startingSeat });
+       let startLedger = startingSeat ? seatLedger[startingSeat] : null;
+       if (startLedger && startLedger.awardedCount < startLedger.targetCap) {
+          awardedSeat = startingSeat; 
+          startLedger.awardedCount++;
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position (Fallback).", css: "action-stay", audit: [...auditLog], start: startingSeat });
        } else {
           awardedSeat = "UNASSIGNED";
-          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "Involuntary displacement.", css: "action-danger", audit: [...auditLog], start: startingSeat });
+          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "Involuntary displacement to UNASSIGNED.", css: "action-danger", audit: [...auditLog], start: startingSeat });
        }
     }
     detailedLedgerLog.push(...pilotRows); singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
@@ -409,7 +409,7 @@ function renderUI(ledger) {
   let summaryHTML = "";
   allBases.forEach(b => { 
     allSeats.forEach(s => {
-      const key = `${b} ${s}`, d = ledger[key], v = d.currentVacancy;
+      const key = `${b} ${s}`, d = ledger[key], v = d.targetCap - d.awardedCount;
       summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td style="color:var(--warning)">${d.juniorSen}</td></tr>`;
     }); 
   });
