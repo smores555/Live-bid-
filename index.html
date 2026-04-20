@@ -36,6 +36,7 @@
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
     
+    /* Search Dashboard & Audit Trail Styles */
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -44,6 +45,7 @@
     .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
+    .audit-warn { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -94,6 +96,7 @@
 
     <div class="card">
       <h3>Active Bidding System Capacity Summary</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px;">Note: 320 and Frozen pilots bypass this capacity logic entirely.</p>
       <div class="table-container">
         <table>
           <thead>
@@ -158,7 +161,9 @@ allBases.forEach(b => {
 
 function findCurrent(p) {
   if (!p || !p.current) return "UNASSIGNED";
-  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`;
+  let b = String(p.current.base || "").trim();
+  let s = String(p.current.seat || "").trim();
+  return b && s ? `${b} ${s}` : "UNASSIGNED";
 }
 
 async function loadData() {
@@ -193,20 +198,21 @@ async function loadData() {
 
 function runAnalysis() {
   let seatLedger = {};
+  let iceBox = []; // The Displacement Ice Box
   
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
       let modValue = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
-      let targetCap = parseInt(capObj.start) + parseInt(capObj.delta) + modValue;
+      let netVacancy = parseInt(capObj.delta) + modValue;
       
       seatLedger[key] = {
-        pubDelta: parseInt(capObj.delta),
+        pubDelta: capObj.delta,
         modApplied: modValue,
-        targetCap: targetCap,
+        targetCap: Math.max(0, parseInt(capObj.start) + netVacancy),
         awardedCount: 0,
-        currentVacancy: parseInt(capObj.delta) + modValue, 
+        currentVacancy: netVacancy, // TRACKING ACTUAL DEFICIT/SURPLUS
         juniorSen: "N/A",
         awardedPilots: [] 
       };
@@ -217,52 +223,57 @@ function runAnalysis() {
   singlePilotSummary = [];
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
+  // --- ROUND 1: STANDARD BIDDING ---
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
 
     const startingSeat = findCurrent(p);
     const pName = String(p.name || p.pil || "UNKNOWN");
+    
     let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
+    let isNoBidList = NO_BID.has(pSen);
     
     const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
-    
-    let isNoBidList = NO_BID.has(pSen);
     let hasValidBidStrings = pPrefObj.preferences && pPrefObj.preferences.some(e => e.bid && e.bid.trim() !== "");
-    
-    // DIFFERENTIATE STATUS
-    let resolved = false;
-    let auditLog = [];
-    let pilotRows = [];
 
-    // --- CASE A: ADMINISTRATIVE NO BID (NO BID LIST / 320) ---
+    let auditLog = [], pilotRows = [];
+
+    // 1. ADMINISTRATIVE NO BID (No Bid List or 320 Fleet)
     if (isNoBidList || is320) {
-        const ledger = seatLedger[startingSeat];
-        if (ledger) {
-            ledger.awardedCount++;
-            ledger.juniorSen = pSen;
-            ledger.awardedPilots.push({ spot: "HELD", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
-        }
-        let note = is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.";
-        detailedLedgerLog.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "NO BID", note: note, css: "action-stay", audit: ["Administrative no-bid."], start: startingSeat });
-        singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
-        continue;
+      if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+          seatLedger[startingSeat].awardedCount++;
+          seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+      }
+      let note = is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.";
+      pilotRows.push({ 
+          sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "NO BID", 
+          note: note, css: "action-stay", audit: ["Administrative no-bid."], start: startingSeat 
+      });
+      detailedLedgerLog.push(...pilotRows);
+      singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
+      continue; 
     }
 
-    // --- CASE B: VOLUNTARY NO PREFS (NO PREFERENCES SUBMITTED) ---
+    // 2. NO PREFERENCES SUBMITTED (Orazem/Rhodes fix)
     if (!hasValidBidStrings) {
-        const ledger = seatLedger[startingSeat];
-        if (ledger) {
-            ledger.awardedCount++;
-            ledger.juniorSen = pSen;
-            ledger.awardedPilots.push({ spot: "HELD", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
-        }
-        detailedLedgerLog.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "AWARDED", note: "No preferences submitted. Remain in current position.", css: "action-awarded", audit: ["Stay via seniority right."], start: startingSeat });
-        singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
-        continue;
+      if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
+          seatLedger[startingSeat].awardedCount++;
+          seatLedger[startingSeat].awardedPilots.push({ spot: "HELD", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+      }
+      pilotRows.push({ 
+          sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "AWARDED", 
+          note: "No preferences submitted. Remain in current position.", css: "action-awarded", audit: ["Stay via seniority right."], start: startingSeat 
+      });
+      detailedLedgerLog.push(...pilotRows);
+      singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
+      continue; 
     }
 
-    // --- CASE C: STANDARD BIDDING ---
+    // 3. STANDARD BIDDING
+    let resolved = false;
+    let awardedSeat = "";
+
     for (let i = 0; i < pPrefObj.preferences.length; i++) {
       const entry = pPrefObj.preferences[i];
       let rawBid = String(entry.bid || "").toUpperCase();
@@ -272,8 +283,24 @@ function runAnalysis() {
       
       const bidKey = `${bMatch} ${sMatch}`;
       const ledger = seatLedger[bidKey];
+      const prefNum = i + 1;
+      const bplVal = parseInt(entry.bpl_min || 0);
 
-      if (bidKey === startingSeat || (ledger && ledger.awardedCount < ledger.targetCap)) {
+      auditLog.push(`Evaluating Bid Preference ${prefNum}: ${bidKey}`);
+
+      // BPL CHECK (Restored from the good index)
+      if (bplVal > 0 && (ledger.awardedCount + 1) > bplVal) {
+          pilotRows.push({ 
+              sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
+              note: `Hit Base Percentage Limit (${bplVal}).`, css: "action-danger", audit: [...auditLog], start: startingSeat 
+          });
+          auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit.</span>`);
+          break; 
+      }
+
+      // VACANCY & TARGET CAP CHECK (The core seniority fix)
+      if (ledger.awardedCount < ledger.targetCap || bidKey === startingSeat) {
+        awardedSeat = bidKey;
         let oldVac = ledger.currentVacancy;
         ledger.awardedCount++;
         ledger.juniorSen = pSen;
@@ -282,35 +309,92 @@ function runAnalysis() {
         ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
         
         let note = "Remain in current position.";
+        
+        // Dynamic Company Ledger Formatting Fix
         if (bidKey !== startingSeat) {
-            ledger.currentVacancy--;
+            ledger.currentVacancy--; // Move-in reduces vacancy
             note = `Open position available. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
+            auditLog.push(`<span class="audit-success">Awarded: Open vacancy.</span>`);
+            
             if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
-                let sL = seatLedger[startingSeat];
-                let oldStartVac = sL.currentVacancy;
-                sL.currentVacancy++;
-                note += ` Increase vacancy in ${startingSeat} from ${oldStartVac} to ${sL.currentVacancy}. Proffered from ${startingSeat}.`;
+                let startLedger = seatLedger[startingSeat];
+                let oldStartVac = startLedger.currentVacancy;
+                startLedger.currentVacancy++; // Move-out increases vacancy
+                note += ` Increase vacancy in ${startingSeat} from ${oldStartVac} to ${startLedger.currentVacancy}. Proffered from ${startingSeat}.`;
+                auditLog.push(`-> Increased vacancy in ${startingSeat}.`);
             }
+        } else {
+            auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
         }
         
-        detailedLedgerLog.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: i + 1, status: "AWARDED", note: note, css: "action-awarded", audit: auditLog, start: startingSeat });
-        singlePilotSummary.push({sen: pSen, name: pName, final: bidKey});
+        pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "AWARDED", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
         break;
       } else {
+        let countNote = `Requested position has ${ledger.currentVacancy} vacancy and cannot accept additional pilots.`;
         auditLog.push(`<span class="audit-fail">Denied: Position full.</span>`);
         pilotRows.push({ 
-            sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: i + 1, status: "DENIED", 
-            note: `Requested position has 0 vacancy and cannot accept additional pilots.`, css: "action-danger", audit: [...auditLog], start: startingSeat 
+            sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
+            note: countNote, css: "action-danger", audit: [...auditLog], start: startingSeat 
         });
       }
     }
 
+    // 4. IF UNRESOLVED, PILOT IS DISPLACED -> TO ICE BOX
     if (!resolved) {
+        auditLog.push(`<span class="audit-warn">DISPLACED: No vacancy found. Entering Ice Box.</span>`);
+        iceBox.push({ pSen, pName, startingSeat, prefs: pPrefObj.preferences, auditLog, pilotRows });
+    } else {
         detailedLedgerLog.push(...pilotRows);
-        detailedLedgerLog.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "DISPLACED", note: "Seniority insufficient to hold preferences.", css: "action-danger", audit: auditLog, start: startingSeat });
-        singlePilotSummary.push({sen: pSen, name: pName, final: "UNASSIGNED"});
-        if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) seatLedger[startingSeat].currentVacancy++;
+        singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
     }
+  }
+
+  // --- ROUND 2: THE ICE BOX (Displacement Awards) ---
+  for (const ice of iceBox) {
+      let resolved = false;
+      let awardedSeat = "";
+
+      for (let i = 0; i < ice.prefs.length; i++) {
+          const entry = ice.prefs[i];
+          let rawBid = String(entry.bid || "").toUpperCase();
+          let bMatch = allBases.find(b => rawBid.includes(b));
+          let sMatch = allSeats.find(s => rawBid.includes(s));
+          if (!bMatch || !sMatch) continue;
+
+          const bidKey = `${bMatch} ${sMatch}`;
+          const ledger = seatLedger[bidKey];
+          const prefNum = i + 1;
+
+          ice.auditLog.push(`Ice Box Eval ${prefNum}: ${bidKey}`);
+
+          // Displacement Check
+          if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
+              awardedSeat = bidKey;
+              let oldVac = ledger.currentVacancy;
+              ledger.awardedCount++;
+              ledger.juniorSen = Math.max(ledger.juniorSen === "N/A" ? 0 : ledger.juniorSen, ice.pSen);
+              ledger.currentVacancy--; 
+
+              ledger.awardedPilots.push({ spot: ledger.awardedCount + " (DISP)", sen: ice.pSen, name: ice.pName, start: ice.startingSeat, status: "DISPLACED-IN" });
+
+              let note = `Displacement Award. Bumped junior pilot. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
+              ice.auditLog.push(`<span class="audit-success">Bumped junior pilot.</span>`);
+              ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: `737 ${bidKey}`, pref: prefNum, status: "AWARDED", note: note, css: "action-awarded", audit: [...ice.auditLog], start: ice.startingSeat });
+
+              resolved = true;
+              break;
+          } else {
+              ice.auditLog.push(`<span class="audit-fail">Denied: Not senior enough to displace in ${bidKey}.</span>`);
+          }
+      }
+
+      if (!resolved) {
+          ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: "UNASSIGNED", pref: "-", status: "DISPLACED", note: "Ice Box Exhausted. No fallback available.", css: "action-danger", audit: [...ice.auditLog], start: ice.startingSeat });
+          awardedSeat = "UNASSIGNED";
+      }
+
+      detailedLedgerLog.push(...ice.pilotRows);
+      singlePilotSummary.push({sen: ice.pSen, name: ice.pName, final: awardedSeat});
   }
 
   globalSeatLedger = seatLedger; 
@@ -327,16 +411,15 @@ function searchPilot() {
     document.getElementById('dashName').innerText = rows[0].name;
     document.getElementById('dashStart').innerText = rows[0].start;
     document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
-    document.getElementById('dashAudit').innerHTML = (rows[rows.length - 1].audit || []).map(l => `<li>${l}</li>`).join("");
+    document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
   } else { alert("Pilot not found."); dash.style.display = 'none'; }
 }
 
 function renderUI(ledger) {
   let summaryHTML = "";
   allBases.forEach(b => { allSeats.forEach(s => {
-      const key = `${b} ${s}`, d = ledger[key];
-      const displayVacancy = Math.max(0, d.targetCap - d.awardedCount);
-      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${displayVacancy > 0 ? 'var(--success)' : 'var(--text-muted)'}">${displayVacancy}</td><td>${d.juniorSen}</td></tr>`;
+      const key = `${b} ${s}`, d = ledger[key], v = d.currentVacancy;
+      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${d.juniorSen}</td></tr>`;
   }); });
   document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
   document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
@@ -345,8 +428,8 @@ function renderUI(ledger) {
 function exportFinalAwardsCSV() {
   let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
   singlePilotSummary.forEach(r => {
-    let p = (r.final || "UNASSIGNED UNASSIGNED").split(" ");
-    csv += `"${r.sen}","${r.name}","${p[0]}","${p[1] || ""}"\n`;
+    let p = r.final.split(" ");
+    csv += `"${r.sen}","${r.name}","${p[0] || "UNASSIGNED"}","${p[1] || ""}"\n`;
   });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Final_Awards.csv');
 }
