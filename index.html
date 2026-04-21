@@ -178,7 +178,6 @@ function runAnalysis() {
       seatLedger[key] = {
         pubDelta: capObj.delta,
         modApplied: modValue,
-        baseSystemCapacity: parseInt(capObj.delta) + modValue,
         vacancies: parseInt(capObj.delta) + modValue, 
         profferQueue: [],
         pilots: [] 
@@ -221,6 +220,8 @@ function runAnalysis() {
         }
     }
 
+    // CRITICAL FIX: Do NOT blindly assign currentPrefIndex based on startSeat.
+    // Set to length (fallback) so the waterfall evaluates ALL preferences for BPL compliance.
     pObj.currentPrefIndex = pObj.formattedPrefs.length; 
 
     if (startSeat && seatLedger[startSeat]) {
@@ -234,7 +235,7 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
-  while (hasChanges && safetyCounter < 150) {
+  while (hasChanges && safetyCounter < 100) {
       hasChanges = false;
       safetyCounter++;
 
@@ -255,33 +256,27 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue; 
+                  continue; // Fails BPL, skip this specific line!
               }
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
-                  // Re-locking current seat
+                  // They passed the BPL for their own seat. Lock it in at this preference level.
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
               } else if (seatLedger[targetSeat].vacancies > 0) {
-                  // Open vacancy found! Trigger cascade.
+                  // They passed BPL and found an open vacancy. Move!
                   let oldSeat = p.currentAward;
 
-                  if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
+                  if (oldSeat && seatLedger[oldSeat]) {
                       seatLedger[oldSeat].vacancies++;
                       seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
                       seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
                   }
 
                   seatLedger[targetSeat].vacancies--;
-                  
-                  // FIXED PROFFER LOGIC: Ensure system vacancies aren't documented as proffers.
-                  let origin = null;
-                  if (seatLedger[targetSeat].profferQueue.length > 0) {
-                      origin = seatLedger[targetSeat].profferQueue.shift();
-                  }
-
+                  let origin = seatLedger[targetSeat].profferQueue.shift();
                   p.awardNote = origin ? `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
                   
                   p.currentAward = targetSeat;
