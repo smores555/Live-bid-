@@ -181,7 +181,7 @@ function runAnalysis() {
         modApplied: modValue,
         vacancies: parseInt(capObj.delta) + modValue, 
         profferQueue: [],
-        pilots: [] // Tracks every pilot CURRENTLY in this seat
+        pilots: [] 
       };
     });
   });
@@ -205,7 +205,6 @@ function runAnalysis() {
         prefs: PREFS[`pil${pSen}`]?.preferences || PREFS[pSen]?.preferences || [],
         currentAward: startSeat,
         awardNote: "Remain in current position.",
-        currentPrefIndex: 9999, // 9999 means fallback/unassigned
         auditLog: [],
         pilotRows: []
     };
@@ -223,6 +222,9 @@ function runAnalysis() {
             });
         }
     }
+
+    // THIS FIXES THE CRASH: Set max index to the length of their specific bid list
+    pObj.currentPrefIndex = pObj.formattedPrefs.length; 
 
     // Determine where their starting seat lands on their preference list
     for (let i = 0; i < pObj.formattedPrefs.length; i++) {
@@ -249,7 +251,7 @@ function runAnalysis() {
       safetyCounter++;
 
       for (let p of dynamicPilots) {
-          if (p.isExempt) continue; // Exempt pilots don't shift
+          if (p.isExempt) continue;
 
           // Only check preferences BETTER than their current standing
           for (let i = 0; i < p.currentPrefIndex; i++) {
@@ -259,7 +261,6 @@ function runAnalysis() {
               if (!seatLedger[targetSeat]) continue;
 
               // --- BPL GRANDFATHER LOGIC ---
-              // Calculate exactly where they would sit if they joined this base right now
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen) seniorCount++;
@@ -267,7 +268,7 @@ function runAnalysis() {
               let projectedSpot = seniorCount + 1;
 
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue; // Denied by BPL, move to next pref
+                  continue; 
               }
 
               // --- VACANCY CHECK ---
@@ -290,11 +291,10 @@ function runAnalysis() {
                   p.currentPrefIndex = i;
                   
                   seatLedger[targetSeat].pilots.push(p);
-                  // Keep ledger sorted so junior pilots accurately calculate senior count
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  break; // Successful upward mobility, stop checking lower prefs
+                  break; 
               }
           }
       }
@@ -312,14 +312,12 @@ function runAnalysis() {
           continue;
       }
 
-      // Reconstruct how they arrived at their final award for the UI
       for (let i = 0; i < p.formattedPrefs.length; i++) {
           let targetSeat = p.formattedPrefs[i].targetSeat;
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
           
           if (i < p.currentPrefIndex) {
-              // Why was this denied in the final pass?
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
@@ -335,7 +333,6 @@ function runAnalysis() {
                   p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has no current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               }
           } else if (i === p.currentPrefIndex) {
-              // Why was this awarded?
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote}</span>`);
               p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
@@ -343,7 +340,8 @@ function runAnalysis() {
           }
       }
 
-      if (p.currentPrefIndex === 9999) {
+      // THIS IS THE SECOND PART OF THE CRASH FIX: Checks against the actual length
+      if (p.currentPrefIndex === p.formattedPrefs.length) {
           p.auditLog.push("All preferences denied. Reverting to fallback.");
           p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
       }
