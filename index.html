@@ -169,7 +169,6 @@ async function loadData() {
 function runAnalysis() {
   let seatLedger = {};
   
-  // 1. INITIALIZATION
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
@@ -221,14 +220,9 @@ function runAnalysis() {
         }
     }
 
+    // CRITICAL FIX: Do NOT blindly assign currentPrefIndex based on startSeat.
+    // Set to length (fallback) so the waterfall evaluates ALL preferences for BPL compliance.
     pObj.currentPrefIndex = pObj.formattedPrefs.length; 
-
-    for (let i = 0; i < pObj.formattedPrefs.length; i++) {
-        if (pObj.formattedPrefs[i].targetSeat === startSeat) {
-            pObj.currentPrefIndex = i;
-            break;
-        }
-    }
 
     if (startSeat && seatLedger[startSeat]) {
         seatLedger[startSeat].pilots.push(pObj);
@@ -254,20 +248,25 @@ function runAnalysis() {
 
               if (!seatLedger[targetSeat]) continue;
 
-              // --- UPDATED BPL LOGIC: ONLY COUNT NON-EXEMPT PILOTS ---
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
-                  // Only increment count if they are senior AND NOT exempt
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
+              // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue; 
+                  continue; // Fails BPL, skip this specific line!
               }
 
-              // --- VACANCY CHECK ---
-              if (seatLedger[targetSeat].vacancies > 0) {
+              // SEAT VALIDATION
+              if (targetSeat === p.currentAward) {
+                  // They passed the BPL for their own seat. Lock it in at this preference level.
+                  p.currentPrefIndex = i;
+                  p.awardNote = "Remain in current position.";
+                  break; 
+              } else if (seatLedger[targetSeat].vacancies > 0) {
+                  // They passed BPL and found an open vacancy. Move!
                   let oldSeat = p.currentAward;
 
                   if (oldSeat && seatLedger[oldSeat]) {
@@ -298,7 +297,7 @@ function runAnalysis() {
   singlePilotSummary = [];
 
   for (let p of dynamicPilots) {
-      p.auditLog = []; // Reset logs for final pass
+      p.auditLog = []; 
       p.pilotRows = [];
 
       if (p.isExempt) {
@@ -316,7 +315,6 @@ function runAnalysis() {
           if (i < p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               
-              // Recalculate seniorCount for final audit display
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
@@ -396,7 +394,6 @@ function exportBPLRostersCSV() {
   allBases.forEach(b => { allSeats.forEach(s => {
     const key = `${b} ${s}`;
     if (globalSeatLedger[key]) {
-        // Sort specifically for BPL tracking (skipping exempts)
         let activePilots = globalSeatLedger[key].pilots.filter(x => !x.isExempt);
         activePilots.forEach((p, index) => { 
             csv += `"${key}","${index + 1}","${p.sen}","${p.name}"\n`; 
