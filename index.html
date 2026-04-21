@@ -189,7 +189,6 @@ function runAnalysis() {
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
   let dynamicPilots = [];
 
-  // Setup Initial State for everyone
   for (let p of sortedRoster) {
     let pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
@@ -209,7 +208,6 @@ function runAnalysis() {
         pilotRows: []
     };
 
-    // Format their preferences safely
     pObj.formattedPrefs = [];
     for (let pref of pObj.prefs) {
         let rawBid = String(pref.bid || "").toUpperCase();
@@ -223,10 +221,8 @@ function runAnalysis() {
         }
     }
 
-    // THIS FIXES THE CRASH: Set max index to the length of their specific bid list
     pObj.currentPrefIndex = pObj.formattedPrefs.length; 
 
-    // Determine where their starting seat lands on their preference list
     for (let i = 0; i < pObj.formattedPrefs.length; i++) {
         if (pObj.formattedPrefs[i].targetSeat === startSeat) {
             pObj.currentPrefIndex = i;
@@ -234,7 +230,6 @@ function runAnalysis() {
         }
     }
 
-    // Register them physically into their starting seat
     if (startSeat && seatLedger[startSeat]) {
         seatLedger[startSeat].pilots.push(pObj);
     }
@@ -253,17 +248,17 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          // Only check preferences BETTER than their current standing
           for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
               if (!seatLedger[targetSeat]) continue;
 
-              // --- BPL GRANDFATHER LOGIC ---
+              // --- UPDATED BPL LOGIC: ONLY COUNT NON-EXEMPT PILOTS ---
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
-                  if (resident.sen < p.sen) seniorCount++;
+                  // Only increment count if they are senior AND NOT exempt
+                  if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
@@ -275,14 +270,12 @@ function runAnalysis() {
               if (seatLedger[targetSeat].vacancies > 0) {
                   let oldSeat = p.currentAward;
 
-                  // LEAVE OLD SEAT
                   if (oldSeat && seatLedger[oldSeat]) {
                       seatLedger[oldSeat].vacancies++;
                       seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
                       seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
                   }
 
-                  // TAKE NEW SEAT
                   seatLedger[targetSeat].vacancies--;
                   let origin = seatLedger[targetSeat].profferQueue.shift();
                   p.awardNote = origin ? `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
@@ -305,8 +298,11 @@ function runAnalysis() {
   singlePilotSummary = [];
 
   for (let p of dynamicPilots) {
+      p.auditLog = []; // Reset logs for final pass
+      p.pilotRows = [];
+
       if (p.isExempt) {
-          let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status."], start: p.startSeat};
+          let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status. Not counted toward BPL ranking."], start: p.startSeat};
           detailedLedgerLog.push(row);
           singlePilotSummary.push({sen: p.sen, name: p.name, final: p.startSeat});
           continue;
@@ -319,15 +315,17 @@ function runAnalysis() {
           
           if (i < p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
+              
+              // Recalculate seniorCount for final audit display
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
-                  if (resident.sen < p.sen) seniorCount++;
+                  if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Spot: ${projectedSpot}</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}).`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               } else {
                   p.auditLog.push(`<span class="audit-fail">Denied: Requested position has no current vacancies.</span>`);
                   p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has no current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
@@ -340,7 +338,6 @@ function runAnalysis() {
           }
       }
 
-      // THIS IS THE SECOND PART OF THE CRASH FIX: Checks against the actual length
       if (p.currentPrefIndex === p.formattedPrefs.length) {
           p.auditLog.push("All preferences denied. Reverting to fallback.");
           p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
@@ -399,7 +396,9 @@ function exportBPLRostersCSV() {
   allBases.forEach(b => { allSeats.forEach(s => {
     const key = `${b} ${s}`;
     if (globalSeatLedger[key]) {
-        globalSeatLedger[key].pilots.forEach((p, index) => { 
+        // Sort specifically for BPL tracking (skipping exempts)
+        let activePilots = globalSeatLedger[key].pilots.filter(x => !x.isExempt);
+        activePilots.forEach((p, index) => { 
             csv += `"${key}","${index + 1}","${p.sen}","${p.name}"\n`; 
         });
     }
