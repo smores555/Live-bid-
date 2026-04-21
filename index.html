@@ -12,7 +12,7 @@
       --success: #00ffaa; --danger: #ff4772; --warning: #ffcf33;
     }
     body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container { max-width: 1400px; margin: 0 auto; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
     label { display: block; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
@@ -36,6 +36,10 @@
     .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
+    
+    /* Highlight for BPL columns to make auditing easier */
+    .col-bpl { color: var(--warning); font-weight: bold; }
+    .col-rank { color: #fff; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -66,7 +70,7 @@
         </div>
         <div class="table-container" style="max-height: 250px; margin-top: 15px;">
             <table class="search-results-table">
-                <thead><tr><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
+                <thead><tr><th>Position</th><th>Pref</th><th>BPL Limit</th><th>Actual Rank</th><th>Status</th><th>Note</th></tr></thead>
                 <tbody id="dashDetailedTable"></tbody>
             </table>
         </div>
@@ -107,7 +111,7 @@
       </div>
       <div class="table-container">
         <table>
-          <thead><tr><th>Sen</th><th>Name</th><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
+          <thead><tr><th>Sen</th><th>Name</th><th>Position</th><th>Pref</th><th>BPL Limit</th><th>Actual Rank</th><th>Status</th><th>Note</th></tr></thead>
           <tbody id="competitorTable"></tbody>
         </table>
       </div>
@@ -220,8 +224,6 @@ function runAnalysis() {
         }
     }
 
-    // CRITICAL FIX: Do NOT blindly assign currentPrefIndex based on startSeat.
-    // Set to length (fallback) so the waterfall evaluates ALL preferences for BPL compliance.
     pObj.currentPrefIndex = pObj.formattedPrefs.length; 
 
     if (startSeat && seatLedger[startSeat]) {
@@ -248,25 +250,24 @@ function runAnalysis() {
 
               if (!seatLedger[targetSeat]) continue;
 
+              if (targetSeat === p.currentAward) {
+                  p.currentPrefIndex = i;
+                  p.awardNote = "Remain in current position.";
+                  break; 
+              }
+
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
+                  // Exempt pilots do NOT count toward your BPL rank
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
-              // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue; // Fails BPL, skip this specific line!
+                  continue; 
               }
 
-              // SEAT VALIDATION
-              if (targetSeat === p.currentAward) {
-                  // They passed the BPL for their own seat. Lock it in at this preference level.
-                  p.currentPrefIndex = i;
-                  p.awardNote = "Remain in current position.";
-                  break; 
-              } else if (seatLedger[targetSeat].vacancies > 0) {
-                  // They passed BPL and found an open vacancy. Move!
+              if (seatLedger[targetSeat].vacancies > 0 || seatLedger[targetSeat].profferQueue.length > 0) {
                   let oldSeat = p.currentAward;
 
                   if (oldSeat && seatLedger[oldSeat]) {
@@ -275,9 +276,14 @@ function runAnalysis() {
                       seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
                   }
 
-                  seatLedger[targetSeat].vacancies--;
-                  let origin = seatLedger[targetSeat].profferQueue.shift();
-                  p.awardNote = origin ? `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
+                  if (seatLedger[targetSeat].profferQueue.length > 0) {
+                      let origin = seatLedger[targetSeat].profferQueue.shift();
+                      p.awardNote = `Open position available. Proffered from ${origin.sen} - ${origin.name}.`;
+                      seatLedger[targetSeat].vacancies--; 
+                  } else {
+                      p.awardNote = "Awarded system vacancy.";
+                      seatLedger[targetSeat].vacancies--;
+                  }
                   
                   p.currentAward = targetSeat;
                   p.currentPrefIndex = i;
@@ -301,7 +307,7 @@ function runAnalysis() {
       p.pilotRows = [];
 
       if (p.isExempt) {
-          let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status. Not counted toward BPL ranking."], start: p.startSeat};
+          let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", bplDisplay: "-", rankDisplay: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status. Not counted toward BPL ranking."], start: p.startSeat};
           detailedLedgerLog.push(row);
           singlePilotSummary.push({sen: p.sen, name: p.name, final: p.startSeat});
           continue;
@@ -311,34 +317,38 @@ function runAnalysis() {
           let targetSeat = p.formattedPrefs[i].targetSeat;
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
+          let bplDisplay = bplMin > 0 ? bplMin : "None";
+          
+          // Calculate exact rank for this preference row
+          let seniorCount = 0;
+          if (seatLedger[targetSeat]) {
+              for (let resident of seatLedger[targetSeat].pilots) {
+                  if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
+              }
+          }
+          let actualRank = seniorCount + 1;
           
           if (i < p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               
-              let seniorCount = 0;
-              for (let resident of seatLedger[targetSeat].pilots) {
-                  if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
-              }
-              let projectedSpot = seniorCount + 1;
-
-              if (bplMin > 0 && projectedSpot > bplMin) {
-                  p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+              if (bplMin > 0 && actualRank > bplMin) {
+                  p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit. Need ${bplMin}, actual rank is ${actualRank}.</span>`);
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Denied", note: `Hit Bid Position List limit. Rank ${actualRank} exceeds limit of ${bplMin}.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               } else {
-                  p.auditLog.push(`<span class="audit-fail">Denied: Requested position has no current vacancies.</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has no current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy.</span>`);
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Denied", note: `Requested position has no current vacancies or proffers.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               }
           } else if (i === p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote}</span>`);
-              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
               break; 
           }
       }
 
       if (p.currentPrefIndex === p.formattedPrefs.length) {
           p.auditLog.push("All preferences denied. Reverting to fallback.");
-          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
+          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", bplDisplay: "-", rankDisplay: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
       }
 
       detailedLedgerLog.push(...p.pilotRows);
@@ -350,66 +360,4 @@ function runAnalysis() {
 }
 
 function searchPilot() {
-  const senNum = parseInt(document.getElementById('senInput').value);
-  const rows = detailedLedgerLog.filter(p => p.sen === senNum);
-  const dash = document.getElementById('personalDash');
-  if (rows.length > 0) {
-    dash.style.display = 'block';
-    document.getElementById('dashSen').innerText = rows[0].sen;
-    document.getElementById('dashName').innerText = rows[0].name;
-    document.getElementById('dashStart').innerText = rows[0].start;
-    document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
-    document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
-  } else { alert("Pilot not found."); dash.style.display = 'none'; }
-}
-
-function renderUI(ledger) {
-  let summaryHTML = "";
-  allBases.forEach(b => { allSeats.forEach(s => {
-      const key = `${b} ${s}`, d = ledger[key], v = d.vacancies, pilots = d.pilots;
-      let juniorSen = pilots.length > 0 ? pilots[pilots.length - 1].sen : "N/A";
-      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${pilots.length}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${juniorSen}</td></tr>`;
-  }); });
-  document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
-  document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
-}
-
-function exportFinalAwardsCSV() {
-  let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
-  singlePilotSummary.forEach(r => {
-    let p = r.final.split(" ");
-    csv += `"${r.sen}","${r.name}","${p[0] || "UNASSIGNED"}","${p[1] || ""}"\n`;
-  });
-  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Final_Awards.csv');
-}
-
-function exportAuditCSV() {
-  let csv = "Sen,Name,Position,Pref,Status,Note\n";
-  detailedLedgerLog.forEach(r => { csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.status}","${r.note}"\n`; });
-  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Full_Ledger.csv');
-}
-
-function exportBPLRostersCSV() {
-  let csv = "Seat,BPL Spot,Sen,Name\n";
-  allBases.forEach(b => { allSeats.forEach(s => {
-    const key = `${b} ${s}`;
-    if (globalSeatLedger[key]) {
-        let activePilots = globalSeatLedger[key].pilots.filter(x => !x.isExempt);
-        activePilots.forEach((p, index) => { 
-            csv += `"${key}","${index + 1}","${p.sen}","${p.name}"\n`; 
-        });
-    }
-  }); });
-  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'BPL_Rosters.csv');
-}
-
-function triggerDownload(blob, filename) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-}
-
-window.onload = loadData;
-</script>
-</body>
-</html>
+  const senNum
