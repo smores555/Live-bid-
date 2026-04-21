@@ -3,20 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Master Command Center | Displacement Logic</title>
+  <title>Master Command Center | Waterfall Displacement Logic</title>
   <meta name="robots" content="noindex, nofollow">
   <style>
     :root {
-      --bg: #040c17; 
-      --card: #0b192c; 
-      --accent: #00e5ff; 
-      --accent-hover: #33ebff;
-      --text: #e8eefc; 
-      --text-muted: #8ba3c7;
-      --border: rgba(0, 229, 255, 0.15);
-      --success: #00ffaa; 
-      --danger: #ff4772; 
-      --warning: #ffcf33;
+      --bg: #040c17; --card: #0b192c; --accent: #00e5ff; --accent-hover: #33ebff;
+      --text: #e8eefc; --text-muted: #8ba3c7; --border: rgba(0, 229, 255, 0.15);
+      --success: #00ffaa; --danger: #ff4772; --warning: #ffcf33;
     }
     body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
     .container { max-width: 1200px; margin: 0 auto; }
@@ -35,7 +28,6 @@
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
-    
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -44,7 +36,6 @@
     .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
-    .audit-warn { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -75,14 +66,7 @@
         </div>
         <div class="table-container" style="max-height: 250px; margin-top: 15px;">
             <table class="search-results-table">
-                <thead>
-                    <tr>
-                        <th>Position</th>
-                        <th>Pref</th>
-                        <th>Status</th>
-                        <th>Note</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
                 <tbody id="dashDetailedTable"></tbody>
             </table>
         </div>
@@ -95,7 +79,6 @@
 
     <div class="card">
       <h3>Active Bidding System Capacity Summary</h3>
-      <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px;">Note: 320 and Frozen pilots bypass this capacity logic entirely.</p>
       <div class="table-container">
         <table>
           <thead>
@@ -104,7 +87,7 @@
               <th>Pub Delta</th>
               <th>Manual Mod</th>
               <th>Target Cap</th>
-              <th>Awarded (Active 737)</th>
+              <th>Awarded Count (BPL Tracker)</th>
               <th>Current Vacancy</th>
               <th>Junior Sen</th>
             </tr>
@@ -125,16 +108,7 @@
       </div>
       <div class="table-container">
         <table>
-          <thead>
-            <tr>
-              <th>Sen</th>
-              <th>Name</th>
-              <th>Position</th>
-              <th>Pref</th>
-              <th>Status</th>
-              <th>Note</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Sen</th><th>Name</th><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
           <tbody id="competitorTable"></tbody>
         </table>
       </div>
@@ -152,67 +126,65 @@ const grid = document.getElementById('modifierGrid');
 allBases.forEach(b => {
   allSeats.forEach(s => {
     const div = document.createElement('div');
-    div.innerHTML = `<label>${b} ${s} Mod</label>
-                     <input type="number" id="mod_${b}_${s}" placeholder="0">`;
+    div.innerHTML = `<label>${b} ${s} Mod</label><input type="number" id="mod_${b}_${s}" placeholder="0">`;
     grid.appendChild(div);
   });
 });
 
 function findCurrent(p) {
-  if (!p || !p.current) return "UNASSIGNED";
-  let b = String(p.current.base || "").trim();
-  let s = String(p.current.seat || "").trim();
-  return b && s ? `${b} ${s}` : "UNASSIGNED";
+  if (!p || !p.current) return "";
+  return `${String(p.current.base || "").trim()} ${String(p.current.seat || "").trim()}`.toUpperCase();
 }
 
 async function loadData() {
   try {
     const [r, p, c, nb, ret] = await Promise.all([
-      fetch('./roster.json').then(res => res.json()),
-      fetch('./preferences.json').then(res => res.json()),
-      fetch('./capacities.json').then(res => res.json()),
-      fetch('./nobidpilots.json').then(res => res.json()),
+      fetch('./roster.json').then(res => res.json()).catch(() => []),
+      fetch('./preferences.json').then(res => res.json()).catch(() => ({})),
+      fetch('./capacities.json').then(res => res.json()).catch(() => []),
+      fetch('./nobidpilots.json').then(res => res.json()).catch(() => []),
       fetch('./retired_pilots.json').then(res => res.ok ? res.json() : []).catch(() => [])
     ]);
     
     let uniqueRosterMap = new Map();
     let rawRoster = Array.isArray(r) ? r : Object.values(r);
-    rawRoster.forEach(pilot => {
-        if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot);
-    });
+    rawRoster.forEach(pilot => { if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot); });
     ROSTER = Array.from(uniqueRosterMap.values());
-    
     PREFS = p;
-    NO_BID = new Set(nb.map(x => parseInt(x.sen)));
-    RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen) || parseInt(x.seniority)));
+    NO_BID = new Set(nb.map(x => parseInt(x.sen) || parseInt(x)));
+    RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen) || parseInt(x.seniority) || parseInt(x)));
     
     CAPACITIES = {};
     if (Array.isArray(c)) {
       c.forEach(item => {
-        CAPACITIES[`${item.base} ${item.seat}`] = { start: item.startCapacity || 0, delta: item.delta || 0 };
+        CAPACITIES[`${item.base} ${item.seat}`.toUpperCase()] = { start: item.startCapacity || 0, delta: item.delta || 0 };
       });
     }
-  } catch (e) { console.error("Data load failed."); }
+    console.log("Data loaded successfully.");
+  } catch (e) { 
+    console.error("Data load failed.", e); 
+    alert("Failed to load JSON data.");
+  }
 }
 
 function runAnalysis() {
   let seatLedger = {};
-  let iceBox = []; 
   
+  // 1. Initialize Dynamic Ledger
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
       let capObj = CAPACITIES[key] || { start: 0, delta: 0 };
       let modValue = parseInt(document.getElementById(`mod_${b}_${s}`).value) || 0;
-      let pubDelta = parseInt(capObj.delta) || 0;
-      let targetCap = parseInt(capObj.start) + pubDelta + modValue;
+      let netVacancy = parseInt(capObj.delta) + modValue;
       
       seatLedger[key] = {
-        pubDelta: pubDelta,
+        pubDelta: capObj.delta,
         modApplied: modValue,
-        targetCap: targetCap,
-        awardedCount: 0, // MUST start at 0 for accurate BPL and Target Cap checks
-        currentVacancy: pubDelta + modValue, 
+        targetCap: Math.max(0, parseInt(capObj.start) + netVacancy),
+        awardedCount: 0, // This is the BPL tracker
+        currentVacancy: netVacancy, 
+        profferQueue: [], // Tracks WHO vacated this seat
         juniorSen: "N/A",
         awardedPilots: [] 
       };
@@ -221,175 +193,130 @@ function runAnalysis() {
 
   detailedLedgerLog = []; 
   singlePilotSummary = [];
+  
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
 
-  // --- ROUND 1: STRICT SENIOR-TO-JUNIOR AWARD PASS ---
+  // 2. The Waterfall Loop
   for (const p of sortedRoster) {
     const pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
 
     const startingSeat = findCurrent(p);
-    const pName = String(p.name || p.pil || "UNKNOWN");
-    
+    const pName = String(p.name || p.pil || "UNKNOWN").toUpperCase();
     let is320 = p.current && Object.values(p.current).some(val => String(val).includes("320"));
-    let isNoBidList = NO_BID.has(pSen);
-    
-    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
-    let hasValidBidStrings = pPrefObj.preferences && pPrefObj.preferences.some(e => e.bid && e.bid.trim() !== "");
+    let auditLog = [], pilotRows = [];
 
-    let auditLog = [];
-    let pilotRows = [];
-    let resolved = false;
-    let awardedSeat = "";
-
-    // 1. ADMINISTRATIVE HOLDS
-    if (isNoBidList || is320) {
-      if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
-          seatLedger[startingSeat].awardedCount++;
+    // --- PHASE 1: EXEMPT PILOTS ---
+    if (NO_BID.has(pSen) || is320) {
+      if (startingSeat && seatLedger[startingSeat]) {
+          // Exempt pilots consume a spot, driving up the BPL count for juniors
+          seatLedger[startingSeat].awardedCount++; 
           seatLedger[startingSeat].awardedPilots.push({ spot: "EXEMPT", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
       }
-      let note = is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.";
-      pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "1", status: "NO BID", note: note, css: "action-stay", audit: ["Admin Hold"], start: startingSeat });
+      pilotRows.push({ 
+          sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "No Bid", 
+          note: is320 ? "320 Fleet. Remain in current position." : "Not allowed to bid. Remain in current position.", 
+          css: "action-stay", audit: ["Exempt status. Automatically fills BPL spot."], start: startingSeat 
+      });
       detailedLedgerLog.push(...pilotRows);
       singlePilotSummary.push({sen: pSen, name: pName, final: startingSeat});
       continue; 
     }
 
-    // Determine the effective preferences (If no valid string, synthesize a bid for current seat)
-    let effectivePrefs = hasValidBidStrings ? pPrefObj.preferences : [{ bid: startingSeat, bpl_min: 0, isSynthetic: true }];
+    // --- PHASE 2: ACTIVE BIDDING ---
+    const pPrefObj = PREFS[`pil${pSen}`] || PREFS[pSen] || { preferences: [] };
+    let resolved = false;
+    let awardedSeat = "";
 
-    // 2. EVALUATE PREFERENCES
-    for (let i = 0; i < effectivePrefs.length; i++) {
-      const entry = effectivePrefs[i];
+    for (let i = 0; i < pPrefObj.preferences.length; i++) {
+      const entry = pPrefObj.preferences[i];
       let rawBid = String(entry.bid || "").toUpperCase();
+      
       let bMatch = allBases.find(b => rawBid.includes(b));
       let sMatch = allSeats.find(s => rawBid.includes(s));
       if (!bMatch || !sMatch) continue;
       
       const bidKey = `${bMatch} ${sMatch}`;
       const ledger = seatLedger[bidKey];
-      const prefNum = entry.isSynthetic ? "-" : (i + 1);
-      
-      // BPL CHECK
-      let bplVal = parseInt(entry.bpl_min || 0);
-      if (bplVal > 0 && (ledger.awardedCount + 1) > bplVal) {
+      if (!ledger) continue;
+
+      const prefNum = i + 1;
+      const bplVal = parseInt(entry.bpl_min || 0);
+
+      auditLog.push(`Evaluating Pref ${prefNum}: ${bidKey}`);
+
+      // BPL Check
+      let projectedSpot = ledger.awardedCount + 1;
+      if (bplVal > 0 && projectedSpot > bplVal) {
           pilotRows.push({ 
-              sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
-              note: `Bid request does not meet BPL requirement. Requested BPL = ${bplVal}. BPL if awarded = ${ledger.awardedCount + 1}.`, 
-              css: "action-danger", audit: [...auditLog], start: startingSeat 
+              sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", 
+              note: `Hit Bid Position List limit (${bplVal}).`, css: "action-danger", audit: [...auditLog], start: startingSeat 
           });
-          continue; // Move to the next preference!
+          auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit.</span>`);
+          continue; 
       }
 
-      // CAPACITY CHECK
-      if (ledger.awardedCount < ledger.targetCap) {
+      // Vacancy Check
+      if (ledger.currentVacancy > 0 || bidKey === startingSeat) {
         awardedSeat = bidKey;
-        let oldVac = ledger.currentVacancy;
-        ledger.awardedCount++;
+        ledger.awardedCount++; // Lock in the BPL spot
         ledger.juniorSen = pSen;
         resolved = true;
         
-        ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
-        
-        let note = entry.isSynthetic ? "No preferences submitted. Remain in current position." : "Remain in current position.";
+        let note = "Remain in current position.";
         
         if (bidKey !== startingSeat) {
-            ledger.currentVacancy--; // Claim the spot
-            note = `Open position available. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
+            ledger.currentVacancy--; // Consume the vacancy
             
-            if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
-                let sL = seatLedger[startingSeat];
-                let oldStartVac = sL.currentVacancy;
-                sL.currentVacancy++; // Vacate old spot
-                note += ` Increase vacancy in ${startingSeat} from ${oldStartVac} to ${sL.currentVacancy}. Proffered from ${startingSeat}.`;
+            // Generate Proffer Note
+            if (ledger.profferQueue.length > 0) {
+                let origin = ledger.profferQueue.shift(); 
+                note = `Open position available. Proffered from ${origin.sen} - ${origin.name}.`;
+            } else {
+                note = "Awarded system vacancy.";
             }
+            auditLog.push(`<span class="audit-success">Awarded: ${note}</span>`);
+            
+            // Leave a Proffer Behind
+            if (startingSeat && seatLedger[startingSeat]) {
+                seatLedger[startingSeat].currentVacancy++; 
+                seatLedger[startingSeat].profferQueue.push({sen: pSen, name: pName}); 
+                auditLog.push(`-> Vacated ${startingSeat}, leaving a proffer for junior pilots.`);
+            }
+        } else {
+            auditLog.push(`<span class="audit-success">Awarded: Remain in current position.</span>`);
         }
         
-        pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "AWARDED", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
-        break; // Successfully awarded, stop checking preferences
+        ledger.awardedPilots.push({ spot: ledger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: (bidKey === startingSeat) ? "HELD" : "MOVED" });
+        pilotRows.push({ sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Awarded", note: note, css: "action-awarded", audit: [...auditLog], start: startingSeat });
+        break; 
       } else {
+        let countNote = `Requested position has no current vacancies.`;
+        auditLog.push(`<span class="audit-fail">Denied: ${countNote}</span>`);
         pilotRows.push({ 
-            sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "DENIED", 
-            note: `Requested position has ${ledger.pubDelta} vacancy and cannot accept additional pilots.`, 
-            css: "action-danger", audit: [...auditLog], start: startingSeat 
+            sen: pSen, name: pName, pos: `737 ${bidKey}`, pref: prefNum, status: "Denied", 
+            note: countNote, css: "action-danger", audit: [...auditLog], start: startingSeat 
         });
       }
     }
 
-    // 3. FALLBACK TO CURRENT SEAT (If no preferences were awarded)
-    if (!resolved && startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
-        let sLedger = seatLedger[startingSeat];
-        
-        if (sLedger.awardedCount < sLedger.targetCap) {
-            awardedSeat = startingSeat;
-            sLedger.awardedCount++;
-            sLedger.juniorSen = pSen;
-            resolved = true;
-            sLedger.awardedPilots.push({ spot: sLedger.awardedCount, sen: pSen, name: pName, start: startingSeat, status: "HELD" });
-            
-            pilotRows.push({ 
-                sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "AWARDED", 
-                note: "Remain in current position.", css: "action-awarded", audit: [...auditLog], start: startingSeat 
-            });
-        }
-    }
-
-    // 4. DISPLACED
+    // --- PHASE 3: FALLBACK ---
     if (!resolved) {
-        iceBox.push({ pSen, pName, startingSeat, prefs: pPrefObj.preferences, auditLog, pilotRows });
-        
-        if (startingSeat !== "UNASSIGNED" && seatLedger[startingSeat]) {
-            seatLedger[startingSeat].currentVacancy++; // Vacancy opens up because they are displaced
-        }
-    } else {
-        detailedLedgerLog.push(...pilotRows);
-        singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
-    }
-  }
-
-  // --- ROUND 2: DISPLACEMENT AWARDS (ICE BOX) ---
-  for (const ice of iceBox) {
-      let resolved = false;
-      let awardedSeat = "";
-
-      for (let i = 0; i < ice.prefs.length; i++) {
-          const entry = ice.prefs[i];
-          let rawBid = String(entry.bid || "").toUpperCase();
-          let bMatch = allBases.find(b => rawBid.includes(b));
-          let sMatch = allSeats.find(s => rawBid.includes(s));
-          if (!bMatch || !sMatch) continue;
-
-          const bidKey = `${bMatch} ${sMatch}`;
-          const ledger = seatLedger[bidKey];
-          const prefNum = i + 1;
-
-          // Bump logic: Displace the junior-most pilot in the target base
-          if (ledger.juniorSen === "N/A" || ice.pSen < ledger.juniorSen) {
-              awardedSeat = bidKey;
-              let oldVac = ledger.currentVacancy;
-              ledger.awardedCount++;
-              ledger.juniorSen = Math.max(ledger.juniorSen === "N/A" ? 0 : ledger.juniorSen, ice.pSen);
-              ledger.currentVacancy--; 
-
-              ledger.awardedPilots.push({ spot: ledger.awardedCount + " (DISP)", sen: ice.pSen, name: ice.pName, start: ice.startingSeat, status: "DISPLACED-IN" });
-
-              let note = `Displacement Award. Bumped junior pilot. Reduce vacancy in ${bidKey} from ${oldVac} to ${ledger.currentVacancy}.`;
-              ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: `737 ${bidKey}`, pref: prefNum, status: "AWARDED", note: note, css: "action-awarded", audit: [...ice.auditLog], start: ice.startingSeat });
-
-              resolved = true;
-              break;
-          }
-      }
-
-      if (!resolved) {
-          ice.pilotRows.push({ sen: ice.pSen, name: ice.pName, pos: "UNASSIGNED", pref: "-", status: "DISPLACED", note: "Ice Box Exhausted. No fallback available.", css: "action-danger", audit: [...ice.auditLog], start: ice.startingSeat });
+       if (startingSeat && seatLedger[startingSeat]) {
+          awardedSeat = startingSeat;
+          seatLedger[startingSeat].awardedCount++;
+          seatLedger[startingSeat].awardedPilots.push({ spot: "FALLBACK", sen: pSen, name: pName, start: startingSeat, status: "HELD" });
+          pilotRows.push({ sen: pSen, name: pName, pos: `737 ${startingSeat}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...auditLog], start: startingSeat });
+       } else {
           awardedSeat = "UNASSIGNED";
-      }
-
-      detailedLedgerLog.push(...ice.pilotRows);
-      singlePilotSummary.push({sen: ice.pSen, name: ice.pName, final: awardedSeat});
+          pilotRows.push({ sen: pSen, name: pName, pos: "UNASSIGNED", pref: "-", status: "Denied", note: "No fallback available.", css: "action-danger", audit: [...auditLog], start: startingSeat });
+       }
+    }
+    
+    detailedLedgerLog.push(...pilotRows);
+    singlePilotSummary.push({sen: pSen, name: pName, final: awardedSeat});
   }
-
+  
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
 }
@@ -411,9 +338,8 @@ function searchPilot() {
 function renderUI(ledger) {
   let summaryHTML = "";
   allBases.forEach(b => { allSeats.forEach(s => {
-      const key = `${b} ${s}`, d = ledger[key];
-      const displayVacancy = Math.max(0, d.targetCap - d.awardedCount);
-      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${displayVacancy > 0 ? 'var(--success)' : 'var(--danger)'}">${displayVacancy}</td><td>${d.juniorSen}</td></tr>`;
+      const key = `${b} ${s}`, d = ledger[key], v = d.currentVacancy;
+      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${d.targetCap}</td><td>${d.awardedCount}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${d.juniorSen}</td></tr>`;
   }); });
   document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
   document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
