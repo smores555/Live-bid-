@@ -12,7 +12,7 @@
       --success: #00ffaa; --danger: #ff4772; --warning: #ffcf33;
     }
     body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-    .container { max-width: 1400px; margin: 0 auto; }
+    .container { max-width: 1200px; margin: 0 auto; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
     label { display: block; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
@@ -36,9 +36,6 @@
     .audit-trail li::before { content: '>'; position: absolute; left: 0; color: var(--accent); font-weight: bold; }
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
-    
-    .col-bpl { color: var(--warning); font-weight: bold; }
-    .col-rank { color: #fff; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -69,7 +66,7 @@
         </div>
         <div class="table-container" style="max-height: 250px; margin-top: 15px;">
             <table class="search-results-table">
-                <thead><tr><th>Position</th><th>Pref</th><th>BPL Limit</th><th>Actual Rank</th><th>Status</th><th>Note</th></tr></thead>
+                <thead><tr><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
                 <tbody id="dashDetailedTable"></tbody>
             </table>
         </div>
@@ -110,7 +107,7 @@
       </div>
       <div class="table-container">
         <table>
-          <thead><tr><th>Sen</th><th>Name</th><th>Position</th><th>Pref</th><th>BPL Limit</th><th>Actual Rank</th><th>Status</th><th>Note</th></tr></thead>
+          <thead><tr><th>Sen</th><th>Name</th><th>Position</th><th>Pref</th><th>Status</th><th>Note</th></tr></thead>
           <tbody id="competitorTable"></tbody>
         </table>
       </div>
@@ -181,6 +178,7 @@ function runAnalysis() {
       seatLedger[key] = {
         pubDelta: capObj.delta,
         modApplied: modValue,
+        baseSystemCapacity: parseInt(capObj.delta) + modValue,
         vacancies: parseInt(capObj.delta) + modValue, 
         profferQueue: [],
         pilots: [] 
@@ -207,9 +205,7 @@ function runAnalysis() {
         currentAward: startSeat,
         awardNote: "Remain in current position.",
         auditLog: [],
-        pilotRows: [],
-        awardEvents: {},          // Tracks every seat they held during the cascade
-        lowestAwardedIndex: -1    // Tracks the lowest preference they were ever awarded
+        pilotRows: []
     };
 
     pObj.formattedPrefs = [];
@@ -238,7 +234,7 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
-  while (hasChanges && safetyCounter < 100) {
+  while (hasChanges && safetyCounter < 150) {
       hasChanges = false;
       safetyCounter++;
 
@@ -251,46 +247,45 @@ function runAnalysis() {
 
               if (!seatLedger[targetSeat]) continue;
 
-              if (targetSeat === p.currentAward) {
-                  p.currentPrefIndex = i;
-                  p.awardNote = "Remain in current position.";
-                  break; 
-              }
-
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
+              // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
                   continue; 
               }
 
-              if (seatLedger[targetSeat].vacancies > 0 || seatLedger[targetSeat].profferQueue.length > 0) {
+              // SEAT VALIDATION
+              if (targetSeat === p.currentAward) {
+                  // Re-locking current seat
+                  p.currentPrefIndex = i;
+                  p.awardNote = "Remain in current position.";
+                  break; 
+              } else if (seatLedger[targetSeat].vacancies > 0) {
+                  // Open vacancy found! Trigger cascade.
                   let oldSeat = p.currentAward;
 
-                  if (oldSeat && seatLedger[oldSeat]) {
+                  if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
                       seatLedger[oldSeat].vacancies++;
                       seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
                       seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
                   }
 
+                  seatLedger[targetSeat].vacancies--;
+                  
+                  // FIXED PROFFER LOGIC: Ensure system vacancies aren't documented as proffers.
+                  let origin = null;
                   if (seatLedger[targetSeat].profferQueue.length > 0) {
-                      let origin = seatLedger[targetSeat].profferQueue.shift();
-                      p.awardNote = `Open position available. Proffered from ${origin.sen} - ${origin.name}.`;
-                      seatLedger[targetSeat].vacancies--; 
-                  } else {
-                      p.awardNote = "Awarded system vacancy.";
-                      seatLedger[targetSeat].vacancies--;
+                      origin = seatLedger[targetSeat].profferQueue.shift();
                   }
+
+                  p.awardNote = origin ? `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
                   
                   p.currentAward = targetSeat;
                   p.currentPrefIndex = i;
-                  
-                  // STAMP THIS EVENT INTO HISTORY
-                  p.lowestAwardedIndex = Math.max(p.lowestAwardedIndex, i);
-                  p.awardEvents[i] = { note: p.awardNote, rank: projectedSpot };
                   
                   seatLedger[targetSeat].pilots.push(p);
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
@@ -311,55 +306,44 @@ function runAnalysis() {
       p.pilotRows = [];
 
       if (p.isExempt) {
-          let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", bplDisplay: "-", rankDisplay: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status. Not counted toward BPL ranking."], start: p.startSeat};
+          let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status. Not counted toward BPL ranking."], start: p.startSeat};
           detailedLedgerLog.push(row);
           singlePilotSummary.push({sen: p.sen, name: p.name, final: p.startSeat});
           continue;
       }
 
-      // Calculate the lowest point we need to print to capture their full history
-      let printLimit = Math.max(p.lowestAwardedIndex, p.currentPrefIndex);
-      if (printLimit >= p.formattedPrefs.length) printLimit = p.formattedPrefs.length - 1;
-
-      for (let i = 0; i <= printLimit; i++) {
-          if (i >= p.formattedPrefs.length) break;
-
+      for (let i = 0; i < p.formattedPrefs.length; i++) {
           let targetSeat = p.formattedPrefs[i].targetSeat;
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
-          let bplDisplay = bplMin > 0 ? bplMin : "None";
           
-          let seniorCount = 0;
-          if (seatLedger[targetSeat]) {
+          if (i < p.currentPrefIndex) {
+              p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
+              
+              let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
-          }
-          let actualRank = seniorCount + 1;
-          
-          if (p.awardEvents[i]) {
-              // They were awarded this seat at some point during the cascade
-              p.auditLog.push(`Pref ${prefNum} (${targetSeat}): Awarded during cascade.`);
-              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: p.awardEvents[i].rank, status: "Awarded", note: p.awardEvents[i].note, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
-          } else if (i < p.currentPrefIndex) {
-              // They were denied this seat and passed over it
-              p.auditLog.push(`Pref ${prefNum} (${targetSeat}): Denied.`);
-              if (bplMin > 0 && actualRank > bplMin) {
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Denied", note: `Hit Bid Position List limit. Rank ${actualRank} exceeds limit of ${bplMin}.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+              let projectedSpot = seniorCount + 1;
+
+              if (bplMin > 0 && projectedSpot > bplMin) {
+                  p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               } else {
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Denied", note: `Requested position has no current vacancies or proffers.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.auditLog.push(`<span class="audit-fail">Denied: Requested position has no current vacancies.</span>`);
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has no current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               }
-          } else if (i === p.currentPrefIndex && p.currentAward === p.startSeat) {
-              // They simply held their starting seat
-              p.auditLog.push(`Pref ${prefNum} (${targetSeat}): Held starting seat.`);
-              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
+          } else if (i === p.currentPrefIndex) {
+              p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
+              p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote}</span>`);
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
+              break; 
           }
       }
 
-      // If they had no valid prefs and fell back to their start seat
-      if (p.currentPrefIndex === p.formattedPrefs.length && p.lowestAwardedIndex === -1 && p.currentAward === p.startSeat) {
-          p.auditLog.push("All preferences denied. Reverting to fallback start seat.");
-          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", bplDisplay: "-", rankDisplay: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
+      if (p.currentPrefIndex === p.formattedPrefs.length) {
+          p.auditLog.push("All preferences denied. Reverting to fallback.");
+          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
       }
 
       detailedLedgerLog.push(...p.pilotRows);
@@ -379,7 +363,7 @@ function searchPilot() {
     document.getElementById('dashSen').innerText = rows[0].sen;
     document.getElementById('dashName').innerText = rows[0].name;
     document.getElementById('dashStart').innerText = rows[0].start;
-    document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td class="col-bpl">${r.bplDisplay}</td><td class="col-rank">${r.rankDisplay}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
+    document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
     document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
   } else { alert("Pilot not found."); dash.style.display = 'none'; }
 }
@@ -392,7 +376,7 @@ function renderUI(ledger) {
       summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${pilots.length}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${juniorSen}</td></tr>`;
   }); });
   document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
-  document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td class="col-bpl">${c.bplDisplay}</td><td class="col-rank">${c.rankDisplay}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
+  document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
 }
 
 function exportFinalAwardsCSV() {
@@ -405,8 +389,8 @@ function exportFinalAwardsCSV() {
 }
 
 function exportAuditCSV() {
-  let csv = "Sen,Name,Position,Pref,BPL Limit,Actual Rank,Status,Note\n";
-  detailedLedgerLog.forEach(r => { csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.bplDisplay}","${r.rankDisplay}","${r.status}","${r.note}"\n`; });
+  let csv = "Sen,Name,Position,Pref,Status,Note\n";
+  detailedLedgerLog.forEach(r => { csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.status}","${r.note}"\n`; });
   triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Full_Ledger.csv');
 }
 
