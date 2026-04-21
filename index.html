@@ -37,7 +37,6 @@
     .audit-success { color: var(--success); }
     .audit-fail { color: var(--danger); }
     
-    /* Highlight for BPL columns to make auditing easier */
     .col-bpl { color: var(--warning); font-weight: bold; }
     .col-rank { color: #fff; font-weight: bold; }
   </style>
@@ -208,7 +207,9 @@ function runAnalysis() {
         currentAward: startSeat,
         awardNote: "Remain in current position.",
         auditLog: [],
-        pilotRows: []
+        pilotRows: [],
+        awardEvents: {},          // Tracks every seat they held during the cascade
+        lowestAwardedIndex: -1    // Tracks the lowest preference they were ever awarded
     };
 
     pObj.formattedPrefs = [];
@@ -258,7 +259,6 @@ function runAnalysis() {
 
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
-                  // Exempt pilots do NOT count toward your BPL rank
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
@@ -288,6 +288,10 @@ function runAnalysis() {
                   p.currentAward = targetSeat;
                   p.currentPrefIndex = i;
                   
+                  // STAMP THIS EVENT INTO HISTORY
+                  p.lowestAwardedIndex = Math.max(p.lowestAwardedIndex, i);
+                  p.awardEvents[i] = { note: p.awardNote, rank: projectedSpot };
+                  
                   seatLedger[targetSeat].pilots.push(p);
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
@@ -313,13 +317,18 @@ function runAnalysis() {
           continue;
       }
 
-      for (let i = 0; i < p.formattedPrefs.length; i++) {
+      // Calculate the lowest point we need to print to capture their full history
+      let printLimit = Math.max(p.lowestAwardedIndex, p.currentPrefIndex);
+      if (printLimit >= p.formattedPrefs.length) printLimit = p.formattedPrefs.length - 1;
+
+      for (let i = 0; i <= printLimit; i++) {
+          if (i >= p.formattedPrefs.length) break;
+
           let targetSeat = p.formattedPrefs[i].targetSeat;
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
           let bplDisplay = bplMin > 0 ? bplMin : "None";
           
-          // Calculate exact rank for this preference row
           let seniorCount = 0;
           if (seatLedger[targetSeat]) {
               for (let resident of seatLedger[targetSeat].pilots) {
@@ -328,27 +337,29 @@ function runAnalysis() {
           }
           let actualRank = seniorCount + 1;
           
-          if (i < p.currentPrefIndex) {
-              p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
-              
+          if (p.awardEvents[i]) {
+              // They were awarded this seat at some point during the cascade
+              p.auditLog.push(`Pref ${prefNum} (${targetSeat}): Awarded during cascade.`);
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: p.awardEvents[i].rank, status: "Awarded", note: p.awardEvents[i].note, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
+          } else if (i < p.currentPrefIndex) {
+              // They were denied this seat and passed over it
+              p.auditLog.push(`Pref ${prefNum} (${targetSeat}): Denied.`);
               if (bplMin > 0 && actualRank > bplMin) {
-                  p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit. Need ${bplMin}, actual rank is ${actualRank}.</span>`);
                   p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Denied", note: `Hit Bid Position List limit. Rank ${actualRank} exceeds limit of ${bplMin}.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               } else {
-                  p.auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy.</span>`);
                   p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Denied", note: `Requested position has no current vacancies or proffers.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               }
-          } else if (i === p.currentPrefIndex) {
-              p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
-              p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote}</span>`);
-              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
-              break; 
+          } else if (i === p.currentPrefIndex && p.currentAward === p.startSeat) {
+              // They simply held their starting seat
+              p.auditLog.push(`Pref ${prefNum} (${targetSeat}): Held starting seat.`);
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, bplDisplay: bplDisplay, rankDisplay: actualRank, status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
           }
       }
 
-      if (p.currentPrefIndex === p.formattedPrefs.length) {
-          p.auditLog.push("All preferences denied. Reverting to fallback.");
-          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", bplDisplay: "-", rankDisplay: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
+      // If they had no valid prefs and fell back to their start seat
+      if (p.currentPrefIndex === p.formattedPrefs.length && p.lowestAwardedIndex === -1 && p.currentAward === p.startSeat) {
+          p.auditLog.push("All preferences denied. Reverting to fallback start seat.");
+          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", bplDisplay: "-", rankDisplay: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
       }
 
       detailedLedgerLog.push(...p.pilotRows);
@@ -360,4 +371,66 @@ function runAnalysis() {
 }
 
 function searchPilot() {
-  const senNum
+  const senNum = parseInt(document.getElementById('senInput').value);
+  const rows = detailedLedgerLog.filter(p => p.sen === senNum);
+  const dash = document.getElementById('personalDash');
+  if (rows.length > 0) {
+    dash.style.display = 'block';
+    document.getElementById('dashSen').innerText = rows[0].sen;
+    document.getElementById('dashName').innerText = rows[0].name;
+    document.getElementById('dashStart').innerText = rows[0].start;
+    document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td class="col-bpl">${r.bplDisplay}</td><td class="col-rank">${r.rankDisplay}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
+    document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
+  } else { alert("Pilot not found."); dash.style.display = 'none'; }
+}
+
+function renderUI(ledger) {
+  let summaryHTML = "";
+  allBases.forEach(b => { allSeats.forEach(s => {
+      const key = `${b} ${s}`, d = ledger[key], v = d.vacancies, pilots = d.pilots;
+      let juniorSen = pilots.length > 0 ? pilots[pilots.length - 1].sen : "N/A";
+      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${pilots.length}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${juniorSen}</td></tr>`;
+  }); });
+  document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
+  document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td class="col-bpl">${c.bplDisplay}</td><td class="col-rank">${c.rankDisplay}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
+}
+
+function exportFinalAwardsCSV() {
+  let csv = "Seniority,Pilot Name,Final Base,Final Seat\n";
+  singlePilotSummary.forEach(r => {
+    let p = r.final.split(" ");
+    csv += `"${r.sen}","${r.name}","${p[0] || "UNASSIGNED"}","${p[1] || ""}"\n`;
+  });
+  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Final_Awards.csv');
+}
+
+function exportAuditCSV() {
+  let csv = "Sen,Name,Position,Pref,BPL Limit,Actual Rank,Status,Note\n";
+  detailedLedgerLog.forEach(r => { csv += `"${r.sen}","${r.name}","${r.pos}","${r.pref}","${r.bplDisplay}","${r.rankDisplay}","${r.status}","${r.note}"\n`; });
+  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'Full_Ledger.csv');
+}
+
+function exportBPLRostersCSV() {
+  let csv = "Seat,BPL Spot,Sen,Name\n";
+  allBases.forEach(b => { allSeats.forEach(s => {
+    const key = `${b} ${s}`;
+    if (globalSeatLedger[key]) {
+        let activePilots = globalSeatLedger[key].pilots.filter(x => !x.isExempt);
+        activePilots.forEach((p, index) => { 
+            csv += `"${key}","${index + 1}","${p.sen}","${p.name}"\n`; 
+        });
+    }
+  }); });
+  triggerDownload(new Blob([csv], { type: 'text/csv' }), 'BPL_Rosters.csv');
+}
+
+function triggerDownload(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+}
+
+window.onload = loadData;
+</script>
+</body>
+</html>
