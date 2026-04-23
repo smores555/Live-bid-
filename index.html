@@ -319,13 +319,16 @@ function runAnalysis() {
           let targetSeat = p.formattedPrefs[i].targetSeat;
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
+
+          // Calculate current rank for audit tracking
+          let seniorCount = 0;
+          for (let resident of seatLedger[targetSeat].pilots) {
+              if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
+          }
+          let projectedSpot = seniorCount + 1;
+
           if (i < p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
-              let seniorCount = 0;
-              for (let resident of seatLedger[targetSeat].pilots) {
-                  if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
-              }
-              let projectedSpot = seniorCount + 1;
               if (bplMin > 0 && projectedSpot > bplMin) {
                   p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
                   p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
@@ -335,8 +338,8 @@ function runAnalysis() {
               }
           } else if (i === p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
-              p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote}</span>`);
-              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
+              p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote} (BPL Rank: ${projectedSpot})</span>`);
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: `${p.awardNote} Rank: ${projectedSpot}`, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
               break; 
           }
       }
@@ -352,6 +355,19 @@ function runAnalysis() {
 
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
+}
+
+// NEW: Console Interactive BPL Roster Tool
+function viewSeatRoster(seatKey) {
+  const pilots = globalSeatLedger[seatKey].pilots;
+  console.log(`--- BPL ROSTER: ${seatKey} ---`);
+  console.table(pilots.map((p, index) => ({
+    "BPL Rank": index + 1,
+    "Seniority": p.sen,
+    "Name": p.name,
+    "Status": p.isExempt ? "Exempt (320/NoBid)" : "Active"
+  })));
+  alert(`BPL Roster for ${seatKey} printed to browser console (Press F12 to view).`);
 }
 
 function searchPilot() {
@@ -374,7 +390,15 @@ function renderUI(ledger) {
   allBases.forEach(b => { allSeats.forEach(s => {
       const key = `${b} ${s}`, d = ledger[key], v = d.vacancies, pilots = d.pilots;
       let juniorSen = pilots.length > 0 ? pilots[pilots.length - 1].sen : "N/A";
-      summaryHTML += `<tr><td>${key}</td><td>${d.pubDelta}</td><td>${d.modApplied}</td><td>${pilots.length}</td><td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td><td>${juniorSen}</td></tr>`;
+      // UPDATED: Added clickable roster link to the pilot count
+      summaryHTML += `<tr>
+          <td>${key}</td>
+          <td>${d.pubDelta}</td>
+          <td>${d.modApplied}</td>
+          <td><a href="#" onclick="viewSeatRoster('${key}')" style="color:var(--accent); text-decoration:none;">${pilots.length} (View)</a></td>
+          <td style="color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${v}</td>
+          <td>${juniorSen}</td>
+      </tr>`;
   }); });
   document.getElementById("globalSummaryTable").innerHTML = summaryHTML;
   document.getElementById("competitorTable").innerHTML = detailedLedgerLog.map(c => `<tr><td>${c.sen}</td><td>${c.name}</td><td>${c.pos}</td><td>${c.pref}</td><td><span class="action-pill ${c.css}">${c.status}</span></td><td style="font-size:11px">${c.note}</td></tr>`).join("");
