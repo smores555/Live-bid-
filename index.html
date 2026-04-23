@@ -184,8 +184,10 @@ function runAnalysis() {
       };
     });
   });
+  
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
   let dynamicPilots = [];
+  
   for (let p of sortedRoster) {
     let pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
@@ -204,6 +206,7 @@ function runAnalysis() {
         auditLog: [],
         pilotRows: []
     };
+    
     pObj.formattedPrefs = [];
     for (let pref of pObj.prefs) {
         let rawBid = String(pref.bid || "").toUpperCase();
@@ -229,7 +232,6 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
-  // INCREASED safety limit: Restarts require vastly more loops to complete a full cascade
   while (hasChanges && safetyCounter < 5000) {
       hasChanges = false;
       safetyCounter++;
@@ -237,66 +239,87 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          let awardMade = false; // NEW: Track if a movement happened
+          let awardMade = false;
+          let wasDisplaced = false;
 
-          for (let i = 0; i < p.currentPrefIndex; i++) {
+          // Dynamically find where they are currently sitting in their pref list
+          let currentHoldIndex = p.formattedPrefs.findIndex(pref => pref.targetSeat === p.currentAward);
+          let maxEvalIndex = currentHoldIndex !== -1 ? currentHoldIndex : p.formattedPrefs.length;
+
+          for (let i = 0; i <= maxEvalIndex; i++) {
+              if (i === p.formattedPrefs.length) break;
+
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
               if (!seatLedger[targetSeat]) continue;
 
+              // Calculate Projected Spot
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
-              // INDEPENDENT BPL CHECK
-              if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue;
-              }
+              // BPL Validation
+              let failsBPL = (bplMin > 0 && projectedSpot > bplMin);
 
-              // SEAT VALIDATION
-              if (targetSeat === p.currentAward) {
-                  // Re-locking current seat
-                  p.currentPrefIndex = i;
-                  p.awardNote = "Remain in current position.";
-                  break; 
-              } else if (seatLedger[targetSeat].vacancies > 0) {
-                  // Open vacancy found! Trigger cascade.
-                  let oldSeat = p.currentAward;
-
-                  if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
-                      seatLedger[oldSeat].vacancies++;
-                      seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
-                      seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
+              if (i === currentHoldIndex) {
+                  if (failsBPL) {
+                      // EVIL CASCADE CAUGHT: Pilot busted the BPL limit on their currently held seat. Evict them!
+                      seatLedger[p.currentAward].vacancies++;
+                      seatLedger[p.currentAward].pilots = seatLedger[p.currentAward].pilots.filter(x => x.sen !== p.sen);
+                      
+                      p.currentAward = null; 
+                      p.currentPrefIndex = p.formattedPrefs.length; 
+                      maxEvalIndex = p.formattedPrefs.length; // Now they must keep evaluating downward
+                      hasChanges = true;
+                      wasDisplaced = true;
+                      
+                      continue; // Proceed to i+1 to find a fallback seat
+                  } else {
+                      // Pilot is safely anchored in their current seat
+                      p.currentPrefIndex = i;
+                      p.awardNote = "Remain in current position.";
+                      break; 
                   }
+              } else {
+                  // Evaluating a seat HIGHER than current hold (or lower if they were just displaced)
+                  if (failsBPL) continue;
 
-                  seatLedger[targetSeat].vacancies--;
+                  if (seatLedger[targetSeat].vacancies > 0) {
+                      let oldSeat = p.currentAward;
 
-                  let origin = null;
-                  if (seatLedger[targetSeat].profferQueue.length > 0) {
-                      origin = seatLedger[targetSeat].profferQueue.shift();
+                      if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
+                          seatLedger[oldSeat].vacancies++;
+                          seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
+                          seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
+                      }
+
+                      seatLedger[targetSeat].vacancies--;
+
+                      let origin = null;
+                      if (seatLedger[targetSeat].profferQueue.length > 0) {
+                          origin = seatLedger[targetSeat].profferQueue.shift();
+                      }
+
+                      p.awardNote = origin ? `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Open position available.";
+                      
+                      p.currentAward = targetSeat;
+                      p.currentPrefIndex = i;
+                      
+                      seatLedger[targetSeat].pilots.push(p);
+                      seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
+
+                      hasChanges = true;
+                      awardMade = true;
+                      break; 
                   }
-
-                  p.awardNote = origin ?
-                  `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
-                  
-                  p.currentAward = targetSeat;
-                  p.currentPrefIndex = i;
-                  
-                  seatLedger[targetSeat].pilots.push(p);
-                  seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
-
-                  hasChanges = true;
-                  awardMade = true; // NEW: Set flag that a movement occurred
-                  break; // Breaks the PREFERENCE loop
               }
           }
 
-          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
-          if (awardMade) {
-              break; 
+          if (awardMade || wasDisplaced) {
+              break; // Break the pilot loop and restart the waterfall from Seniority #1
           }
       }
   }
@@ -320,7 +343,6 @@ function runAnalysis() {
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
 
-          // Calculate current rank for audit tracking
           let seniorCount = 0;
           for (let resident of seatLedger[targetSeat].pilots) {
               if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
@@ -331,33 +353,38 @@ function runAnalysis() {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               if (bplMin > 0 && projectedSpot > bplMin) {
                   p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Bid request does not meet BPL requirement. Requested BPL = ${bplMin}. BPL if awarded = ${projectedSpot}.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               } else {
-                  p.auditLog.push(`<span class="audit-fail">Denied: Requested position has no current vacancies.</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has no current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.auditLog.push(`<span class="audit-fail">Denied: Requested position has 0 vacancy.</span>`);
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has 0 vacancy and cannot accept additional pilots.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               }
           } else if (i === p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
-              p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote} (BPL Rank: ${projectedSpot})</span>`);
-              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: `${p.awardNote} Rank: ${projectedSpot}`, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
+              p.auditLog.push(`<span class="audit-success">Awarded: ${p.awardNote}</span>`);
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Awarded", note: p.awardNote, css: "action-awarded", audit: [...p.auditLog], start: p.startSeat});
               break; 
           }
       }
 
+      // Handle the edge case where a pilot is displaced but has no safe fallbacks below them
       if (p.currentPrefIndex === p.formattedPrefs.length) {
-          p.auditLog.push("All preferences denied. Reverting to fallback.");
-          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
+          if (p.currentAward) {
+              p.auditLog.push("All preferences denied. Reverting to fallback.");
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
+          } else {
+              p.auditLog.push("All preferences denied. Pilot Displaced with no fallback available.");
+              p.pilotRows.push({sen: p.sen, name: p.name, pos: `UNASSIGNED`, pref: "-", status: "Displaced", note: "BPL displacement executed. No available bids remain.", css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+          }
       }
 
       detailedLedgerLog.push(...p.pilotRows);
-      singlePilotSummary.push({sen: p.sen, name: p.name, final: p.currentAward});
+      singlePilotSummary.push({sen: p.sen, name: p.name, final: p.currentAward || "UNASSIGNED"});
   }
 
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
 }
 
-// NEW: Console Interactive BPL Roster Tool
 function viewSeatRoster(seatKey) {
   const pilots = globalSeatLedger[seatKey].pilots;
   console.log(`--- BPL ROSTER: ${seatKey} ---`);
@@ -390,7 +417,6 @@ function renderUI(ledger) {
   allBases.forEach(b => { allSeats.forEach(s => {
       const key = `${b} ${s}`, d = ledger[key], v = d.vacancies, pilots = d.pilots;
       let juniorSen = pilots.length > 0 ? pilots[pilots.length - 1].sen : "N/A";
-      // UPDATED: Added clickable roster link to the pilot count
       summaryHTML += `<tr>
           <td>${key}</td>
           <td>${d.pubDelta}</td>
