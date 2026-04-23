@@ -238,8 +238,9 @@ function runAnalysis() {
           if (p.isExempt) continue;
 
           let awardMade = false; // NEW: Track if a movement happened
+          let seatKeptOrFound = false;
 
-          for (let i = 0; i < p.currentPrefIndex; i++) {
+          for (let i = 0; i < p.formattedPrefs.length; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
@@ -261,6 +262,7 @@ function runAnalysis() {
                   // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
+                  seatKeptOrFound = true;
                   break; 
               } else if (seatLedger[targetSeat].vacancies > 0) {
                   // Open vacancy found! Trigger cascade.
@@ -290,8 +292,13 @@ function runAnalysis() {
 
                   hasChanges = true;
                   awardMade = true; // NEW: Set flag that a movement occurred
+                  seatKeptOrFound = true;
                   break; // Breaks the PREFERENCE loop
               }
+          }
+
+          if (!seatKeptOrFound) {
+              p.currentPrefIndex = p.formattedPrefs.length;
           }
 
           // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
