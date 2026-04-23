@@ -184,7 +184,6 @@ function runAnalysis() {
       };
     });
   });
-
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
   let dynamicPilots = [];
   for (let p of sortedRoster) {
@@ -230,6 +229,7 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
+  // INCREASED safety limit: Restarts require vastly more loops to complete a full cascade
   while (hasChanges && safetyCounter < 5000) {
       hasChanges = false;
       safetyCounter++;
@@ -237,51 +237,33 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          let awardMade = false;
+          let awardMade = false; // NEW: Track if a movement happened
 
-          // SURGICAL LOCK: We evaluate all prefs up to the currently locked one.
-          // This allows verifying the BPL of the held seat without looking lower.
-          for (let i = 0; i < p.formattedPrefs.length; i++) {
-              if (i > p.currentPrefIndex) break; // THE LOCK: Ensures 2006 stays in SAN CA
-
+          for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
               if (!seatLedger[targetSeat]) continue;
 
-              // Rank Calculation
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
 
-              // VERIFIED EVICTION: Check BPL of current seat
+              // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  if (targetSeat === p.currentAward && i === p.currentPrefIndex) {
-                      // Kick pilot out of current seat
-                      let oldSeat = p.currentAward;
-                      seatLedger[oldSeat].vacancies++;
-                      seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
-                      seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
-                      
-                      p.currentAward = null;
-                      p.currentPrefIndex = p.formattedPrefs.length; // Return to pool
-                      hasChanges = true;
-                      awardMade = true;
-                      break; 
-                  }
-                  continue; // standard skip for better seats
+                  continue;
               }
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
-                  // Pass BPL check on held seat; lock current preference
+                  // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
               } else if (seatLedger[targetSeat].vacancies > 0) {
-                  // Standard Waterfall Award
+                  // Open vacancy found! Trigger cascade.
                   let oldSeat = p.currentAward;
 
                   if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
@@ -307,12 +289,15 @@ function runAnalysis() {
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  awardMade = true;
-                  break; 
+                  awardMade = true; // NEW: Set flag that a movement occurred
+                  break; // Breaks the PREFERENCE loop
               }
           }
 
-          if (awardMade) break; 
+          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
+          if (awardMade) {
+              break; 
+          }
       }
   }
 
@@ -335,6 +320,7 @@ function runAnalysis() {
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
 
+          // Calculate current rank for audit tracking
           let seniorCount = 0;
           for (let resident of seatLedger[targetSeat].pilots) {
               if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
@@ -345,10 +331,10 @@ function runAnalysis() {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
               if (bplMin > 0 && projectedSpot > bplMin) {
                   p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit BPL limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               } else {
                   p.auditLog.push(`<span class="audit-fail">Denied: Requested position has no current vacancies.</span>`);
-                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `No current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
+                  p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Requested position has no current vacancies.`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
               }
           } else if (i === p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
@@ -360,19 +346,18 @@ function runAnalysis() {
 
       if (p.currentPrefIndex === p.formattedPrefs.length) {
           p.auditLog.push("All preferences denied. Reverting to fallback.");
-          let finalSeatDisplay = p.currentAward ? `737 ${p.currentAward}` : "UNASSIGNED";
-          let finalNote = p.currentAward ? "Remain in current position." : "Displaced. No valid bids available.";
-          p.pilotRows.push({sen: p.sen, name: p.name, pos: finalSeatDisplay, pref: "-", status: p.currentAward ? "Awarded" : "Denied", note: finalNote, css: p.currentAward ? "action-stay" : "action-danger", audit: [...p.auditLog], start: p.startSeat});
+          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
       }
 
       detailedLedgerLog.push(...p.pilotRows);
-      singlePilotSummary.push({sen: p.sen, name: p.name, final: p.currentAward || "UNASSIGNED"});
+      singlePilotSummary.push({sen: p.sen, name: p.name, final: p.currentAward});
   }
 
   globalSeatLedger = seatLedger; 
   renderUI(seatLedger);
 }
 
+// NEW: Console Interactive BPL Roster Tool
 function viewSeatRoster(seatKey) {
   const pilots = globalSeatLedger[seatKey].pilots;
   console.log(`--- BPL ROSTER: ${seatKey} ---`);
@@ -396,7 +381,8 @@ function searchPilot() {
     document.getElementById('dashStart').innerText = rows[0].start;
     document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
     document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
-  } else { alert("Pilot not found."); dash.style.display = 'none'; }
+  } else { alert("Pilot not found.");
+  dash.style.display = 'none'; }
 }
 
 function renderUI(ledger) {
@@ -404,6 +390,7 @@ function renderUI(ledger) {
   allBases.forEach(b => { allSeats.forEach(s => {
       const key = `${b} ${s}`, d = ledger[key], v = d.vacancies, pilots = d.pilots;
       let juniorSen = pilots.length > 0 ? pilots[pilots.length - 1].sen : "N/A";
+      // UPDATED: Added clickable roster link to the pilot count
       summaryHTML += `<tr>
           <td>${key}</td>
           <td>${d.pubDelta}</td>
