@@ -229,6 +229,7 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
+  // INCREASED safety limit: Restarts require vastly more loops to complete a full cascade
   while (hasChanges && safetyCounter < 5000) {
       hasChanges = false;
       safetyCounter++;
@@ -236,12 +237,9 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          let awardMade = false;
-          let seatKeptOrFound = false;
+          let awardMade = false; // NEW: Track if a movement happened
 
-          // FIX: Loop through ALL formatted prefs to ensure BPL is continuously enforced,
-          // even on the seat the pilot currently holds.
-          for (let i = 0; i < p.formattedPrefs.length; i++) {
+          for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
@@ -255,15 +253,14 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue; // Failed BPL, bypass this preference completely
+                  continue;
               }
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
-                  // Re-locking current seat (it successfully passed BPL)
+                  // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
-                  seatKeptOrFound = true;
                   break; 
               } else if (seatLedger[targetSeat].vacancies > 0) {
                   // Open vacancy found! Trigger cascade.
@@ -292,19 +289,14 @@ function runAnalysis() {
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  awardMade = true; 
-                  seatKeptOrFound = true;
+                  awardMade = true; // NEW: Set flag that a movement occurred
                   break; // Breaks the PREFERENCE loop
               }
           }
 
-          // If no valid seat was kept or found, reset the index so Audit logs everything as denied
-          if (!seatKeptOrFound) {
-              p.currentPrefIndex = p.formattedPrefs.length;
-          }
-
+          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
           if (awardMade) {
-              break; // Restart from Pilot 1
+              break; 
           }
       }
   }
@@ -328,6 +320,7 @@ function runAnalysis() {
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
 
+          // Calculate current rank for audit tracking
           let seniorCount = 0;
           for (let resident of seatLedger[targetSeat].pilots) {
               if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
@@ -364,6 +357,7 @@ function runAnalysis() {
   renderUI(seatLedger);
 }
 
+// NEW: Console Interactive BPL Roster Tool
 function viewSeatRoster(seatKey) {
   const pilots = globalSeatLedger[seatKey].pilots;
   console.log(`--- BPL ROSTER: ${seatKey} ---`);
@@ -387,7 +381,8 @@ function searchPilot() {
     document.getElementById('dashStart').innerText = rows[0].start;
     document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
     document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
-  } else { alert("Pilot not found."); dash.style.display = 'none'; }
+  } else { alert("Pilot not found.");
+  dash.style.display = 'none'; }
 }
 
 function renderUI(ledger) {
@@ -395,6 +390,7 @@ function renderUI(ledger) {
   allBases.forEach(b => { allSeats.forEach(s => {
       const key = `${b} ${s}`, d = ledger[key], v = d.vacancies, pilots = d.pilots;
       let juniorSen = pilots.length > 0 ? pilots[pilots.length - 1].sen : "N/A";
+      // UPDATED: Added clickable roster link to the pilot count
       summaryHTML += `<tr>
           <td>${key}</td>
           <td>${d.pubDelta}</td>
