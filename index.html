@@ -237,14 +237,9 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          let awardMade = false;
+          let awardMade = false; // NEW: Track if a movement happened
 
-          // THE FIX: Evaluate up to and INCLUDING the current locked preference (<=).
-          // This destroys the "BPL Lock" and ensures the current seat is re-verified every pass.
-          for (let i = 0; i <= p.currentPrefIndex; i++) {
-              // Safety catch so we don't evaluate past the end of their bid list
-              if (i === p.formattedPrefs.length) break;
-
+          for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
@@ -258,22 +253,12 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  // If we fail BPL on the seat we are currently holding, evict!
-                  if (targetSeat === p.currentAward) {
-                      seatLedger[p.currentAward].vacancies++;
-                      seatLedger[p.currentAward].profferQueue.push({sen: p.sen, name: p.name});
-                      seatLedger[p.currentAward].pilots = seatLedger[p.currentAward].pilots.filter(x => x.sen !== p.sen);
-                      
-                      p.currentAward = null;
-                      p.currentPrefIndex = p.formattedPrefs.length; 
-                      hasChanges = true;
-                  }
-                  continue; 
+                  continue;
               }
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
-                  // Re-locking current seat (BPL passed or N/A)
+                  // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
@@ -304,12 +289,12 @@ function runAnalysis() {
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  awardMade = true;
-                  break; 
+                  awardMade = true; // NEW: Set flag that a movement occurred
+                  break; // Breaks the PREFERENCE loop
               }
           }
 
-          // Break the PILOT loop so the while loop restarts from Pilot 1
+          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
           if (awardMade) {
               break; 
           }
