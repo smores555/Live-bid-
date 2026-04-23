@@ -7,9 +7,11 @@
   <meta name="robots" content="noindex, nofollow">
   <style>
     :root {
-      --bg: #040c17; --card: #0b192c; --accent: #00e5ff; --accent-hover: #33ebff;
+      --bg: #040c17;
+      --card: #0b192c; --accent: #00e5ff; --accent-hover: #33ebff;
       --text: #e8eefc; --text-muted: #8ba3c7; --border: rgba(0, 229, 255, 0.15);
-      --success: #00ffaa; --danger: #ff4772; --warning: #ffcf33;
+      --success: #00ffaa; --danger: #ff4772;
+      --warning: #ffcf33;
     }
     body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
     .container { max-width: 1200px; margin: 0 auto; }
@@ -144,7 +146,6 @@ async function loadData() {
       fetch('./nobidpilots.json').then(res => res.json()).catch(() => []),
       fetch('./retired_pilots.json').then(res => res.ok ? res.json() : []).catch(() => [])
     ]);
-    
     let uniqueRosterMap = new Map();
     let rawRoster = Array.isArray(r) ? r : Object.values(r);
     rawRoster.forEach(pilot => { if (pilot.sen) uniqueRosterMap.set(parseInt(pilot.sen), pilot); });
@@ -152,7 +153,6 @@ async function loadData() {
     PREFS = p;
     NO_BID = new Set(nb.map(x => parseInt(x.sen) || parseInt(x)));
     RETIRED_PILOTS = new Set(ret.map(x => parseInt(x.sen) || parseInt(x.seniority) || parseInt(x)));
-    
     CAPACITIES = {};
     if (Array.isArray(c)) {
       c.forEach(item => {
@@ -161,14 +161,13 @@ async function loadData() {
     }
     console.log("Data loaded successfully.");
   } catch (e) { 
-    console.error("Data load failed.", e); 
+    console.error("Data load failed.", e);
     alert("Failed to load JSON data.");
   }
 }
 
 function runAnalysis() {
   let seatLedger = {};
-  
   allBases.forEach(b => {
     allSeats.forEach(s => {
       const key = `${b} ${s}`;
@@ -185,10 +184,8 @@ function runAnalysis() {
       };
     });
   });
-
   const sortedRoster = [...ROSTER].sort((a, b) => parseInt(a.sen) - parseInt(b.sen));
   let dynamicPilots = [];
-
   for (let p of sortedRoster) {
     let pSen = parseInt(p.sen);
     if (RETIRED_PILOTS.has(pSen)) continue;
@@ -207,7 +204,6 @@ function runAnalysis() {
         auditLog: [],
         pilotRows: []
     };
-
     pObj.formattedPrefs = [];
     for (let pref of pObj.prefs) {
         let rawBid = String(pref.bid || "").toUpperCase();
@@ -221,8 +217,7 @@ function runAnalysis() {
         }
     }
 
-    pObj.currentPrefIndex = pObj.formattedPrefs.length; 
-
+    pObj.currentPrefIndex = pObj.formattedPrefs.length;
     if (startSeat && seatLedger[startSeat]) {
         seatLedger[startSeat].pilots.push(pObj);
     }
@@ -234,12 +229,15 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
-  while (hasChanges && safetyCounter < 150) {
+  // INCREASED safety limit: Restarts require vastly more loops to complete a full cascade
+  while (hasChanges && safetyCounter < 5000) {
       hasChanges = false;
       safetyCounter++;
 
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
+
+          let awardMade = false; // NEW: Track if a movement happened
 
           for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
@@ -255,7 +253,7 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  continue; 
+                  continue;
               }
 
               // SEAT VALIDATION
@@ -275,14 +273,14 @@ function runAnalysis() {
                   }
 
                   seatLedger[targetSeat].vacancies--;
-                  
-                  // FIXED PROFFER LOGIC: Ensure system vacancies aren't documented as proffers.
+
                   let origin = null;
                   if (seatLedger[targetSeat].profferQueue.length > 0) {
                       origin = seatLedger[targetSeat].profferQueue.shift();
                   }
 
-                  p.awardNote = origin ? `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
+                  p.awardNote = origin ?
+                  `Open position available. Proffered from ${origin.sen} - ${origin.name}.` : "Awarded system vacancy.";
                   
                   p.currentAward = targetSeat;
                   p.currentPrefIndex = i;
@@ -291,8 +289,14 @@ function runAnalysis() {
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  break; 
+                  awardMade = true; // NEW: Set flag that a movement occurred
+                  break; // Breaks the PREFERENCE loop
               }
+          }
+
+          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
+          if (awardMade) {
+              break; 
           }
       }
   }
@@ -304,7 +308,6 @@ function runAnalysis() {
   for (let p of dynamicPilots) {
       p.auditLog = []; 
       p.pilotRows = [];
-
       if (p.isExempt) {
           let row = {sen: p.sen, name: p.name, pos: `737 ${p.startSeat}`, pref: "-", status: "No Bid", note: p.exemptNote + " Remain in current position.", css: "action-stay", audit: ["Exempt status. Not counted toward BPL ranking."], start: p.startSeat};
           detailedLedgerLog.push(row);
@@ -316,16 +319,13 @@ function runAnalysis() {
           let targetSeat = p.formattedPrefs[i].targetSeat;
           let prefNum = i + 1;
           let bplMin = p.formattedPrefs[i].bplMin;
-          
           if (i < p.currentPrefIndex) {
               p.auditLog.push(`Evaluating Pref ${prefNum}: ${targetSeat}`);
-              
               let seniorCount = 0;
               for (let resident of seatLedger[targetSeat].pilots) {
                   if (resident.sen < p.sen && !resident.isExempt) seniorCount++;
               }
               let projectedSpot = seniorCount + 1;
-
               if (bplMin > 0 && projectedSpot > bplMin) {
                   p.auditLog.push(`<span class="audit-fail">Denied: Hit BPL limit (${bplMin}). Actual Rank: ${projectedSpot}</span>`);
                   p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${targetSeat}`, pref: prefNum, status: "Denied", note: `Hit Bid Position List limit (${bplMin}). Rank: ${projectedSpot}`, css: "action-danger", audit: [...p.auditLog], start: p.startSeat});
@@ -365,7 +365,8 @@ function searchPilot() {
     document.getElementById('dashStart').innerText = rows[0].start;
     document.getElementById('dashDetailedTable').innerHTML = rows.map(r => `<tr><td>${r.pos}</td><td>${r.pref}</td><td><span class="action-pill ${r.css}">${r.status}</span></td><td>${r.note}</td></tr>`).join("");
     document.getElementById('dashAudit').innerHTML = rows[rows.length - 1].audit.map(l => `<li>${l}</li>`).join("");
-  } else { alert("Pilot not found."); dash.style.display = 'none'; }
+  } else { alert("Pilot not found.");
+  dash.style.display = 'none'; }
 }
 
 function renderUI(ledger) {
