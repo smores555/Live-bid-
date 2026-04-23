@@ -225,7 +225,7 @@ function runAnalysis() {
     dynamicPilots.push(pObj);
   }
 
-// 2. THE CONTINUOUS WATERFALL ENGINE
+  // 2. THE CONTINUOUS WATERFALL ENGINE
   let hasChanges = true;
   let safetyCounter = 0;
 
@@ -239,10 +239,12 @@ function runAnalysis() {
 
           let awardMade = false;
 
-          // THE FIX: Evaluate up to the currently locked seat (p.currentPrefIndex) to ensure BPL is continually re-verified
-          let evalLimit = p.currentPrefIndex === p.formattedPrefs.length ? p.formattedPrefs.length : p.currentPrefIndex + 1;
+          // THE FIX: Evaluate up to and INCLUDING the current locked preference (<=).
+          // This destroys the "BPL Lock" and ensures the current seat is re-verified every pass.
+          for (let i = 0; i <= p.currentPrefIndex; i++) {
+              // Safety catch so we don't evaluate past the end of their bid list
+              if (i === p.formattedPrefs.length) break;
 
-          for (let i = 0; i < evalLimit; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
@@ -256,7 +258,7 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  // NEW: If we fail BPL on the seat we are currently holding, evict!
+                  // If we fail BPL on the seat we are currently holding, evict!
                   if (targetSeat === p.currentAward) {
                       seatLedger[p.currentAward].vacancies++;
                       seatLedger[p.currentAward].profferQueue.push({sen: p.sen, name: p.name});
@@ -265,16 +267,13 @@ function runAnalysis() {
                       p.currentAward = null;
                       p.currentPrefIndex = p.formattedPrefs.length; 
                       hasChanges = true;
-                      
-                      // Extend loop limit so we evaluate lower fallback preferences immediately
-                      evalLimit = p.formattedPrefs.length; 
                   }
                   continue; 
               }
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
-                  // Re-locking current seat
+                  // Re-locking current seat (BPL passed or N/A)
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
@@ -306,7 +305,7 @@ function runAnalysis() {
 
                   hasChanges = true;
                   awardMade = true;
-                  break; // Breaks the PREFERENCE loop
+                  break; 
               }
           }
 
