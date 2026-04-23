@@ -225,10 +225,11 @@ function runAnalysis() {
     dynamicPilots.push(pObj);
   }
 
- // 2. THE CONTINUOUS WATERFALL ENGINE
+  // 2. THE CONTINUOUS WATERFALL ENGINE
   let hasChanges = true;
   let safetyCounter = 0;
 
+  // INCREASED safety limit: Restarts require vastly more loops to complete a full cascade
   while (hasChanges && safetyCounter < 5000) {
       hasChanges = false;
       safetyCounter++;
@@ -236,11 +237,9 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          let awardMade = false;
+          let awardMade = false; // NEW: Track if a movement happened
 
-          // THE FIX: Changed from p.currentPrefIndex to evaluate the entire list. 
-          // This destroys the "BPL Lock" and ensures their current seat is always re-checked.
-          for (let i = 0; i < p.formattedPrefs.length; i++) {
+          for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
@@ -254,22 +253,12 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  // THE FIX: If they fail BPL on the seat they currently hold, evict them!
-                  if (targetSeat === p.currentAward) {
-                      seatLedger[p.currentAward].vacancies++;
-                      seatLedger[p.currentAward].profferQueue.push({sen: p.sen, name: p.name});
-                      seatLedger[p.currentAward].pilots = seatLedger[p.currentAward].pilots.filter(x => x.sen !== p.sen);
-                      
-                      p.currentAward = null;
-                      p.currentPrefIndex = p.formattedPrefs.length; // Opens up the rest of the bids below
-                      hasChanges = true;
-                  }
-                  continue; // Moves to the next pref, completely unhindered by the old lock
+                  continue;
               }
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
-                  // Re-locking current seat (BPL check passed)
+                  // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
@@ -300,16 +289,18 @@ function runAnalysis() {
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  awardMade = true;
-                  break; 
+                  awardMade = true; // NEW: Set flag that a movement occurred
+                  break; // Breaks the PREFERENCE loop
               }
           }
 
+          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
           if (awardMade) {
               break; 
           }
       }
   }
+
   // 3. AUDIT RECONSTRUCTION & LOGGING
   detailedLedgerLog = [];
   singlePilotSummary = [];
