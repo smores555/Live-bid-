@@ -30,7 +30,6 @@
     .action-stay { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.2); }
     .action-awarded { background: rgba(0, 255, 170, 0.1); color: var(--success); border: 1px solid var(--success); }
     .action-danger { background: rgba(255, 71, 114, 0.15); color: var(--danger); border: 1px solid var(--danger); }
-    .action-displaced { background: rgba(255, 207, 51, 0.15); color: var(--warning); border: 1px solid var(--warning); }
     .dash-box { background: #06111f; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 15px; display: none; }
     .dash-stat { font-size: 20px; font-weight: 900; color: var(--accent); }
     .dash-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -230,6 +229,7 @@ function runAnalysis() {
   let hasChanges = true;
   let safetyCounter = 0;
 
+  // INCREASED safety limit: Restarts require vastly more loops to complete a full cascade
   while (hasChanges && safetyCounter < 5000) {
       hasChanges = false;
       safetyCounter++;
@@ -237,7 +237,7 @@ function runAnalysis() {
       for (let p of dynamicPilots) {
           if (p.isExempt) continue;
 
-          let awardMade = false;
+          let awardMade = false; // NEW: Track if a movement happened
 
           for (let i = 0; i < p.currentPrefIndex; i++) {
               let targetSeat = p.formattedPrefs[i].targetSeat;
@@ -258,10 +258,12 @@ function runAnalysis() {
 
               // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
+                  // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
               } else if (seatLedger[targetSeat].vacancies > 0) {
+                  // Open vacancy found! Trigger cascade.
                   let oldSeat = p.currentAward;
 
                   if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
@@ -287,49 +289,14 @@ function runAnalysis() {
                   seatLedger[targetSeat].pilots.sort((a, b) => a.sen - b.sen);
 
                   hasChanges = true;
-                  awardMade = true;
-                  break; 
+                  awardMade = true; // NEW: Set flag that a movement occurred
+                  break; // Breaks the PREFERENCE loop
               }
           }
 
+          // NEW: Break the PILOT loop so the while loop restarts from Pilot 1
           if (awardMade) {
               break; 
-          }
-      }
-  }
-
-  // --- 2.5 INVOLUNTARY DISPLACEMENT PHASE ---
-  // Identify seats that are still overstaffed (vacancies < 0) after voluntary bids
-  let overstaffedSeats = Object.keys(seatLedger).filter(k => seatLedger[k].vacancies < 0);
-  
-  for (let seat of overstaffedSeats) {
-      let overage = Math.abs(seatLedger[seat].vacancies);
-      
-      // Sort pilots in this seat by seniority (descending: highest number / most junior is first)
-      seatLedger[seat].pilots.sort((a, b) => b.sen - a.sen); 
-      
-      // Pluck the most junior pilots out of the seat
-      let displacedPilots = seatLedger[seat].pilots.splice(0, overage);
-      seatLedger[seat].vacancies += overage; // Bring vacancies back to 0
-      
-      for (let dp of displacedPilots) {
-          // Find any seat in the system that still has open vacancies
-          let forcedSeat = Object.keys(seatLedger).find(k => seatLedger[k].vacancies > 0);
-          
-          if (forcedSeat) {
-              seatLedger[forcedSeat].vacancies--;
-              seatLedger[forcedSeat].pilots.push(dp);
-              // Re-sort the receiving base roster to keep things clean
-              seatLedger[forcedSeat].pilots.sort((a, b) => a.sen - b.sen); 
-              
-              dp.currentAward = forcedSeat;
-              dp.awardNote = `Displaced due to reduction. Forced to ${forcedSeat}.`;
-              dp.isDisplaced = true; 
-          } else {
-              // Edge case: Nowhere to go (furlough / unassigned)
-              dp.currentAward = "UNASSIGNED";
-              dp.awardNote = "Displaced with no system vacancies available.";
-              dp.isDisplaced = true;
           }
       }
   }
@@ -374,23 +341,9 @@ function runAnalysis() {
           }
       }
 
-      // Fallback & Displacement Logging
-      if (p.isDisplaced) {
-          p.auditLog.push(`<span class="audit-fail">Displaced: Insufficient seniority to hold ${p.startSeat}.</span>`);
-          p.auditLog.push(`<span class="audit-success" style="color:var(--warning)">Reassigned: Forced to ${p.currentAward}</span>`);
-          
-          p.pilotRows.push({
-              sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", 
-              status: "DISPLACED", note: p.awardNote, css: "action-displaced", 
-              audit: [...p.auditLog], start: p.startSeat
-          });
-      } else if (p.currentPrefIndex === p.formattedPrefs.length) {
+      if (p.currentPrefIndex === p.formattedPrefs.length) {
           p.auditLog.push("All preferences denied. Reverting to fallback.");
-          p.pilotRows.push({
-              sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", 
-              status: "Awarded", note: "Remain in current position.", css: "action-stay", 
-              audit: [...p.auditLog], start: p.startSeat
-          });
+          p.pilotRows.push({sen: p.sen, name: p.name, pos: `737 ${p.currentAward}`, pref: "-", status: "Awarded", note: "Remain in current position.", css: "action-stay", audit: [...p.auditLog], start: p.startSeat});
       }
 
       detailedLedgerLog.push(...p.pilotRows);
