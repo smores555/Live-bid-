@@ -238,8 +238,11 @@ function runAnalysis() {
 
           let awardMade = false;
 
-          // REVERTED to index 3 core logic loop: Respects locks perfectly.
-          for (let i = 0; i < p.currentPrefIndex; i++) {
+          // PERFECTED CORE LOOP: Check all prefs up to and including the current lock.
+          for (let i = 0; i < p.formattedPrefs.length; i++) {
+              // If we reach a preference lower than what they currently hold, stop looking downward.
+              if (i > p.currentPrefIndex) break;
+
               let targetSeat = p.formattedPrefs[i].targetSeat;
               let bplMin = p.formattedPrefs[i].bplMin;
 
@@ -253,25 +256,35 @@ function runAnalysis() {
 
               // INDEPENDENT BPL CHECK
               if (bplMin > 0 && projectedSpot > bplMin) {
-                  // SURGICAL FIX: If they fail BPL on the seat they CURRENTLY HOLD,
-                  // they must be physically removed from it so they can fall downwards.
+                  // SURGICAL FIX: If the BPL fail is on the seat they currently hold...
                   if (targetSeat === p.currentAward) {
                       let oldSeat = p.currentAward;
+                      
+                      // 1. Physically remove them from the seat
                       seatLedger[oldSeat].vacancies++;
                       seatLedger[oldSeat].profferQueue.push({sen: p.sen, name: p.name});
                       seatLedger[oldSeat].pilots = seatLedger[oldSeat].pilots.filter(x => x.sen !== p.sen);
-                      p.currentAward = null; // Kick them out
+                      
+                      // 2. Erase their award and reset their index completely
+                      p.currentAward = null;
+                      p.currentPrefIndex = p.formattedPrefs.length; 
+                      
+                      // 3. Trigger cascade
                       hasChanges = true;
+                      awardMade = true;
+                      break; // Break the pref loop to restart the waterfall search
                   }
-                  continue; // Bypass the failed preference
+                  continue; // Standard bypass for a seat they don't hold
               }
 
-              // SEAT VALIDATION (Exact Index 3 logic)
+              // SEAT VALIDATION
               if (targetSeat === p.currentAward) {
+                  // Re-locking current seat
                   p.currentPrefIndex = i;
                   p.awardNote = "Remain in current position.";
                   break; 
               } else if (seatLedger[targetSeat].vacancies > 0) {
+                  // Open vacancy found! Trigger cascade.
                   let oldSeat = p.currentAward;
 
                   if (oldSeat && seatLedger[oldSeat] && oldSeat !== targetSeat) {
@@ -298,7 +311,7 @@ function runAnalysis() {
 
                   hasChanges = true;
                   awardMade = true;
-                  break;
+                  break; 
               }
           }
 
@@ -352,12 +365,9 @@ function runAnalysis() {
 
       if (p.currentPrefIndex === p.formattedPrefs.length) {
           p.auditLog.push("All preferences denied. Reverting to fallback.");
-          // Added a safe check just in case they were displaced into null
           let finalSeatDisplay = p.currentAward ? `737 ${p.currentAward}` : "UNASSIGNED";
           let finalNote = p.currentAward ? "Remain in current position." : "Displaced. No valid bids available.";
-          let status = p.currentAward ? "Awarded" : "Denied";
-          let css = p.currentAward ? "action-stay" : "action-danger";
-          p.pilotRows.push({sen: p.sen, name: p.name, pos: finalSeatDisplay, pref: "-", status: status, note: finalNote, css: css, audit: [...p.auditLog], start: p.startSeat});
+          p.pilotRows.push({sen: p.sen, name: p.name, pos: finalSeatDisplay, pref: "-", status: p.currentAward ? "Awarded" : "Denied", note: finalNote, css: p.currentAward ? "action-stay" : "action-danger", audit: [...p.auditLog], start: p.startSeat});
       }
 
       detailedLedgerLog.push(...p.pilotRows);
