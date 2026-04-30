@@ -1,9 +1,8 @@
 /**
- * AIRLINE BID ENGINE - DISPLACEMENT & BUMPING EDITION
- * 1. Vacancy First: Always tries to fill a natural vacancy first.
- * 2. Bumping Fallback: If displaced and no vacancy exists, the pilot can 
- * "force out" the most junior pilot in their preferred base/seat.
- * 3. Cascade: Every bump triggers a full restart from Seniority #1.
+ * AIRLINE BID ENGINE - INVOLUNTARY DISPLACEMENT LOGIC
+ * 1. Hard Targets: Enforced strictly. If a base is shrinking, junior pilots are bumped.
+ * 2. Involuntary Flag: If a pilot's "Remain" bid is denied due to capacity, they are flagged.
+ * 3. Priority: Seniority still rules. Senior pilots get the "Stay" slots first.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -36,7 +35,7 @@ function runBidEngine(data, deltaMap) {
             currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
-                ...p, currentKey: key, orig: key, moved: false, isDisplaced: false,
+                ...p, currentKey: key, orig: key, moved: false,
                 prefHistory: {}, 
                 prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
@@ -55,7 +54,7 @@ function runBidEngine(data, deltaMap) {
         loops++;
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            let foundAward = false;
+            let displacementImminent = false;
 
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
@@ -71,94 +70,70 @@ function runBidEngine(data, deltaMap) {
                 }
 
                 const reqBPL = parseInt(pr.bpl_min) || 0;
-                const bplLog = `. BPL if awarded: ${rank}.`;
+                const bplLog = `. Requested BPL = ${reqBPL}. BPL if awarded = ${rank}.`;
 
-                // BPL GATE
+                // BPL CHECK
                 if (reqBPL > 0 && rank > reqBPL) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail. Limit ${reqBPL}${bplLog}` };
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail${bplLog}` };
                     continue; 
                 }
 
                 const currentOcc = currentCounts[targetKey] || 0;
                 const limit = targetMap[targetKey] || 0;
+                const vBefore = limit - currentOcc;
 
-                // --- 1. REMAIN IN POSITION CHECK ---
+                // --- REMAIN IN POSITION LOGIC (With Displacement Check) ---
                 if (targetKey === p.currentKey) {
-                    if (currentOcc > limit) {
-                        p.prefHistory[pr.order] = { status: "Denied", reason: `DISPLACED: Base over capacity (${currentOcc}/${limit}).` };
-                        p.isDisplaced = true;
-                        continue; // Forced to look at next preference
+                    // If base is full/shrinking and this junior pilot didn't make the cut
+                    if (currentOcc >= limit) {
+                        p.prefHistory[pr.order] = { 
+                            status: "Denied", 
+                            reason: `Involuntary Displacement: Position at hard capacity (${limit}/${limit}).` 
+                        };
+                        displacementImminent = true;
+                        continue; // Force them to look at next preference
                     } else {
                         p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in current position${bplLog}` };
-                        foundAward = true;
                         break;
                     }
                 }
 
-                // --- 2. VACANCY AWARD ---
+                // --- AWARD NEW POSITION ---
                 if (currentOcc < limit) {
                     const oldKey = p.currentKey;
+                    const oldLimit = targetMap[oldKey] || 0;
+                    const oldOcc = currentCounts[oldKey] || 0;
+                    const oldV = oldLimit - oldOcc;
+
                     currentCounts[oldKey]--; 
                     currentCounts[targetKey]++;
-                    
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy${bplLog}` };
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Vacancy" });
-                    
-                    p.currentKey = targetKey;
-                    p.moved = true;
-                    p.isDisplaced = false;
-                    cascade = true;
-                    foundAward = true;
-                    break;
-                }
 
-                // --- 3. BUMPING LOGIC (The "Junior Man" Force Out) ---
-                // Find the most junior pilot (highest sen number) currently in that base
-                let juniorMan = null;
-                for (let j = bidders.length - 1; j >= 0; j--) {
-                    const potential = bidders[j];
-                    if (potential.currentKey === targetKey) {
-                        juniorMan = potential;
-                        break;
-                    }
-                }
+                    const vAfter = limit - currentCounts[targetKey];
+                    const oldVAfter = oldLimit - currentCounts[oldKey];
 
-                // If the current bidder is senior (lower number) than the Junior Man
-                if (juniorMan && p.sen < juniorMan.sen) {
-                    const oldKey = p.currentKey;
-                    
-                    // The switch happens
-                    currentCounts[oldKey]--;
-                    // Occupancy in targetKey stays the same (one in, one out)
-                    
+                    const dispPrefix = displacementImminent ? "INVOLUNTARY AWARD: " : "";
+
                     p.prefHistory[pr.order] = { 
                         status: "Awarded", 
-                        reason: `BUMPED Junior Man #${juniorMan.sen} (${juniorMan.name})${bplLog}` 
+                        reason: `${dispPrefix}Open position available. Vacancy in ${targetKey} ${vBefore}->${vAfter}. Vacated ${oldKey} ${oldV}->${oldVAfter}${bplLog}` 
                     };
 
-                    auditTrail.push({ 
+                    auditTrail.push({
                         loop: loops, sen: p.sen, name: p.name, 
-                        from: oldKey, to: targetKey, 
-                        type: `BUMP (Forced out #${juniorMan.sen})` 
+                        from: oldKey, to: targetKey,
+                        fromTrans: `${oldV} -> ${oldVAfter}`, toTrans: `${vBefore} -> ${vAfter}`
                     });
-
-                    // Mark the junior man as displaced so he evaluates his prefs in the next cascade
-                    juniorMan.isDisplaced = true;
-                    // Note: We don't change juniorMan's currentKey yet; the cascade will handle his move
                     
                     p.currentKey = targetKey;
                     p.moved = true;
-                    p.isDisplaced = false;
-                    cascade = true;
-                    foundAward = true;
-                    break;
+                    cascade = true; 
+                    break; 
                 } else {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Full and no junior pilot to bump.` };
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `Requested position has ${vBefore} vacancy.` };
                 }
             }
-            if (foundAward || cascade) break; 
+            if (cascade) break; 
         }
-        if (loops > 10000) break;
     }
     return { roster: bidders, loops, auditTrail };
 }
