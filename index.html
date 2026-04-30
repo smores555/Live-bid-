@@ -6,108 +6,113 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="container">
+        <div class="header-status">
+            <h2 id="statusTitle">Loading System...</h2>
+            <div id="capGrid" class="cap-grid"></div>
+        </div>
 
-<div class="container">
-    <div class="header-card">
-        <h2>Airline Cascading Bid Engine</h2>
-        <div id="capacityGrid" class="grid"></div>
+        <div class="controls">
+            <button id="runBtn" class="btn-run">RUN POSITION BID</button>
+            <input type="number" id="trackInput" placeholder="Track Seniority #">
+            <span id="loadInfo" style="color: #4a9eff; margin-left: 10px;">Checking files...</span>
+        </div>
+
+        <div id="traceLog" class="trace-box hidden"></div>
+
+        <table id="mainTable">
+            <thead>
+                <tr><th>Sen</th><th>Name</th><th>Original</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
     </div>
 
-    <div class="actions">
-        <button id="runBtn" class="btn-primary">RUN CASCADING BID</button>
-        <input type="text" id="search" placeholder="Track Seniority #">
-        <span id="status">Ready</span>
-    </div>
+    <script src="engine.js"></script>
+    <script>
+        let store = {};
+        let answerKey = {};
 
-    <div id="debugTrace" class="trace-box hidden"></div>
-
-    <table id="results">
-        <thead>
-            <tr>
-                <th>Sen #</th>
-                <th>Name</th>
-                <th>Original</th>
-                <th>Awarded</th>
-                <th>Validation</th>
-            </tr>
-        </thead>
-        <tbody id="resultsBody"></tbody>
-    </table>
-</div>
-
-<script src="engine.js"></script>
-<script>
-    let rawData = {};
-    let answerKey = {};
-
-    window.onload = async () => {
-        // Load your JSON/CSV files here
-        const files = ['roster.json.txt', 'preferences.json.txt', 'capacities.json.txt', 'retired_pilots.json.txt', 'nobidpilots.json.txt', 'answer_key.csv'];
-        const res = await Promise.all(files.map(f => fetch(f)));
-        
-        rawData = {
-            roster: await res[0].json(),
-            prefs: await res[1].json(),
-            caps: await res[2].json(),
-            retired: await res[3].json(),
-            noBid: await res[4].json()
+        const setStatus = (msg, error = false) => {
+            const el = document.getElementById('loadInfo');
+            el.innerText = msg;
+            if (error) el.style.color = "#ff4d4d";
         };
 
-        // Parse Answer Key for validation
-        const csv = await res[5].text();
-        csv.split('\n').slice(1).forEach(line => {
-            const cols = line.split(',');
-            if(cols[0]) answerKey[cols[0]] = cols[2]?.replace(/"/g, '').trim();
-        });
+        window.onload = async () => {
+            // Updated to match your Repository file names (no .txt)
+            const files = [
+                'roster.json', 'preferences.json', 'capacities.json', 
+                'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'
+            ];
 
-        renderCaps();
-    };
+            try {
+                const results = await Promise.all(files.map(async f => {
+                    const r = await fetch(f);
+                    if (!r.ok) throw new Error(`Missing: ${f}`);
+                    return f.endsWith('.csv') ? r.text() : r.json();
+                }));
 
-    function renderCaps() {
-        const container = document.getElementById('capacityGrid');
-        container.innerHTML = rawData.caps.map((c, i) => `
-            <div class="cap-item">
-                <label>${c.base} ${c.seat}</label>
-                <input type="number" id="cap-${c.base}-${c.seat}" value="${c.startCapacity + c.delta}">
-            </div>
-        `).join('');
-    }
+                store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
+                
+                // Parse Answer Key
+                results[5].split('\n').forEach(line => {
+                    const p = line.split(',');
+                    if(p[1]) answerKey[p[1]] = p[5]?.replace(/"/g, '').trim();
+                });
 
-    document.getElementById('runBtn').onclick = () => {
-        const trackSen = parseInt(document.getElementById('search').value);
-        const caps = {};
-        rawData.caps.forEach(c => {
-            caps[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`cap-${c.base}-${c.seat}`).value);
-        });
+                setStatus("Files Loaded. Ready.");
+                document.getElementById('statusTitle').innerText = "System Configuration";
+                renderCapacities();
+            } catch (e) {
+                setStatus("CRITIAL ERROR: " + e.message, true);
+                console.error(e);
+            }
+        };
 
-        const result = runBidEngine(rawData, caps, trackSen);
-        
-        // Render Trace
-        const traceBox = document.getElementById('debugTrace');
-        if (trackSen && result.trace.length > 0) {
-            traceBox.classList.remove('hidden');
-            traceBox.innerHTML = `<h3>Trace for Sen #${trackSen}</h3>` + 
-                result.trace.map(t => `<div class="t-${t.status}">${t.msg}</div>`).join('');
+        function renderCapacities() {
+            document.getElementById('capGrid').innerHTML = store.caps.map(c => `
+                <div class="cap-item">
+                    <label>${c.base} ${c.seat}</label>
+                    <input type="number" id="val-${c.base}-${c.seat}" value="${c.startCapacity + c.delta}">
+                </div>
+            `).join('');
         }
 
-        // Render Table
-        document.getElementById('resultsBody').innerHTML = result.roster.map(p => {
-            const awarded = p.currentKey.replace('-', ' ');
-            const expected = answerKey[p.sen] || "N/A";
-            const match = expected.includes(awarded);
-            return `
-                <tr>
-                    <td>${p.sen}</td>
-                    <td>${p.name}</td>
-                    <td>${p.orig}</td>
-                    <td class="${p.moved ? 'moved' : ''}">${awarded}</td>
-                    <td class="${match ? 'match' : 'mismatch'}">${match ? '✓ Match' : '✗ ' + expected}</td>
-                </tr>
-            `;
-        }).join('');
-        
-        document.getElementById('status').innerText = `Finished: ${result.loops} cascades`;
-    };
-</script>
+        document.getElementById('runBtn').onclick = () => {
+            if (!store.roster) return setStatus("Error: No data loaded.", true);
+            
+            setStatus("Running Bid...");
+            const trackSen = parseInt(document.getElementById('trackInput').value);
+            const caps = {};
+            store.caps.forEach(c => caps[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`val-${c.base}-${c.seat}`).value));
+
+            try {
+                const result = runBidEngine(store, caps, trackSen);
+                
+                // Render Trace for iPad Debugging
+                const traceDiv = document.getElementById('traceLog');
+                traceDiv.innerHTML = result.trace.map(t => `<div class="${t.type}">${t.msg}</div>`).join('');
+                traceDiv.classList.toggle('hidden', !trackSen);
+
+                // Render Table
+                document.getElementById('tableBody').innerHTML = result.roster.map(p => {
+                    const awarded = p.currentKey.replace('-', ' ');
+                    const keyAward = answerKey[p.sen] || "N/A";
+                    const match = keyAward.includes(awarded);
+                    return `<tr>
+                        <td>${p.sen}</td><td>${p.name}</td><td>${p.orig}</td>
+                        <td class="${p.moved?'moved':''}">${awarded}</td>
+                        <td>${p.moved?'AWARDED':'HELD'}</td>
+                        <td class="${match?'match':'mismatch'}">${match?'✓':'✗ '+keyAward}</td>
+                    </tr>`;
+                }).join('');
+                
+                setStatus(`Bid Finished: ${result.loops} cascades.`);
+            } catch (err) {
+                setStatus("RUN ERROR: " + err.message, true);
+            }
+        };
+    </script>
 </body>
 </html>
