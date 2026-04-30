@@ -1,7 +1,9 @@
 /**
- * AIRLINE CASCADING BID ENGINE - New Base Fix
- * Logic: Max Capacity = (Active Pilots in Base) + (Input Delta)
- * If Active Count is 0 (New Base), Max Capacity = Delta.
+ * AIRLINE CASCADING BID ENGINE
+ * 1. Ghost Pilots: Retired/No-Bid are invisible to capacity/rank math.
+ * 2. Force Match: Max Capacity = (Active Pilots in Base) + (Input Delta).
+ * 3. BPL Check: Rank among active bidders must be <= BPL limit.
+ * 4. Cascade: Restart from Pilot #1 on every successful award.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const logs = [];
@@ -10,7 +12,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // 1. Count only active bidders currently in each seat
+    // Initialize Counts (Active Bidders only)
     let currentCounts = {};
     const bidders = data.roster
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
@@ -23,13 +25,12 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 2. FIXED: Initialize Max Capacity for ALL bases, including new ones like SAN
+    // Initialize Max Capacity for ALL bases (including new bases like SAN)
     let maxCapMap = {};
-    // Use the deltas provided by the UI to define the possible bases
     for (let key in deltaMap) {
         const initialCount = currentCounts[key] || 0;
         const delta = deltaMap[key] || 0;
-        maxCapMap[key] = initialCount + delta;
+        maxCapMap[key] = initialCount + delta; 
     }
 
     let cascade = true;
@@ -42,28 +43,31 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             const p = bidders[i];
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
-                const targetKey = pr.bid.split(" ").slice(1).join("-");
+                
+                const parts = pr.bid.trim().split(/\s+/);
+                if (parts.length < 3) continue; // Skip bad bid strings
+                const targetKey = `${parts[1]}-${parts[2]}`;
+                
                 if (targetKey === p.currentKey) break;
 
                 const currentOcc = currentCounts[targetKey] || 0;
                 const maxCap = maxCapMap[targetKey] || 0;
 
-                // 3. Physical Capacity Check
                 if (currentOcc < maxCap) {
+                    // BPL Rank Check
                     let rank = 1;
                     for (const other of bidders) {
                         if (other.currentKey === targetKey) rank++;
                     }
 
-                    // BPL Check
                     if (pr.bpl_min > 0 && rank > pr.bpl_min) {
-                        if (p.sen === trackSen) trace.push({type:'fail', msg:`BPL REJECT: ${targetKey} Rank ${rank} > Limit ${pr.bpl_min}`});
+                        if (p.sen === trackSen) trace.push({type:'fail', msg:`BPL REJECT: ${targetKey} Rank ${rank} > ${pr.bpl_min}`});
                         continue; 
                     }
 
                     // AWARD & RESTART
-                    currentCounts[p.currentKey]--; 
-                    currentCounts[targetKey]++;    
+                    currentCounts[p.currentKey]--; // Old seat vacated
+                    currentCounts[targetKey]++;    // New seat filled
                     logs.push({loop: loops, sen: p.sen, name: p.name, from: p.currentKey, to: targetKey});
                     
                     if (p.sen === trackSen) trace.push({type:'success', msg:`AWARDED ${targetKey} (Rank ${rank})`});
