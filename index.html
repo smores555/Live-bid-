@@ -2,18 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bid Control Center - Final Validation</title>
+    <title>Bid Control Center - Full BPL Audit</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1400px; margin: 0 auto; }
         .config-card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
-        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; }
+        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; width: 60px; font-weight: bold; }
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .audit-box { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.8rem; max-height: 250px; overflow-y: auto; margin-bottom: 20px; line-height: 1.5; }
+        .audit-box { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.8rem; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -27,7 +26,7 @@
 <div class="container">
     <div class="config-card">
         <h3 style="margin:0">Set Position Deltas</h3>
-        <div id="capGrid" class="cap-grid">Loading Data...</div>
+        <div id="capGrid" class="cap-grid">Loading...</div>
     </div>
     <div class="toolbar">
         <button id="runBtn" class="btn">RUN POSITION BID</button>
@@ -37,7 +36,7 @@
         <button id="lookupBtn" class="btn" style="background:#30363d;">PILOT LOOKUP</button>
     </div>
     <div id="auditLog" class="audit-box">Audit trail will appear here.</div>
-    <table id="mainTable">
+    <table>
         <thead>
             <tr><th>Sen #</th><th>Pilot Name & Preferences</th><th>Previous</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
         </thead>
@@ -96,7 +95,7 @@
 
     function renderCapacities() {
         document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-            <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>
+            <div class="cap-cell"><label style="font-size:0.65rem">${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>
         `).join('');
     }
 
