@@ -2,25 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bid Control Center - Replacement Logic</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bid Control Center - Validation Mode</title>
     <style>
-        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        :root { 
+            --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; 
+            --border: #30363d; --green: #3fb950; --red: #f85149; 
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
         .container { max-width: 1300px; margin: 0 auto; }
+        
         .config-card { background: var(--card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
-        .cap-cell label { color: var(--accent); font-weight: bold; margin-bottom: 3px; }
-        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 15px; }
+        .cap-cell { display: flex; flex-direction: column; font-size: 0.75rem; }
+        .cap-cell label { color: var(--accent); margin-bottom: 4px; font-weight: bold; }
+        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 6px; border-radius: 4px; font-weight: bold; }
+
         .toolbar { display: flex; align-items: center; gap: 15px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .btn-run { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .search-input { background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 220px; }
+        #loadInfo { font-size: 0.85rem; font-weight: bold; }
+
         .trace-box { background: #0d1117; border: 1px solid var(--accent); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
-        .success { color: var(--green); margin-bottom: 3px; border-left: 3px solid var(--green); padding-left: 8px; }
-        .fail { color: var(--red); margin-bottom: 3px; border-left: 3px solid var(--red); padding-left: 8px; }
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; }
-        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
-        td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        .success { color: var(--green); margin-bottom: 4px; border-left: 3px solid var(--green); padding-left: 8px; }
+        .fail { color: var(--red); margin-bottom: 4px; border-left: 3px solid var(--red); padding-left: 8px; }
+
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
         .moved { color: var(--green); font-weight: bold; }
         .match { color: var(--green); }
         .mismatch { color: var(--red); font-weight: bold; }
@@ -28,28 +37,68 @@
     </style>
 </head>
 <body>
+
 <div class="container">
     <div class="config-card">
-        <h3 style="margin:0">Set Position Deltas (0 = Replacement Only)</h3>
+        <h3 style="margin:0">Position Deltas (e.g. SAN CA: 85)</h3>
         <div id="capGrid" class="cap-grid">Loading Data...</div>
     </div>
+
     <div class="toolbar">
         <button id="runBtn" class="btn-run">RUN POSITION BID</button>
         <input type="number" id="trackInput" class="search-input" placeholder="Track Seniority #">
-        <span id="loadInfo">Initializing...</span>
+        <span id="loadInfo" style="color: #58a6ff;">Initializing...</span>
     </div>
+
     <div id="traceLog" class="trace-box hidden"></div>
+
     <table id="mainTable">
         <thead>
-            <tr><th>Sen #</th><th>Pilot Name</th><th>Previous</th><th>Awarded</th><th>Status</th><th>Company Validation</th></tr>
+            <tr>
+                <th>Sen #</th>
+                <th>Pilot Name</th>
+                <th>Previous</th>
+                <th>Awarded</th>
+                <th>Status</th>
+                <th>Company Key Validation</th>
+            </tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
 </div>
+
 <script src="engine.js"></script>
 <script>
     let store = {};
     let answerKey = {};
+
+    // Character-by-character CSV Parser to handle quotes and internal commas perfectly
+    function parseCSV(text) {
+        const rows = [];
+        let currentRow = [];
+        let field = '';
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const next = text[i+1];
+            if (inQuotes) {
+                if (char === '"' && next === '"') { field += '"'; i++; }
+                else if (char === '"') inQuotes = false;
+                else field += char;
+            } else {
+                if (char === '"') inQuotes = true;
+                else if (char === ',') { currentRow.push(field); field = ''; }
+                else if (char === '\n' || char === '\r') {
+                    currentRow.push(field);
+                    if (currentRow.length > 1) rows.push(currentRow);
+                    currentRow = []; field = '';
+                    if (char === '\r' && next === '\n') i++;
+                } else field += char;
+            }
+        }
+        if (currentRow.length > 0 || field !== '') { currentRow.push(field); rows.push(currentRow); }
+        return rows;
+    }
 
     const updateStatus = (msg, isErr = false) => {
         const el = document.getElementById('loadInfo');
@@ -68,21 +117,26 @@
 
             store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
             
-            const csvLines = results[5].split(/\r?\n/);
+            // Map Company Answer Key by Seniority Column (Index 1)
+            const rows = parseCSV(results[5]);
             let keysFound = 0;
-            csvLines.forEach((line, idx) => {
-                if (idx === 0 || !line.trim()) return;
-                const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            rows.forEach((cols, idx) => {
+                if (idx === 0) return; // Skip Header
                 if (cols.length >= 6) {
-                    const sen = cols[1].replace(/[",]/g, '').trim(); 
-                    const companyAward = cols[5].replace(/"/g, '').trim(); 
-                    if (sen) { answerKey[sen] = companyAward; keysFound++; }
+                    const sen = cols[1].trim(); 
+                    const companyAward = cols[5].trim(); // Awarded_Position column
+                    if (sen) {
+                        answerKey[sen] = companyAward;
+                        keysFound++;
+                    }
                 }
             });
 
             updateStatus(`System Ready (${keysFound} keys loaded).`);
             renderCapacities();
-        } catch (e) { updateStatus("Load Error: " + e.message, true); }
+        } catch (e) {
+            updateStatus("Load Error: " + e.message, true);
+        }
     };
 
     function renderCapacities() {
@@ -95,31 +149,50 @@
     }
 
     document.getElementById('runBtn').onclick = () => {
-        const trackSen = parseInt(document.getElementById('trackInput').value);
+        const trackInput = document.getElementById('trackInput');
+        const trackSen = trackInput.value ? parseInt(trackInput.value) : null;
         const deltas = {};
-        store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value));
+        store.caps.forEach(c => {
+            deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value);
+        });
 
         try {
             const result = runBidEngine(store, deltas, trackSen);
+            
+            // Render Trace Log
             const traceDiv = document.getElementById('traceLog');
-            traceDiv.innerHTML = result.trace.map(t => `<div class="${t.type}">${t.msg}</div>`).join('');
-            traceDiv.classList.toggle('hidden', !trackSen);
+            if (trackSen && result.trace.length > 0) {
+                traceDiv.classList.remove('hidden');
+                traceDiv.innerHTML = `<h3>Logic Trace for Sen #${trackSen}</h3>` + 
+                                     result.trace.map(t => `<div class="${t.type}">${t.msg}</div>`).join('');
+            } else {
+                traceDiv.classList.add('hidden');
+            }
 
+            // Render Results Table
             document.getElementById('tableBody').innerHTML = result.roster.map(p => {
-                const engineAward = p.currentKey.replace('-', ' ');
+                const engineAward = p.currentKey.replace('-', ' '); // e.g. "SEA CA"
                 const companyAward = answerKey[p.sen.toString()] || "No Key";
+                
+                // Flexible match: Checks if "737 SEA CA" includes "SEA CA"
                 const isMatch = companyAward !== "No Key" && companyAward.includes(engineAward);
 
                 return `<tr>
-                    <td>${p.sen}</td><td>${p.name}</td>
+                    <td>${p.sen}</td>
+                    <td>${p.name}</td>
                     <td>${p.orig.replace('-', ' ')}</td>
-                    <td class="${p.moved?'moved':''}">${engineAward}</td>
-                    <td>${p.moved?'AWARDED':'HELD'}</td>
-                    <td class="${isMatch?'match':'mismatch'}">${isMatch?'✓ Match':(companyAward==="No Key"?'No Key':'✗ '+companyAward)}</td>
+                    <td class="${p.moved ? 'moved' : ''}">${engineAward}</td>
+                    <td>${p.moved ? 'AWARDED' : 'HELD'}</td>
+                    <td class="${isMatch ? 'match' : 'mismatch'}">
+                        ${isMatch ? '✓ Match' : (companyAward === "No Key" ? 'No Key' : '✗ Expected: ' + companyAward)}
+                    </td>
                 </tr>`;
             }).join('');
+            
             updateStatus(`Complete: ${result.loops} cascades.`);
-        } catch (err) { updateStatus("Engine Error: " + err.message, true); }
+        } catch (err) {
+            updateStatus("Engine Error: " + err.message, true);
+        }
     };
 </script>
 </body>
