@@ -35,7 +35,7 @@
         .export-btn { background-color: #28a745; } /* Green for exports */
         .export-btn:hover { background-color: #218838; }
         
-        .file-upload-section {
+        .instructions {
             background-color: #2d2d2d;
             padding: 20px;
             border-radius: 8px;
@@ -89,16 +89,14 @@
     <div class="container">
         <header>
             <h1>Pilot Vacancy Bid Results</h1>
-            <div class="file-upload-section">
-                <p>Select all 5 JSON files, then run the simulation.</p>
-                <input type="file" id="fileUploader" multiple accept=".json,.txt">
-                <br>
-                <button id="runBidBtn" class="primary-btn">Run Bid Simulation</button>
+            <div class="instructions">
+                <p>Click below to pull the latest JSON files directly from the repository and run the engine.</p>
+                <button id="runBidBtn" class="primary-btn">Fetch Data & Run Simulation</button>
             </div>
         </header>
 
         <main>
-            <div id="loading" class="hidden">Running cascade simulation...</div>
+            <div id="loading" class="hidden">Fetching files and running cascade simulation...</div>
             
             <div id="resultsDashboard" class="hidden">
                 <div class="controls-section">
@@ -151,30 +149,33 @@
 
         // --- RUN SIMULATION BUTTON ---
         document.getElementById('runBidBtn').addEventListener('click', async () => {
-            const fileInput = document.getElementById('fileUploader');
-            if (fileInput.files.length < 5) {
-                alert("Please select all 5 required JSON files.");
-                return;
-            }
-
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('resultsDashboard').classList.add('hidden');
 
             try {
-                let data = { roster: null, preferences: null, capacities: null, retired: null, noBid: null };
-                for (let file of fileInput.files) {
-                    const text = await file.text();
-                    const json = JSON.parse(text);
-                    const lowerName = file.name.toLowerCase();
-                    if (lowerName.includes('roster')) data.roster = json;
-                    if (lowerName.includes('preferences')) data.preferences = json;
-                    if (lowerName.includes('capacities')) data.capacities = json;
-                    if (lowerName.includes('retired')) data.retired = json;
-                    if (lowerName.includes('nobid')) data.noBid = json;
+                // Fetch all files directly from the repo/server
+                const [rosterRes, prefsRes, capsRes, retiredRes, noBidRes] = await Promise.all([
+                    fetch('roster.json'),
+                    fetch('preferences.json'),
+                    fetch('capacities.json'),
+                    fetch('retired_pilots.json'),
+                    fetch('nobidpilots.json')
+                ]);
+
+                // Ensure all files loaded successfully
+                if (!rosterRes.ok || !prefsRes.ok || !capsRes.ok || !retiredRes.ok || !noBidRes.ok) {
+                    throw new Error("One or more files could not be found in the repository. Please check file names.");
                 }
 
+                const roster = await rosterRes.json();
+                const preferences = await prefsRes.json();
+                const capacities = await capsRes.json();
+                const retired = await retiredRes.json();
+                const noBid = await noBidRes.json();
+
+                // Small delay to allow UI to update with loading text
                 setTimeout(() => {
-                    const result = runBidSimulation(data.roster, data.preferences, data.capacities, data.retired, data.noBid);
+                    const result = runBidSimulation(roster, preferences, capacities, retired, noBid);
                     latestRoster = result.roster;
                     latestLogs = result.logs;
                     
@@ -184,7 +185,8 @@
                 }, 100);
 
             } catch (error) {
-                alert("Error processing files: " + error.message);
+                console.error(error);
+                alert("Error fetching files: " + error.message);
                 document.getElementById('loading').classList.add('hidden');
             }
         });
@@ -197,7 +199,7 @@
             let activePilots = [];
             let currentCounts = {};
             let targetCapacities = {};
-            let transactionLog = []; // New: Tracks every single move
+            let transactionLog = []; 
 
             capacities.forEach(cap => {
                 const key = `${cap.base}-${cap.seat}`;
@@ -262,7 +264,6 @@
                                 if(currentCounts[currentKey] !== undefined) currentCounts[currentKey]--;
                                 currentCounts[targetKey]++;
 
-                                // Log the transaction
                                 transactionLog.push({
                                     loop: loopCount,
                                     sen: pilot.sen,
@@ -327,13 +328,11 @@
         function exportBPL() {
             let csv = "Base,Seat,BPL Rank,Seniority,Name\n";
             let bases = {};
-            // Group pilots by base and seat
             latestRoster.forEach(p => {
                 let key = `${p.current.base}-${p.current.seat}`;
                 if (!bases[key]) bases[key] = [];
                 bases[key].push(p);
             });
-            // Sort keys alphabetically, then pilots by seniority
             for (let key of Object.keys(bases).sort()) {
                 let [base, seat] = key.split('-');
                 let pilots = bases[key].sort((a,b) => a.sen - b.sen);
