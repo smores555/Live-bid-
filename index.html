@@ -3,29 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Bid Control - Permanent Displacement Audit</title>
+    <title>737 Master Bid Control & Export</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1500px; margin: 0 auto; }
+        
         .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 10px; }
         .cap-cell { display: flex; flex-direction: column; font-size: 0.65rem; }
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
-        .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        /* THE SHARP YELLOW BADGE */
-        .displaced-tag { background: var(--yellow); color: #0b0e14; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-left: 10px; vertical-align: middle; text-transform: uppercase; border: 1px solid #000; }
+        .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+        .btn-export { background: #30363d; border: 1px solid #444; }
+        .btn-export:hover { background: #444; }
+
+        /* DASHBOARDS */
+        .dash-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
+        .dash-title { margin: 0 0 10px 0; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+        .displaced-item { background: #2a2512; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.8rem; color: #eee; }
+        .mismatch-item { background: #2a1215; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.8rem; color: #eee; }
+
+        .audit-log { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; margin-bottom: 20px; }
         
-        .mismatch-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .mismatch-active { border-color: var(--red); background: #2a1215; }
-        .mismatch-perfect { border-color: var(--green); background: #122a15; }
-        .audit-box { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.8rem; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
-        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
+        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; position: sticky; top: 0; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
-        .pref-item { font-size: 0.75rem; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #30363d; color: #8b949e; line-height: 1.4; }
+        
+        .displaced-tag { background: var(--yellow); color: #0b0e14; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 10px; text-transform: uppercase; }
+        .pref-box { font-size: 0.75rem; margin-top: 5px; color: #8b949e; border-top: 1px dashed #333; padding-top: 5px; }
         .status-Awarded { color: var(--green); font-weight: bold; }
         .status-Denied { color: var(--red); font-weight: bold; }
         .hidden { display: none; }
@@ -35,26 +43,35 @@
 
 <div class="container">
     <div class="card">
-        <h3 style="margin:0">Position Deltas (Boeing 737)</h3>
-        <div id="capGrid" class="cap-grid">Loading...</div>
+        <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
+        <div id="capGrid" class="cap-grid">Loading Components...</div>
     </div>
 
-    <div id="validationBox" class="mismatch-box hidden">
-        <h4 id="validationTitle" style="margin:0 0 10px 0;">Validation Summary</h4>
-        <div id="mismatchList" style="display:grid; gap:8px;"></div>
+    <div class="dash-container">
+        <div class="dash-box">
+            <h4 class="dash-title" style="color:var(--yellow)">⚡ Displaced Pilots Dashboard</h4>
+            <div id="displacedList">Run bid to track forced moves...</div>
+        </div>
+        <div class="dash-box">
+            <h4 class="dash-title" style="color:var(--red)">⚠️ Validation Mismatches</h4>
+            <div id="mismatchList">Run bid to audit seniority...</div>
+        </div>
     </div>
 
     <div class="toolbar">
-        <button id="runBtn" class="btn">RUN 737 POSITION BID</button>
-        <span id="loadInfo" style="font-size:0.85rem; color:var(--accent);">Ready.</span>
-        <div style="flex-grow: 1;"></div>
-        <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:130px;" placeholder="Sen #">
-        <button id="lookupBtn" class="btn" style="background:#30363d;">PILOT LOOKUP</button>
+        <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
+        <div style="width: 2px; height: 30px; background: #333; margin: 0 10px;"></div>
+        <button id="expBase" class="btn btn-export">CSV: BASE POSITION LIST</button>
+        <button id="expTrans" class="btn btn-export">CSV: TRANSACTION LOG</button>
+        <button id="expMaster" class="btn btn-export">CSV: MASTER AWARD LIST</button>
+        <div style="flex-grow:1"></div>
+        <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
+        <button id="lookupBtn" class="btn btn-export">PILOT LOOKUP</button>
     </div>
 
-    <div id="auditLog" class="audit-box">Cascade logs...</div>
+    <div id="auditLog" class="audit-log">Seniority cascade log will generate here...</div>
 
-    <table id="mainTable">
+    <table>
         <thead>
             <tr><th>Sen #</th><th>Pilot & Preference History</th><th>Original</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
         </thead>
@@ -63,6 +80,9 @@
 </div>
 
 <script>
+/**
+ * THE 737 ADMIN ENGINE
+ */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
@@ -83,7 +103,7 @@ function runBidEngine(data, deltaMap) {
             currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
-                ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, moveCount: 0,
+                ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, isSwept: false,
                 prefHistory: {}, 
                 prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
@@ -95,6 +115,7 @@ function runBidEngine(data, deltaMap) {
     let cascade = true;
     let loops = 0;
 
+    // --- MAIN CASCADE ---
     while (cascade) {
         cascade = false;
         loops++;
@@ -102,7 +123,7 @@ function runBidEngine(data, deltaMap) {
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            if (p.moveCount > 50) continue;
+            let foundAward = false;
 
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
@@ -118,23 +139,21 @@ function runBidEngine(data, deltaMap) {
 
                 const limit = targetMap[targetKey] || 0;
                 const reqBPL = parseInt(pr.bpl_min) || 0;
-                const bplLog = `. Rank: ${rank}.`;
 
                 if (reqBPL > 0 && rank > reqBPL) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail. Limit ${reqBPL}${bplLog}` };
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail (Rank ${rank} > Limit ${reqBPL})` };
                     continue; 
                 }
 
                 if (rank > limit) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Displaced: Rank ${rank} exceeds capacity of ${limit}.` };
-                    // If they are denied their ORIGINAL seat, mark them as displaced permanently
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `Displaced: Rank ${rank} exceeds capacity ${limit}.` };
                     if (targetKey === p.orig) p.wasDisplaced = true; 
                     continue; 
                 }
 
                 if (targetKey === p.currentKey) {
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in position${bplLog}` };
-                    break;
+                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in position. Rank: ${rank}.` };
+                    foundAward = true; break;
                 }
 
                 const occ = currentCounts[targetKey] || 0;
@@ -142,21 +161,60 @@ function runBidEngine(data, deltaMap) {
                     const oldKey = p.currentKey;
                     currentCounts[oldKey]--; 
                     currentCounts[targetKey]++;
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy!${bplLog}` };
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, vT: `${limit - (currentCounts[targetKey]-1)}->${limit - currentCounts[targetKey]}` });
-                    p.currentKey = targetKey; p.moved = true; p.moveCount++; cascade = true; break; 
-                } else {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Full: 0 vacancies.` };
+                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy! Rank: ${rank}.` };
+                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Preference" });
+                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true; break; 
                 }
             }
+
+            // --- VACANCY SWEEP (If displaced and out of bids) ---
+            if (!foundAward && p.wasDisplaced) {
+                for (let key in targetMap) {
+                    if (currentCounts[key] < targetMap[key]) {
+                        const oldKey = p.currentKey;
+                        currentCounts[oldKey]--;
+                        currentCounts[key]++;
+                        p.currentKey = key;
+                        p.isSwept = true;
+                        p.moved = true;
+                        p.prefHistory["SWEEP"] = { status: "Awarded", reason: `Involuntary Sweep into open vacancy in ${key}.` };
+                        auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: key, type: "Forced Sweep" });
+                        cascade = true; foundAward = true; break;
+                    }
+                }
+            }
+
             if (cascade) break; 
         }
     }
     return { roster: bidders, loops, auditTrail };
 }
 
-/** UI LOGIC **/
+/**
+ * EXPORT LOGIC
+ */
+function downloadCSV(filename, rows) {
+    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", filename);
+    link.click();
+}
+
+/** UI DATA MGMT **/
 let store = {}; let answerKey = {}; let lastResults = [];
+
+window.onload = async () => {
+    try {
+        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'];
+        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return f.endsWith('.csv') ? r.text() : r.json(); }));
+        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
+        const csvRows = parseCSV(results[5]);
+        csvRows.forEach((cols, idx) => { if (idx > 0 && cols[0]) answerKey[cols[0].trim()] = cols[2]?.trim(); });
+        renderCapacities();
+    } catch (e) { console.error(e); }
+};
 
 function parseCSV(text) {
     const rows = []; let currentRow = []; let field = ''; let inQuotes = false;
@@ -169,16 +227,6 @@ function parseCSV(text) {
     return rows;
 }
 
-window.onload = async () => {
-    try {
-        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'];
-        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return f.endsWith('.csv') ? r.text() : r.json(); }));
-        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-        parseCSV(results[5]).forEach((cols, idx) => { if (idx > 0 && cols[0]) answerKey[cols[0].trim()] = cols[2]?.trim(); });
-        renderCapacities();
-    } catch (e) { console.error(e); }
-};
-
 function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `<div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>`).join('');
 }
@@ -188,59 +236,81 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `<div style="border-bottom:1px solid #21262d; padding:4px 0;">[Pass ${a.loop}] <strong>#${a.sen}</strong> to ${a.to} (V: ${a.vT})</div>`).join('');
+    document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `<div>[Pass ${a.loop}] <strong>#${a.sen} ${a.name}</strong> to <strong>${a.to}</strong> (${a.type})</div>`).join('');
     renderTable(lastResults);
-    renderMismatchAudit(lastResults);
+    renderDashboards(lastResults);
 };
 
-function renderMismatchAudit(roster) {
-    const list = document.getElementById('mismatchList'); 
-    const box = document.getElementById('validationBox');
-    const title = document.getElementById('validationTitle');
-    let count = 0; let html = '';
+function renderDashboards(roster) {
+    let dispHtml = ''; let missHtml = ''; let missCount = 0;
     roster.forEach(p => {
         const awarded = p.currentKey.replace('-', ' ');
         const company = (answerKey[p.sen.toString()] || "No Key").trim();
         const companyClean = company.replace(/^(737|73G|320|321)\s+/, '');
+        
+        if (p.wasDisplaced) {
+            dispHtml += `<div class="displaced-item">#${p.sen} ${p.name}: Kicked from ${p.orig.replace('-', ' ')} → ${awarded} ${p.isSwept ? '(FORCED SWEEP)' : ''}</div>`;
+        }
         if (company !== "No Key" && !companyClean.includes(awarded)) {
-            count++;
-            html += `<div style="background:#161b22; padding:8px; border-left:4px solid var(--red); font-size:0.8rem;">#${p.sen} ${p.name} | Engine: ${awarded} | Key: ${company}</div>`;
+            missCount++;
+            missHtml += `<div class="mismatch-item">#${p.sen} ${p.name}: Engine says ${awarded} | Key says ${company}</div>`;
         }
     });
-    box.classList.remove('hidden');
-    if (count > 0) {
-        box.className = "mismatch-box mismatch-active";
-        title.innerText = `⚠️ Validation Mismatches (${count} Found)`;
-        title.style.color = "#ff7b72";
-        list.innerHTML = html;
-    } else {
-        box.className = "mismatch-box mismatch-perfect";
-        title.innerText = "✓ 100% Seniority Validation Passed";
-        title.style.color = "#3fb950";
-        list.innerHTML = '<div style="font-size:0.85rem; padding:10px;">All awarded seats match the company key exactly.</div>';
-    }
+    document.getElementById('displacedList').innerHTML = dispHtml || "No displacements detected.";
+    document.getElementById('mismatchList').innerHTML = missHtml || "✓ All awards match company key!";
 }
 
-document.getElementById('lookupBtn').onclick = () => {
-    const sen = document.getElementById('lookupInput').value;
-    if (sen && lastResults.length) renderTable(lastResults.filter(p => p.sen.toString() === sen));
+// EXPORT 1: Base Position List
+document.getElementById('expBase').onclick = () => {
+    const rows = [["Base/Seat", "Seniority", "Pilot Name", "Original Seat"]];
+    const bases = [...new Set(lastResults.map(p => p.currentKey))].sort();
+    bases.forEach(b => {
+        lastResults.filter(p => p.currentKey === b).sort((a,b) => a.sen - b.sen).forEach(p => {
+            rows.push([b.replace('-', ' '), p.sen, p.name, p.orig.replace('-', ' ')]);
+        });
+    });
+    downloadCSV("Base_Position_List.csv", rows);
+};
+
+// EXPORT 2: Transaction Log
+document.getElementById('expTrans').onclick = () => {
+    const rows = [["Pass #", "Seniority", "Name", "From", "To", "Type"]];
+    const deltas = {};
+    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
+    const result = runBidEngine(store, deltas);
+    result.auditTrail.forEach(a => rows.push([a.loop, a.sen, a.name, a.from, a.to, a.type]));
+    downloadCSV("Transaction_Log.csv", rows);
+};
+
+// EXPORT 3: Master Award List
+document.getElementById('expMaster').onclick = () => {
+    const rows = [["Seniority", "Name", "New Award", "Displaced", "Forced Sweep"]];
+    lastResults.forEach(p => {
+        rows.push([p.sen, p.name, p.currentKey.replace('-', ' '), p.wasDisplaced ? "YES" : "NO", p.isSwept ? "YES" : "NO"]);
+    });
+    downloadCSV("Master_Award_List.csv", rows);
 };
 
 function renderTable(roster) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awarded = p.currentKey.replace('-', ' ');
         const company = answerKey[p.sen.toString()] || "No Key";
-        const companyClean = company.replace(/^(737|73G|320|321)\s+/, '');
-        const isMatch = company !== "No Key" && companyClean.includes(awarded);
+        const isMatch = company.includes(awarded);
         const dispBadge = p.wasDisplaced ? '<span class="displaced-tag">DISPLACED</span>' : '';
-        let prefHtml = '';
+        let prefHtml = '<div class="pref-box">';
         for (let order in (p.prefHistory || {})) {
             const h = p.prefHistory[order];
-            prefHtml += `<div class="pref-item"><strong>Pref ${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}</div>`;
+            prefHtml += `<div><strong>${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}</div>`;
         }
-        return `<tr><td>${p.sen}</td><td style="width:50%;"><strong>${p.name}</strong>${dispBadge}${prefHtml}</td><td>${p.orig.replace('-',' ')}</td><td style="color:${p.moved?'#3fb950':''}">${awarded}</td><td>${p.moved?'AWARDED':'HELD'}</td><td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td></tr>`;
+        prefHtml += '</div>';
+        return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong>${dispBadge}${prefHtml}</td><td>${p.orig.replace('-',' ')}</td><td style="color:${p.moved?'#3fb950':''}">${awarded}</td><td>${p.moved?'AWARDED':'HELD'}</td><td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td></tr>`;
     }).join('');
 }
+
+document.getElementById('lookupBtn').onclick = () => {
+    const sen = document.getElementById('lookupInput').value;
+    if (sen && lastResults.length) renderTable(lastResults.filter(p => p.sen.toString() === sen));
+};
 </script>
 </body>
 </html>
