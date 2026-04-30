@@ -1,9 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Airline Bid Control - Audit Mode</title>
+    <title>Bid Control Center - Audit Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
@@ -15,11 +15,9 @@
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .audit-box { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.8rem; max-height: 250px; overflow-y: auto; margin-bottom: 20px; line-height: 1.5; }
-        
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
-        
         .pref-box { margin-top: 8px; font-size: 0.75rem; color: #8b949e; border-top: 1px dashed #30363d; padding-top: 8px; }
         .pref-item { margin-bottom: 6px; line-height: 1.4; }
         .status-Awarded { color: var(--green); font-weight: bold; }
@@ -29,10 +27,9 @@
 <body>
 <div class="container">
     <div class="config-card">
-        <h3 style="margin:0">Set Deltas</h3>
+        <h3 style="margin:0">Set Position Deltas</h3>
         <div id="capGrid" class="cap-grid">Loading Data...</div>
     </div>
-
     <div class="toolbar">
         <button id="runBtn" class="btn">RUN POSITION BID</button>
         <span id="loadInfo">Initializing...</span>
@@ -40,10 +37,7 @@
         <input type="number" id="lookupInput" style="padding:10px; border-radius:6px; border:1px solid #30363d; background:#0d1117; color:white; width:120px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn" style="background:#30363d;">PILOT LOOKUP</button>
     </div>
-
-    <h4 style="margin:0 0 10px 0; color:var(--accent);">VACANCY AUDIT TRAIL</h4>
-    <div id="auditLog" class="audit-box">Run the bid to generate audit trail.</div>
-
+    <div id="auditLog" class="audit-box">Audit trail will appear here.</div>
     <table id="mainTable">
         <thead>
             <tr><th>Sen #</th><th>Pilot Name & Preferences</th><th>Previous</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
@@ -90,57 +84,37 @@
         try {
             const results = await Promise.all(files.map(async f => {
                 const r = await fetch(f);
-                if (!r.ok) throw new Error("Missing: " + f);
                 return f.endsWith('.csv') ? r.text() : r.json();
             }));
-
             store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-            
             parseCSV(results[5]).forEach((cols, idx) => {
-                if (idx === 0) return;
-                const sen = cols[0]?.trim(); 
-                const award = cols[2]?.trim(); 
-                if (sen) answerKey[sen] = award;
+                if (idx > 0 && cols[0]) answerKey[cols[0].trim()] = cols[2]?.trim();
             });
-
             document.getElementById('loadInfo').innerText = "System Ready.";
             renderCapacities();
-        } catch (e) {
-            document.getElementById('loadInfo').innerText = "Error: " + e.message;
-        }
+        } catch (e) { document.getElementById('loadInfo').innerText = "Error: " + e.message; }
     };
 
     function renderCapacities() {
         document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-            <div class="cap-cell">
-                <label>${c.base} ${c.seat}</label>
-                <input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}">
-            </div>
+            <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>
         `).join('');
     }
 
     document.getElementById('runBtn').onclick = () => {
         const deltas = {};
         store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
-        
         const result = runBidEngine(store, deltas);
         lastResults = result.roster;
-        
         document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `
-            <div style="border-bottom: 1px solid #21262d; padding: 4px 0;">
-                [Pass ${a.loop}] <strong>#${a.sen} ${a.name}</strong> awarded <strong>${a.to}</strong><br>
-                &nbsp;&nbsp;→ Vacated ${a.from} (Vacancies: ${a.fromTrans}) | Filled ${a.to} (Vacancies: ${a.toTrans})
-            </div>
+            <div style="border-bottom: 1px solid #21262d; padding: 4px 0;">[Pass ${a.loop}] <strong>#${a.sen} ${a.name}</strong> awarded <strong>${a.to}</strong><br>&nbsp;&nbsp;→ Vacated ${a.from} (${a.fromTrans}) | Filled ${a.to} (${a.toTrans})</div>
         `).join('');
-
         renderTable(lastResults);
-        document.getElementById('loadInfo').innerText = `Complete: ${result.loops} cascades.`;
     };
 
     document.getElementById('lookupBtn').onclick = () => {
         const sen = document.getElementById('lookupInput').value;
-        if (!sen || lastResults.length === 0) return;
-        renderTable(lastResults.filter(p => p.sen.toString() === sen));
+        if (sen && lastResults.length) renderTable(lastResults.filter(p => p.sen.toString() === sen));
     };
 
     function renderTable(roster) {
@@ -148,24 +122,13 @@
             const awarded = p.currentKey.replace('-', ' ');
             const company = answerKey[p.sen.toString()] || "No Key";
             const isMatch = company.includes(awarded);
-            
             let prefHtml = '<div class="pref-box">';
             for (let order in (p.prefHistory || {})) {
                 const h = p.prefHistory[order];
-                prefHtml += `<div class="pref-item">
-                    <strong>Pref ${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}
-                </div>`;
+                prefHtml += `<div class="pref-item"><strong>Pref ${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}</div>`;
             }
             prefHtml += '</div>';
-
-            return `<tr>
-                <td>${p.sen}</td>
-                <td style="width: 50%;"><strong>${p.name}</strong>${prefHtml}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
-                <td style="color:${p.moved?'#3fb950':''}">${awarded}</td>
-                <td>${p.moved?'AWARDED':'HELD'}</td>
-                <td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td>
-            </tr>`;
+            return `<tr><td>${p.sen}</td><td style="width: 50%;"><strong>${p.name}</strong>${prefHtml}</td><td>${p.orig.replace('-', ' ')}</td><td style="color:${p.moved?'#3fb950':''}">${awarded}</td><td>${p.moved?'AWARDED':'HELD'}</td><td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td></tr>`;
         }).join('');
     }
 </script>
