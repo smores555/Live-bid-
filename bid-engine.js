@@ -1,117 +1,168 @@
-// bid-engine.js
+// app.js
 
-async function runBidSimulation(roster, preferences, capacities, retired, noBids) {
+document.getElementById('runBidBtn').addEventListener('click', async () => {
+    document.getElementById('loading').classList.remove('hidden');
+    document.getElementById('resultsTable').classList.add('hidden');
+
+    try {
+        // 1. Fetch all JSON files (Ensure these files are in the same folder as index.html)
+        const [rosterRes, prefsRes, capsRes, retiredRes, noBidRes] = await Promise.all([
+            fetch('roster.json'),
+            fetch('preferences.json'),
+            fetch('capacities.json'),
+            fetch('retired_pilots.json'),
+            fetch('nobidpilots.json')
+        ]);
+
+        const roster = await rosterRes.json();
+        const preferences = await prefsRes.json();
+        const capacities = await capsRes.json();
+        const retired = await retiredRes.json();
+        const noBids = await noBidRes.json();
+
+        // 2. Run the Engine
+        const awardedRoster = runBidSimulation(roster, preferences, capacities, retired, noBids);
+
+        // 3. Render Results
+        renderTable(awardedRoster);
+
+    } catch (error) {
+        console.error("Error loading files:", error);
+        alert("Failed to load JSON files. Make sure they are named correctly and in the same folder.");
+    } finally {
+        document.getElementById('loading').classList.add('hidden');
+    }
+});
+
+function runBidSimulation(roster, preferences, capacities, retired, noBids) {
     console.log("Starting Bid Simulation...");
 
-    // 1. Format Exclusions
-    const excludedNames = new Set(retired.map(p => p.name));
+    // Create sets of seniority numbers for fast exclusion checking
+    const retiredSen = new Set(retired.map(p => p.seniority));
     const noBidSen = new Set(noBids.map(p => p.sen));
 
-    // 2. Build Active Roster & Current Capacities
     let activePilots = [];
-    let currentCounts = {}; // Tracks how many active pilots are in each Base+Seat
-
-    // Initialize counts based on capacities.json targets
+    let currentCounts = {};
     let targetCapacities = {};
+
+    // Initialize capacities (Current active pilots allowed = startCapacity + delta)
     capacities.forEach(cap => {
         const key = `${cap.base}-${cap.seat}`;
         targetCapacities[key] = cap.startCapacity + cap.delta;
-        currentCounts[key] = 0; 
+        currentCounts[key] = 0;
     });
 
+    // Filter Roster and set up initial counts
     roster.forEach(pilot => {
-        // Filter out retired and no-bids
-        if (!excludedNames.has(pilot.name) && !noBidSen.has(pilot.sen)) {
-            // Attach their preferences
-            pilot.prefs = preferences[pilot.id] ? preferences[pilot.id].preferences : [];
-            // Sort preferences by order
-            pilot.prefs.sort((a, b) => a.order - b.order);
+        // Only include if NOT retired and NOT on no-bid list
+        if (!retiredSen.has(pilot.sen) && !noBidSen.has(pilot.sen)) {
+            let pilotPrefs = preferences[pilot.id] ? preferences[pilot.id].preferences : [];
+            // Sort by their preferred order
+            pilotPrefs.sort((a, b) => a.order - b.order);
             
-            activePilots.push(pilot);
+            // Track their starting position to see if they move later
+            let startKey = `${pilot.current.base}-${pilot.current.seat}`;
 
-            // Tally current locations of active pilots
-            const currentKey = `${pilot.current.base}-${pilot.current.seat}`;
-            if (currentCounts[currentKey] !== undefined) {
-                currentCounts[currentKey]++;
+            activePilots.push({
+                ...pilot,
+                prefs: pilotPrefs,
+                originalBaseSeat: startKey,
+                moved: false
+            });
+
+            // Count them in their current base
+            if (currentCounts[startKey] !== undefined) {
+                currentCounts[startKey]++;
             } else {
-                currentCounts[currentKey] = 1;
+                currentCounts[startKey] = 1;
             }
         }
     });
 
-    // Sort active pilots by seniority (1 is most senior)
+    // Sort active pilots by seniority (1 is highest)
     activePilots.sort((a, b) => a.sen - b.sen);
 
-    // 3. The Cascading Bid Loop
     let stateChanged = true;
-    let loopCount = 0;
 
-    // Keep looping until we do a full pass from Sen 1 to the bottom with NO moves
+    // The Cascading Loop
     while (stateChanged) {
         stateChanged = false;
-        loopCount++;
 
         for (let i = 0; i < activePilots.length; i++) {
             let pilot = activePilots[i];
             let currentKey = `${pilot.current.base}-${pilot.current.seat}`;
 
-            // Check their preferences
             for (let pref of pilot.prefs) {
-                // Ignore empty bids or their current position
-                if (!pref.bid || pref.bid === currentKey) continue;
+                if (!pref.bid || pref.bid === "") continue;
 
-                // Extract requested Base and Seat (e.g., "73G SFO FO" -> Base: SFO, Seat: FO)
+                // Example pref.bid: "73G SFO FO" -> We just need Base and Seat
                 let parts = pref.bid.split(" ");
                 if (parts.length < 3) continue;
-                let targetBase = parts[1];
-                let targetSeat = parts[2];
-                let targetKey = `${targetBase}-${targetSeat}`;
+                let targetKey = `${parts[1]}-${parts[2]}`; // e.g., "SFO-FO"
 
-                // Is there a vacancy? (Current active pilots < Target Capacity)
+                // Skip if they are already in this base/seat
+                if (targetKey === currentKey) break; // They hold a higher pref already
+
                 let targetCap = targetCapacities[targetKey] || 0;
                 let currentActiveInTarget = currentCounts[targetKey] || 0;
 
+                // Is there room?
                 if (currentActiveInTarget < targetCap) {
                     
-                    // 4. BPL (Base Position List) Check
+                    // Check BPL (Base Position List)
                     let meetsBPL = true;
                     if (pref.bpl_min > 0) {
-                        // Calculate what their rank would be in this new base/seat
-                        let rankInNewBase = 1; 
+                        let rankInNewBase = 1;
                         for (let p of activePilots) {
                             if (p.sen < pilot.sen && `${p.current.base}-${p.current.seat}` === targetKey) {
                                 rankInNewBase++;
                             }
                         }
+                        // If rank is higher than their required minimum, they don't get it
                         if (rankInNewBase > pref.bpl_min) {
                             meetsBPL = false;
                         }
                     }
 
-                    // If vacancy exists AND BPL is met, award the bid!
+                    // Award the Bid
                     if (meetsBPL) {
-                        console.log(`Awarding ${pilot.name} (Sen: ${pilot.sen}) to ${targetKey}`);
-                        
-                        // Update counts
-                        currentCounts[currentKey]--; // Create vacancy in old base
-                        currentCounts[targetKey]++;  // Fill vacancy in new base
+                        // Create vacancy in old base, fill in new base
+                        if(currentCounts[currentKey] !== undefined) currentCounts[currentKey]--;
+                        currentCounts[targetKey]++;
 
-                        // Update pilot's current position
-                        pilot.current.base = targetBase;
-                        pilot.current.seat = targetSeat;
+                        pilot.current.base = parts[1];
+                        pilot.current.seat = parts[2];
+                        pilot.moved = true;
 
-                        // Trigger a restart of the loop!
-                        stateChanged = true;
-                        break; // Break out of preference loop
+                        stateChanged = true; // Trigger restart of the cascade!
+                        break; 
                     }
                 }
             }
-
-            // If a move was made, break the pilot loop to restart from Seniority 1
-            if (stateChanged) break; 
+            if (stateChanged) break; // Restart loop from Sen #1
         }
     }
 
-    console.log(`Simulation finished in ${loopCount} cascading loops.`);
-    return activePilots; // This is your newly awarded roster!
+    return activePilots;
+}
+
+function renderTable(pilots) {
+    const tbody = document.getElementById('resultsBody');
+    tbody.innerHTML = ""; // Clear existing rows
+
+    pilots.forEach(pilot => {
+        const tr = document.createElement('tr');
+        const currentBaseSeat = `${pilot.current.base} ${pilot.current.seat}`;
+        
+        tr.innerHTML = `
+            <td>${pilot.sen}</td>
+            <td>${pilot.name}</td>
+            <td>${pilot.originalBaseSeat.replace('-', ' ')}</td>
+            <td class="${pilot.moved ? 'moved' : 'stayed'}">${currentBaseSeat}</td>
+            <td class="${pilot.moved ? 'moved' : 'stayed'}">${pilot.moved ? 'AWARDED' : 'HELD'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('resultsTable').classList.remove('hidden');
 }
