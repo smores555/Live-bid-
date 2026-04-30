@@ -4,34 +4,353 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Airline Cascading Bid System</title>
-    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .primary-btn, .export-btn {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .primary-btn:hover, .export-btn:hover { background-color: #005f9e; }
+        .export-btn { background-color: #28a745; } /* Green for exports */
+        .export-btn:hover { background-color: #218838; }
+        
+        .file-upload-section {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px dashed #555;
+            margin-bottom: 20px;
+        }
+        .controls-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .search-bar {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background-color: #1e1e1e;
+            color: white;
+            width: 250px;
+        }
+        .hidden { display: none !important; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #2d2d2d;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        th, td {
+            padding: 10px 15px;
+            text-align: left;
+            border-bottom: 1px solid #404040;
+        }
+        th {
+            background-color: #222;
+            color: #4da6ff;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover { background-color: #383838; }
+        .moved { color: #4caf50; font-weight: bold; }
+        .stayed { color: #888888; }
+        #loading { text-align: center; font-size: 1.2em; color: #ffcc00; margin: 20px; }
+    </style>
 </head>
 <body>
+
     <div class="container">
         <header>
             <h1>Pilot Vacancy Bid Results</h1>
-            <p>Cascading seniority engine with BPL restrictions.</p>
-            <button id="runBidBtn" class="primary-btn">Run Bid Simulation</button>
+            <div class="file-upload-section">
+                <p>Select all 5 JSON files, then run the simulation.</p>
+                <input type="file" id="fileUploader" multiple accept=".json,.txt">
+                <br>
+                <button id="runBidBtn" class="primary-btn">Run Bid Simulation</button>
+            </div>
         </header>
 
         <main>
-            <div id="loading" class="hidden">Running simulation, please wait...</div>
+            <div id="loading" class="hidden">Running cascade simulation...</div>
             
-            <table id="resultsTable" class="hidden">
-                <thead>
-                    <tr>
-                        <th>Seniority</th>
-                        <th>Name</th>
-                        <th>Previous Base/Seat</th>
-                        <th>Awarded Base/Seat</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="resultsBody">
-                    </tbody>
-            </table>
+            <div id="resultsDashboard" class="hidden">
+                <div class="controls-section">
+                    <div>
+                        <button class="export-btn" onclick="exportMovers()">Export Movers (CSV)</button>
+                        <button class="export-btn" onclick="exportBPL()">Export BPLs (CSV)</button>
+                        <button class="export-btn" onclick="exportLogs()">Export Transaction Log</button>
+                    </div>
+                    <div>
+                        <input type="text" id="searchInput" class="search-bar" placeholder="Search by Seniority # or Name...">
+                    </div>
+                </div>
+
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>Sen #</th>
+                            <th>Name</th>
+                            <th>Previous Base/Seat</th>
+                            <th>Awarded Base/Seat</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
         </main>
     </div>
-    <script src="app.js"></script>
+
+    <script>
+        // Global variables to store results for our Export buttons
+        let latestRoster = [];
+        let latestLogs = [];
+
+        // --- SEARCH FUNCTIONALITY ---
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            let filter = this.value.toUpperCase();
+            let rows = document.querySelectorAll('#resultsBody tr');
+            
+            rows.forEach(row => {
+                let sen = row.cells[0].innerText.toUpperCase();
+                let name = row.cells[1].innerText.toUpperCase();
+                if (sen.includes(filter) || name.includes(filter)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // --- RUN SIMULATION BUTTON ---
+        document.getElementById('runBidBtn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('fileUploader');
+            if (fileInput.files.length < 5) {
+                alert("Please select all 5 required JSON files.");
+                return;
+            }
+
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('resultsDashboard').classList.add('hidden');
+
+            try {
+                let data = { roster: null, preferences: null, capacities: null, retired: null, noBid: null };
+                for (let file of fileInput.files) {
+                    const text = await file.text();
+                    const json = JSON.parse(text);
+                    const lowerName = file.name.toLowerCase();
+                    if (lowerName.includes('roster')) data.roster = json;
+                    if (lowerName.includes('preferences')) data.preferences = json;
+                    if (lowerName.includes('capacities')) data.capacities = json;
+                    if (lowerName.includes('retired')) data.retired = json;
+                    if (lowerName.includes('nobid')) data.noBid = json;
+                }
+
+                setTimeout(() => {
+                    const result = runBidSimulation(data.roster, data.preferences, data.capacities, data.retired, data.noBid);
+                    latestRoster = result.roster;
+                    latestLogs = result.logs;
+                    
+                    renderTable(latestRoster);
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('resultsDashboard').classList.remove('hidden');
+                }, 100);
+
+            } catch (error) {
+                alert("Error processing files: " + error.message);
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
+
+        // --- THE BID ENGINE ---
+        function runBidSimulation(roster, preferences, capacities, retired, noBids) {
+            const retiredSen = new Set(retired.map(p => p.seniority));
+            const noBidSen = new Set(noBids.map(p => p.sen));
+
+            let activePilots = [];
+            let currentCounts = {};
+            let targetCapacities = {};
+            let transactionLog = []; // New: Tracks every single move
+
+            capacities.forEach(cap => {
+                const key = `${cap.base}-${cap.seat}`;
+                targetCapacities[key] = cap.startCapacity + cap.delta;
+                currentCounts[key] = 0;
+            });
+
+            roster.forEach(pilot => {
+                if (!retiredSen.has(pilot.sen) && !noBidSen.has(pilot.sen)) {
+                    let pilotPrefs = preferences[pilot.id] ? preferences[pilot.id].preferences : [];
+                    pilotPrefs.sort((a, b) => a.order - b.order);
+                    let startKey = `${pilot.current.base}-${pilot.current.seat}`;
+
+                    activePilots.push({
+                        ...pilot,
+                        prefs: pilotPrefs,
+                        originalBaseSeat: startKey,
+                        moved: false
+                    });
+
+                    if (currentCounts[startKey] !== undefined) currentCounts[startKey]++;
+                    else currentCounts[startKey] = 1;
+                }
+            });
+
+            activePilots.sort((a, b) => a.sen - b.sen);
+
+            let stateChanged = true;
+            let loopCount = 0;
+
+            while (stateChanged) {
+                stateChanged = false;
+                loopCount++;
+
+                for (let i = 0; i < activePilots.length; i++) {
+                    let pilot = activePilots[i];
+                    let currentKey = `${pilot.current.base}-${pilot.current.seat}`;
+
+                    for (let pref of pilot.prefs) {
+                        if (!pref.bid || pref.bid === "") continue;
+
+                        let parts = pref.bid.split(" ");
+                        if (parts.length < 3) continue;
+                        let targetKey = `${parts[1]}-${parts[2]}`;
+
+                        if (targetKey === currentKey) break;
+
+                        let targetCap = targetCapacities[targetKey] || 0;
+                        let currentActiveInTarget = currentCounts[targetKey] || 0;
+
+                        if (currentActiveInTarget < targetCap) {
+                            let meetsBPL = true;
+                            if (pref.bpl_min > 0) {
+                                let rankInNewBase = 1;
+                                for (let p of activePilots) {
+                                    if (p.sen < pilot.sen && `${p.current.base}-${p.current.seat}` === targetKey) rankInNewBase++;
+                                }
+                                if (rankInNewBase > pref.bpl_min) meetsBPL = false;
+                            }
+
+                            if (meetsBPL) {
+                                if(currentCounts[currentKey] !== undefined) currentCounts[currentKey]--;
+                                currentCounts[targetKey]++;
+
+                                // Log the transaction
+                                transactionLog.push({
+                                    loop: loopCount,
+                                    sen: pilot.sen,
+                                    name: pilot.name,
+                                    vacated: currentKey,
+                                    awarded: targetKey
+                                });
+
+                                pilot.current.base = parts[1];
+                                pilot.current.seat = parts[2];
+                                pilot.moved = true;
+
+                                stateChanged = true; 
+                                break; 
+                            }
+                        }
+                    }
+                    if (stateChanged) break; 
+                }
+            }
+            return { roster: activePilots, logs: transactionLog };
+        }
+
+        // --- UI RENDERER ---
+        function renderTable(pilots) {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = ""; 
+            pilots.forEach(pilot => {
+                const tr = document.createElement('tr');
+                const currentBaseSeat = `${pilot.current.base} ${pilot.current.seat}`;
+                tr.innerHTML = `
+                    <td>${pilot.sen}</td>
+                    <td>${pilot.name}</td>
+                    <td>${pilot.originalBaseSeat.replace('-', ' ')}</td>
+                    <td class="${pilot.moved ? 'moved' : 'stayed'}">${currentBaseSeat}</td>
+                    <td class="${pilot.moved ? 'moved' : 'stayed'}">${pilot.moved ? 'AWARDED' : 'HELD'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- CSV EXPORT FUNCTIONS ---
+        function downloadCSV(csvContent, fileName) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportMovers() {
+            let csv = "Seniority,Name,Previous Position,Awarded Position\n";
+            latestRoster.filter(p => p.moved).forEach(p => {
+                csv += `${p.sen},"${p.name}",${p.originalBaseSeat.replace('-',' ')},${p.current.base} ${p.current.seat}\n`;
+            });
+            downloadCSV(csv, "awarded_pilots.csv");
+        }
+
+        function exportBPL() {
+            let csv = "Base,Seat,BPL Rank,Seniority,Name\n";
+            let bases = {};
+            // Group pilots by base and seat
+            latestRoster.forEach(p => {
+                let key = `${p.current.base}-${p.current.seat}`;
+                if (!bases[key]) bases[key] = [];
+                bases[key].push(p);
+            });
+            // Sort keys alphabetically, then pilots by seniority
+            for (let key of Object.keys(bases).sort()) {
+                let [base, seat] = key.split('-');
+                let pilots = bases[key].sort((a,b) => a.sen - b.sen);
+                pilots.forEach((p, index) => {
+                    csv += `${base},${seat},${index + 1},${p.sen},"${p.name}"\n`;
+                });
+            }
+            downloadCSV(csv, "base_position_lists.csv");
+        }
+
+        function exportLogs() {
+            let csv = "Cascade Loop,Seniority,Name,Vacated Position,Awarded Position\n";
+            latestLogs.forEach(log => {
+                csv += `${log.loop},${log.sen},"${log.name}",${log.vacated.replace('-',' ')},${log.awarded.replace('-',' ')}\n`;
+            });
+            downloadCSV(csv, "transaction_log.csv");
+        }
+    </script>
 </body>
 </html>
