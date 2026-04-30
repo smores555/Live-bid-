@@ -1,6 +1,6 @@
 /**
- * AIRLINE BID AUDIT ENGINE
- * Tracks real-time vacancy transitions: "Base X: 0 -> 1 vacancies"
+ * AIRLINE BID AUDIT ENGINE - REPLACEMENT LOGIC
+ * Fixes: NaN initialization, SAN-CA Vacancy Tracking, and Audit Logs
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const auditTrail = [];
@@ -9,27 +9,36 @@ function runBidEngine(data, deltaMap, trackSen = null) {
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // 1. Initialize State
+    // 1. Initialize ALL possible bases from the capacities file to 0
     let currentCounts = {};
-    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
+    if (data.caps) {
+        data.caps.forEach(c => {
+            currentCounts[`${c.base}-${c.seat}`] = 0;
+        });
+    }
 
+    // 2. Filter Bidders & Count Initial Occupancy (Active only)
     const bidders = data.roster
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
+            // Safety: Initialize if base wasn't in caps file
             if (currentCounts[key] === undefined) currentCounts[key] = 0;
             currentCounts[key]++;
+            
             return {
                 ...p, currentKey: key, orig: key, moved: false,
                 prefs: (data.prefs[p.id]?.preferences || []).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 2. Set Hard Targets & Initial Vacancy Math
+    // 3. Set Hard Targets (Initial Count + Delta)
     let targetMap = {};
     for (let key in currentCounts) {
-        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
+        const delta = deltaMap[key] || 0;
+        targetMap[key] = currentCounts[key] + delta;
     }
+    // Ensure new bases like SAN are included even if initial active count was 0
     for (let key in deltaMap) {
         if (targetMap[key] === undefined) targetMap[key] = deltaMap[key];
     }
@@ -37,6 +46,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
     let cascade = true;
     let loops = 0;
 
+    // 4. Bidding Loop
     while (cascade) {
         cascade = false;
         loops++;
@@ -53,40 +63,38 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                 const currentOcc = currentCounts[targetKey] || 0;
                 const limit = targetMap[targetKey] || 0;
 
+                // Capacity Check
                 if (currentOcc < limit) {
                     let rank = 1;
                     for (const other of bidders) {
                         if (other.currentKey === targetKey) rank++;
                     }
-
                     if (pr.bpl_min > 0 && rank > pr.bpl_min) continue;
 
-                    // --- THE AUDIT LOGIC ---
+                    // Log the Vacancy Transition
                     const oldBase = p.currentKey;
-                    const oldVacanciesBefore = targetMap[oldBase] - currentCounts[oldBase];
-                    const targetVacanciesBefore = limit - currentOcc;
+                    const oldVacBefore = (targetMap[oldBase] || 0) - currentCounts[oldBase];
+                    const targetVacBefore = limit - currentOcc;
 
                     // Perform Move
                     currentCounts[oldBase]--; 
                     currentCounts[targetKey]++;
 
-                    const oldVacanciesAfter = targetMap[oldBase] - currentCounts[oldBase];
-                    const targetVacanciesAfter = limit - currentCounts[targetKey];
+                    const oldVacAfter = (targetMap[oldBase] || 0) - currentCounts[oldBase];
+                    const targetVacAfter = limit - currentCounts[targetKey];
 
                     auditTrail.push({
                         loop: loops,
                         sen: p.sen,
                         name: p.name,
-                        action: 'MOVE',
                         from: oldBase,
-                        fromVac: `${oldVacanciesBefore} -> ${oldVacanciesAfter}`,
+                        fromTrans: `${oldVacBefore} to ${oldVacAfter}`,
                         to: targetKey,
-                        toVac: `${targetVacanciesBefore} -> ${targetVacanciesAfter}`,
-                        rank: rank
+                        toTrans: `${targetVacBefore} to ${targetVacAfter}`
                     });
                     
                     if (p.sen === trackSen) {
-                        trace.push({type:'success', msg:`AWARDED ${targetKey}. Vacancies: ${targetVacanciesBefore}->${targetVacanciesAfter}`});
+                        trace.push({type:'success', msg:`AWARDED ${targetKey}. Vacancy: ${targetVacBefore}->${targetVacAfter}`});
                     }
                     
                     p.currentKey = targetKey;
@@ -97,7 +105,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             }
             if (cascade) break; 
         }
-        if (loops > 10000) break;
+        if (loops > 10000) break; // Infinite loop safety
     }
     return { roster: bidders, loops, auditTrail, trace };
 }
