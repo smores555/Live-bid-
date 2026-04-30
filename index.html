@@ -2,150 +2,68 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Airline Bid Control Center</title>
+    <title>Airline Bid Control Center - Validation Mode</title>
     <style>
-        :root {
-            --bg: #0f111a;
-            --card: #1a1d2e;
-            --text: #e6e6e6;
-            --accent: #4a9eff;
-            --border: #2d324d;
-            --green: #4ade80;
-        }
-
-        body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-        }
-
+        :root { --bg: #0f111a; --card: #1a1d2e; --text: #e6e6e6; --accent: #4a9eff; --border: #2d324d; --green: #4ade80; --red: #ff4d4d; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
-
-        /* Header & Config Section */
-        header {
-            background: var(--card);
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            margin-bottom: 20px;
-        }
-
-        h1 { margin-top: 0; color: var(--accent); font-weight: 300; }
-
-        /* Capacity Grid */
-        .capacity-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        .cap-card {
-            background: #242942;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-        }
-
-        .cap-card label { display: block; font-size: 0.8rem; color: #8b92b7; margin-bottom: 5px; }
         
-        .cap-inputs { display: flex; gap: 10px; align-items: center; }
-        
-        .cap-inputs input {
-            background: #0f111a;
-            border: 1px solid var(--border);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            width: 60px;
-            text-align: center;
-        }
+        .config-header { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .capacity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
+        .cap-card { background: #242942; padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
+        .cap-card h4 { margin: 0 0 10px 0; font-size: 0.9rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .cap-inputs { display: flex; gap: 8px; }
+        .cap-inputs div { flex: 1; }
+        .cap-inputs label { font-size: 0.7rem; color: #8b92b7; display: block; }
+        .cap-inputs input { width: 100%; background: #0f111a; border: 1px solid var(--border); color: white; padding: 5px; border-radius: 4px; box-sizing: border-box; }
 
-        .cap-title { font-weight: bold; margin-bottom: 10px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
-
-        /* Buttons & Search */
-        .action-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            background: var(--card);
-            padding: 15px;
-            border-radius: 8px;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-        }
-
+        .action-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border); }
+        .btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
         .btn-run { background: var(--accent); color: white; }
         .btn-export { background: #2d324d; color: white; margin-left: 5px; }
-        .btn:hover { filter: brightness(1.2); }
+        .search-box { background: #0f111a; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 300px; }
 
-        .search-box {
-            background: #0f111a;
-            border: 1px solid var(--border);
-            color: white;
-            padding: 12px;
-            border-radius: 6px;
-            width: 300px;
-        }
-
-        /* Results Table */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: var(--card);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        th { background: #242942; color: var(--accent); text-align: left; padding: 15px; font-size: 0.85rem; }
-        td { padding: 12px 15px; border-bottom: 1px solid var(--border); }
-
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
+        th { background: #242942; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        
         .moved-text { color: var(--green); font-weight: bold; }
+        .match-yes { color: var(--green); font-weight: bold; }
+        .match-no { color: var(--red); font-weight: bold; }
         .hidden { display: none !important; }
-        #loading { text-align: center; color: var(--accent); padding: 20px; }
+        #status-msg { color: var(--accent); font-weight: bold; margin-left: 15px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <header>
-        <h1>System Configuration</h1>
-        <p>Adjust vacancy deltas below before running the bid engine.</p>
-        <div id="capacityContainer" class="capacity-grid">
-            <p>Loading capacities from repository...</p>
-        </div>
-    </header>
+    <div class="config-header">
+        <h2 style="margin:0">System Configuration & Validation</h2>
+        <p style="font-size: 0.8rem; color: #888;">Ensure your official answer key CSV is named <b>answer_key.csv</b> and uploaded to the repository.</p>
+        <div id="capacityGrid" class="capacity-grid">Loading configuration...</div>
+    </div>
 
     <div class="action-bar">
         <div>
             <button id="runBtn" class="btn btn-run">RUN POSITION BID</button>
-            <button onclick="exportBPL()" class="btn btn-export">EXPORT BPLs</button>
-            <button onclick="exportLogs()" class="btn btn-export">TRANS LOG</button>
+            <span id="status-msg"></span>
         </div>
-        <input type="text" id="search" class="search-box" placeholder="Search Seniority... (Press Enter)">
+        <div>
+            <button onclick="exportCSV('bpl')" class="btn btn-export">BPL REPORT</button>
+            <button onclick="exportCSV('log')" class="btn btn-export">TRANS LOG</button>
+            <input type="text" id="search" class="search-box" placeholder="Enter Seniority # then hit Enter">
+        </div>
     </div>
-
-    <div id="loading" class="hidden">Engine calculating cascades...</div>
 
     <table id="resultsTable" class="hidden">
         <thead>
             <tr>
                 <th>Sen #</th>
                 <th>Pilot Name</th>
-                <th>Previous Position</th>
-                <th>Awarded Position</th>
+                <th>Previous</th>
+                <th>Awarded</th>
                 <th>Status</th>
+                <th>Company Validation</th>
             </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -153,191 +71,225 @@
 </div>
 
 <script>
-    let rawData = {}; 
+    let dataStore = {}; 
     let finalRoster = [];
-    let transLogs = [];
+    let logs = [];
+    let answerKey = null; // Will store our parsed CSV data
 
-    // --- 1. INITIAL FETCH ---
+    // --- Optimized Fetch including the Answer Key ---
     window.onload = async () => {
+        const files = [
+            'roster.json', 'preferences.json', 'capacities.json', 
+            'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'
+        ];
+        
         try {
-            const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
-            const [roster, prefs, caps, retired, noBid] = await Promise.all(
-                files.map(f => fetch(f).then(res => res.json()))
-            );
+            // Fetch everything concurrently
+            const responses = await Promise.all(files.map(f => fetch(f)));
             
-            rawData = { roster, prefs, caps, retired, noBid };
-            buildCapacityUI(caps);
-        } catch (err) {
-            alert("Error loading repository files. Ensure you are running this from GitHub Pages.");
-        }
+            dataStore = { 
+                roster: await responses[0].json(), 
+                prefs: await responses[1].json(), 
+                caps: await responses[2].json(), 
+                retired: await responses[3].json(), 
+                noBid: await responses[4].json() 
+            };
+            
+            // Check if Answer Key loaded successfully
+            if (responses[5].ok) {
+                const csvText = await responses[5].text();
+                parseAnswerKey(csvText);
+            } else {
+                console.warn("answer_key.csv not found in repository. Validation column will be empty.");
+            }
+
+            renderCapacities();
+        } catch (e) { alert("Fetch error. Ensure all files (including answer_key.csv) are in the repository."); }
     };
 
-    // --- 2. BUILD UI FOR CAPACITIES ---
-    function buildCapacityUI(caps) {
-        const container = document.getElementById('capacityContainer');
-        container.innerHTML = caps.map((c, i) => `
+    // --- CSV PARSER LOGIC ---
+    function parseAnswerKey(text) {
+        answerKey = {};
+        const lines = text.split('\n');
+        
+        for (let i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            
+            // This Regex splits by comma, but ignores commas inside quotes (like "LAST, FIRST")
+            const cols = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            
+            if (cols.length >= 3) {
+                const sen = parseInt(cols[0]);
+                const finalAward = cols[2].replace(/"/g, '').trim(); // e.g., "737 SEA CA"
+                
+                // Extract just Base and Seat (Ignore the "737")
+                const parts = finalAward.split(' ');
+                if (parts.length >= 3) {
+                    answerKey[sen] = `${parts[1]} ${parts[2]}`; // Stores "SEA CA"
+                }
+            }
+        }
+        console.log(`Successfully loaded ${Object.keys(answerKey).length} validation answers.`);
+    }
+
+    // --- RENDER CAPACITIES UI ---
+    function renderCapacities() {
+        const grid = document.getElementById('capacityGrid');
+        grid.innerHTML = dataStore.caps.map((c, i) => `
             <div class="cap-card">
-                <div class="cap-title">${c.base} ${c.seat}</div>
+                <h4>${c.base} ${c.seat}</h4>
                 <div class="cap-inputs">
-                    <div>
-                        <label>Start</label>
-                        <input type="number" id="start-${i}" value="${c.startCapacity}" readonly style="opacity: 0.5">
-                    </div>
-                    <div>
-                        <label>Delta</label>
-                        <input type="number" id="delta-${i}" value="${c.delta}" class="delta-input">
-                    </div>
-                    <div>
-                        <label>Total</label>
-                        <input type="number" id="total-${i}" value="${c.startCapacity + c.delta}" readonly style="color: var(--accent)">
-                    </div>
+                    <div><label>Start</label><input type="number" value="${c.startCapacity}" disabled></div>
+                    <div><label>Delta</label><input type="number" id="delta-${i}" value="${c.delta}" oninput="updateTotal(${i}, ${c.startCapacity})"></div>
+                    <div><label>Total</label><input type="number" id="total-${i}" value="${c.startCapacity + c.delta}" disabled style="color:var(--accent)"></div>
                 </div>
             </div>
         `).join('');
-
-        // Update Total dynamically if user changes Delta
-        document.querySelectorAll('.delta-input').forEach((input, index) => {
-            input.addEventListener('input', () => {
-                const start = parseInt(document.getElementById(`start-${index}`).value);
-                const delta = parseInt(input.value) || 0;
-                document.getElementById(`total-${index}`).value = start + delta;
-            });
-        });
     }
 
-    // --- 3. SEARCH (Trigger on Enter) ---
+    function updateTotal(i, start) {
+        const delta = parseInt(document.getElementById(`delta-${i}`).value) || 0;
+        document.getElementById(`total-${i}`).value = start + delta;
+    }
+
+    // --- Search on Enter ---
     document.getElementById('search').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
-            const val = e.target.value.toLowerCase();
+            const val = e.target.value;
             const rows = document.querySelectorAll('#tbody tr');
-            rows.forEach(row => {
-                row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
-            });
+            rows.forEach(r => r.style.display = r.cells[0].innerText === val || val === "" ? '' : 'none');
         }
     });
 
-    // --- 4. ENGINE LOGIC ---
+    // --- Optimized Engine ---
     document.getElementById('runBtn').addEventListener('click', () => {
-        document.getElementById('loading').classList.remove('hidden');
-        document.getElementById('resultsTable').classList.add('hidden');
-
-        // Extract UI-modified capacities
-        const activeCapacities = {};
-        rawData.caps.forEach((c, i) => {
-            const total = parseInt(document.getElementById(`total-${i}`).value);
-            activeCapacities[`${c.base}-${c.seat}`] = total;
-        });
-
-        // Small timeout so UI can show "Loading"
+        const status = document.getElementById('status-msg');
+        status.innerText = "Processing...";
+        
         setTimeout(() => {
-            const result = runCascade(activeCapacities);
-            finalRoster = result.roster;
-            transLogs = result.logs;
-            renderTable(finalRoster);
-            document.getElementById('loading').classList.add('hidden');
+            const capMap = {};
+            dataStore.caps.forEach((c, i) => {
+                capMap[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`total-${i}`).value);
+            });
+
+            const retiredSet = new Set(dataStore.retired.map(p => p.seniority));
+            const noBidSet = new Set(dataStore.noBid.map(p => p.sen));
+
+            let counts = {}; 
+            let pilots = dataStore.roster
+                .filter(p => !retiredSet.has(p.sen) && !noBidSet.has(p.sen))
+                .map(p => {
+                    const key = `${p.current.base}-${p.current.seat}`;
+                    counts[key] = (counts[key] || 0) + 1;
+                    return { 
+                        ...p, 
+                        orig: key, 
+                        moved: false,
+                        prefs: (dataStore.prefs[p.id]?.preferences || []).sort((a,b) => a.order - b.order)
+                    };
+                });
+
+            pilots.sort((a, b) => a.sen - b.sen);
+            logs = [];
+
+            let cascade = true;
+            let loops = 0;
+
+            while (cascade) {
+                cascade = false;
+                loops++;
+                for (let i = 0; i < pilots.length; i++) {
+                    const p = pilots[i];
+                    const curKey = `${p.current.base}-${p.current.seat}`;
+
+                    for (const pr of p.prefs) {
+                        if (!pr.bid) continue;
+                        const targetKey = pr.bid.split(" ").slice(1).join("-"); 
+                        if (targetKey === curKey) break;
+
+                        if ((counts[targetKey] || 0) < (capMap[targetKey] || 0)) {
+                            let rank = 1;
+                            for(let j=0; j<i; j++) {
+                                if(`${pilots[j].current.base}-${pilots[j].current.seat}` === targetKey) rank++;
+                            }
+                            
+                            if (pr.bpl_min > 0 && rank > pr.bpl_min) continue;
+
+                            counts[curKey]--;
+                            counts[targetKey] = (counts[targetKey] || 0) + 1;
+                            logs.push({ loop: loops, sen: p.sen, name: p.name, from: curKey, to: targetKey });
+                            const parts = pr.bid.split(" ");
+                            p.current.base = parts[1]; p.current.seat = parts[2];
+                            p.moved = true;
+                            cascade = true;
+                            break; 
+                        }
+                    }
+                    if (cascade) break;
+                }
+            }
+
+            finalRoster = pilots;
+            renderTable(pilots);
+            status.innerText = `Complete! (${loops} loops)`;
             document.getElementById('resultsTable').classList.remove('hidden');
-        }, 100);
+        }, 50);
     });
 
-    function runCascade(capMap) {
-        const retiredSens = new Set(rawData.retired.map(p => p.seniority));
-        const noBidSens = new Set(rawData.noBid.map(p => p.sen));
-        const logs = [];
-
-        // Filter out non-bidding pilots and setup active state
-        let pilots = rawData.roster
-            .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
-            .map(p => ({
-                ...p,
-                original: `${p.current.base}-${p.current.seat}`,
-                prefs: (rawData.prefs[p.id]?.preferences || []).sort((a,b) => a.order - b.order),
-                moved: false
-            }));
-
-        pilots.sort((a, b) => a.sen - b.sen);
-
-        let cascade = true;
-        let loops = 0;
-
-        while (cascade) {
-            cascade = false;
-            loops++;
-
-            for (let i = 0; i < pilots.length; i++) {
-                const pilot = pilots[i];
-                const currentKey = `${pilot.current.base}-${pilot.current.seat}`;
-
-                for (const pref of pilot.prefs) {
-                    if (!pref.bid) continue;
-                    const parts = pref.bid.split(" ");
-                    const targetKey = `${parts[1]}-${parts[2]}`;
-
-                    if (targetKey === currentKey) break;
-
-                    const occupants = pilots.filter(p => `${p.current.base}-${p.current.seat}` === targetKey).length;
-                    const limit = capMap[targetKey] || 0;
-
-                    if (occupants < limit) {
-                        // BPL Check
-                        let rank = pilots.filter(p => `${p.current.base}-${p.current.seat}` === targetKey && p.sen < pilot.sen).length + 1;
-                        if (pref.bpl_min > 0 && rank > pref.bpl_min) continue;
-
-                        // AWARD
-                        logs.push({ loop: loops, sen: pilot.sen, name: pilot.name, from: currentKey, to: targetKey });
-                        pilot.current.base = parts[1];
-                        pilot.current.seat = parts[2];
-                        pilot.moved = true;
-                        cascade = true; 
-                        break;
-                    }
-                }
-                if (cascade) break;
-            }
-        }
-        return { roster: pilots, logs };
-    }
-
+    // --- RENDER TABLE WITH VALIDATION CHECK ---
     function renderTable(data) {
-        const tbody = document.getElementById('tbody');
-        tbody.innerHTML = data.map(p => `
+        document.getElementById('tbody').innerHTML = data.map(p => {
+            
+            let validationHtml = `<td style="color: #666;">No Key Data</td>`;
+            const engineAward = `${p.current.base} ${p.current.seat}`;
+            
+            // Compare Engine Result against Answer Key
+            if (answerKey && answerKey[p.sen]) {
+                const companyExpected = answerKey[p.sen];
+                if (companyExpected === engineAward) {
+                    validationHtml = `<td class="match-yes">✅ Match</td>`;
+                } else {
+                    validationHtml = `<td class="match-no">❌ Expected: ${companyExpected}</td>`;
+                }
+            }
+
+            return `
             <tr>
                 <td>${p.sen}</td>
                 <td>${p.name}</td>
-                <td>${p.original.replace('-', ' ')}</td>
-                <td class="${p.moved ? 'moved-text' : ''}">${p.current.base} ${p.current.seat}</td>
+                <td>${p.orig.replace('-', ' ')}</td>
+                <td class="${p.moved ? 'moved-text' : ''}">${engineAward}</td>
                 <td class="${p.moved ? 'moved-text' : ''}">${p.moved ? 'AWARDED' : 'HELD'}</td>
+                ${validationHtml}
             </tr>
-        `).join('');
+            `;
+        }).join('');
     }
 
-    // --- EXPORTS ---
-    function exportBPL() {
-        let csv = "Base,Seat,Rank,Seniority,Name\n";
-        const groups = {};
-        finalRoster.forEach(p => {
-            const k = `${p.current.base}-${p.current.seat}`;
-            if(!groups[k]) groups[k] = [];
-            groups[k].push(p);
-        });
-        Object.keys(groups).sort().forEach(k => {
-            groups[k].sort((a,b) => a.sen - b.sen).forEach((p, i) => {
-                csv += `${p.current.base},${p.current.seat},${i+1},${p.sen},"${p.name}"\n`;
+    function exportCSV(type) {
+        // [Existing CSV Export Code]
+        let csv = "";
+        if (type === 'bpl') {
+            csv = "Base,Seat,Rank,Sen,Name\n";
+            let groups = {};
+            finalRoster.forEach(p => {
+                const k = `${p.current.base}-${p.current.seat}`;
+                if(!groups[k]) groups[k] = [];
+                groups[k].push(p);
             });
-        });
-        download(csv, "BPL_Report.csv");
-    }
-
-    function exportLogs() {
-        let csv = "Loop,Sen,Name,From,To\n";
-        transLogs.forEach(l => csv += `${l.loop},${l.sen},"${l.name}",${l.from},${l.to}\n`);
-        download(csv, "Transaction_Log.csv");
-    }
-
-    function download(csv, name) {
+            Object.keys(groups).sort().forEach(k => {
+                groups[k].sort((a,b) => a.sen - b.sen).forEach((p, i) => {
+                    csv += `${p.current.base},${p.current.seat},${i+1},${p.sen},"${p.name}"\n`;
+                });
+            });
+        } else {
+            csv = "Loop,Sen,Name,From,To\n";
+            logs.forEach(l => csv += `${l.loop},${l.sen},"${l.name}",${l.from},${l.to}\n`);
+        }
         const blob = new Blob([csv], { type: 'text/csv' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = name;
+        a.download = `${type}_export.csv`;
         a.click();
     }
 </script>
