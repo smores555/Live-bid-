@@ -2,47 +2,43 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bid Control Center</title>
+    <title>Bid Control Center - Audit Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1400px; margin: 0 auto; }
         .config-card { background: var(--card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin: 10px 0; }
         .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
-        .cap-cell label { color: var(--accent); font-weight: bold; }
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; }
-        .toolbar { display: flex; align-items: center; gap: 15px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .btn-run { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .search-input { background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 160px; }
-        .trace-box { background: #0d1117; border: 1px solid var(--accent); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
-        .success { color: var(--green); border-left: 4px solid var(--green); padding-left: 10px; margin-bottom: 4px; }
-        .fail { color: var(--red); border-left: 4px solid var(--red); padding-left: 10px; margin-bottom: 4px; }
+        .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .audit-box { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.8rem; max-height: 400px; overflow-y: auto; margin-bottom: 20px; line-height: 1.4; }
+        .audit-line { margin-bottom: 5px; border-bottom: 1px solid #1f242c; padding-bottom: 5px; }
+        .v-up { color: var(--green); font-weight: bold; }
+        .v-down { color: var(--red); font-weight: bold; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-        .moved { color: var(--green); font-weight: bold; }
-        .match { color: var(--green); }
-        .mismatch { color: var(--red); font-weight: bold; }
         .hidden { display: none; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="config-card">
-        <h3 style="margin:0">Set Position Deltas</h3>
-        <div id="capGrid" class="cap-grid">Loading...</div>
+        <h3 style="margin:0">Set Deltas</h3>
+        <div id="capGrid" class="cap-grid"></div>
     </div>
     
     <div class="toolbar">
-        <button id="runBtn" class="btn-run">RUN POSITION BID</button>
-        <span id="loadInfo">Checking Files...</span>
+        <button id="runBtn" class="btn">RUN BID</button>
         <div style="flex-grow: 1;"></div>
-        <input type="number" id="lookupInput" class="search-input" placeholder="Lookup Sen #">
-        <button id="lookupBtn" class="btn-run" style="background:#30363d;">PILOT LOOKUP</button>
+        <input type="number" id="lookupInput" style="padding:10px; border-radius:6px; border:1px solid #30363d; background:#0d1117; color:white;" placeholder="Sen #">
+        <button id="lookupBtn" class="btn" style="background:#30363d;">LOOKUP</button>
     </div>
 
-    <div id="traceLog" class="trace-box hidden"></div>
+    <h4 style="margin-bottom:10px; color:var(--accent);">BIDDING AUDIT LOG (Real-time Vacancy Tracking)</h4>
+    <div id="auditLog" class="audit-box">No data. Run bid to see audit trail.</div>
 
     <table id="mainTable">
         <thead>
@@ -90,23 +86,16 @@
         try {
             const results = await Promise.all(files.map(async f => {
                 const r = await fetch(f);
-                if (!r.ok) throw new Error(`Missing: ${f}`);
                 return f.endsWith('.csv') ? r.text() : r.json();
             }));
             store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
             
-            // CSV COLUMN FIX: Seniority index 0, Awarded index 2
-            const rows = parseCSV(results[5]);
-            rows.forEach((cols, idx) => {
+            parseCSV(results[5]).forEach((cols, idx) => {
                 if (idx === 0) return;
-                const sen = cols[0]?.trim(); 
-                const award = cols[2]?.trim(); 
-                if (sen) answerKey[sen] = award;
+                if (cols[0]) answerKey[cols[0].trim()] = cols[2]?.trim();
             });
-
-            document.getElementById('loadInfo').innerText = "System Ready.";
             renderCapacities();
-        } catch (e) { document.getElementById('loadInfo').innerText = "Error: " + e.message; }
+        } catch (e) { console.error(e); }
     };
 
     function renderCapacities() {
@@ -122,32 +111,36 @@
         const deltas = {};
         store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value));
         
-        const result = runBidEngine(store, deltas, null);
+        const result = runBidEngine(store, deltas);
         lastResults = result.roster;
+        
+        // Render Audit Log
+        document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `
+            <div class="audit-line">
+                [Pass ${a.loop}] <strong>#${a.sen} ${a.name}</strong><br>
+                Left <span style="color:#58a6ff">${a.from}</span> (Vacancies: <span class="v-up">${a.fromVac}</span>) | 
+                Took <span style="color:#58a6ff">${a.to}</span> (Vacancies: <span class="v-down">${a.toVac}</span>)
+            </div>
+        `).join('');
+
         renderTable(lastResults);
-        document.getElementById('loadInfo').innerText = `Complete: ${result.loops} cascades.`;
     };
 
-    // New Separate Lookup Logic
     document.getElementById('lookupBtn').onclick = () => {
         const sen = document.getElementById('lookupInput').value;
-        if (!sen || lastResults.length === 0) return;
-        const filtered = lastResults.filter(p => p.sen.toString() === sen);
-        renderTable(filtered);
+        renderTable(lastResults.filter(p => p.sen.toString() === sen));
     };
 
     function renderTable(roster) {
         document.getElementById('tableBody').innerHTML = roster.map(p => {
-            const engineAward = p.currentKey.replace('-', ' ');
-            const companyAward = answerKey[p.sen.toString()] || "No Key";
-            const isMatch = companyAward !== "No Key" && companyAward.includes(engineAward);
-
+            const awarded = p.currentKey.replace('-', ' ');
+            const company = answerKey[p.sen.toString()] || "No Key";
+            const isMatch = company.includes(awarded);
             return `<tr>
-                <td>${p.sen}</td><td>${p.name}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
-                <td class="${p.moved?'moved':''}">${engineAward}</td>
+                <td>${p.sen}</td><td>${p.name}</td><td>${p.orig}</td>
+                <td style="color:${p.moved?'#3fb950':''}">${awarded}</td>
                 <td>${p.moved?'AWARDED':'HELD'}</td>
-                <td class="${isMatch?'match':'mismatch'}">${isMatch?'✓ Match':'✗ '+companyAward}</td>
+                <td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td>
             </tr>`;
         }).join('');
     }
