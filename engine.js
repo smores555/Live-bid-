@@ -1,42 +1,35 @@
 /**
- * AIRLINE DISPLACEMENT & TARGET-STATE ENGINE
- * Fixed: NaN initialization bug and SAN-CA overfill.
+ * AIRLINE BID AUDIT ENGINE
+ * Tracks real-time vacancy transitions: "Base X: 0 -> 1 vacancies"
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
-    const logs = [];
+    const auditTrail = [];
     const trace = [];
     
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // 1. Initialize ALL possible bases to 0 to prevent NaN
+    // 1. Initialize State
     let currentCounts = {};
-    data.caps.forEach(c => {
-        currentCounts[`${c.base}-${c.seat}`] = 0;
-    });
+    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
 
-    // 2. Count Active Bidders only
     const bidders = data.roster
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
-            // If a base isn't in caps, initialize it now
             if (currentCounts[key] === undefined) currentCounts[key] = 0;
             currentCounts[key]++;
-            
             return {
                 ...p, currentKey: key, orig: key, moved: false,
                 prefs: (data.prefs[p.id]?.preferences || []).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. Set Hard Targets (Initial + Delta)
+    // 2. Set Hard Targets & Initial Vacancy Math
     let targetMap = {};
     for (let key in currentCounts) {
-        const delta = deltaMap[key] || 0;
-        targetMap[key] = currentCounts[key] + delta;
+        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
     }
-    // Ensure new bases like SAN are in the map even if initial count is 0
     for (let key in deltaMap) {
         if (targetMap[key] === undefined) targetMap[key] = deltaMap[key];
     }
@@ -58,39 +51,53 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                 if (targetKey === p.currentKey) break;
 
                 const currentOcc = currentCounts[targetKey] || 0;
-                const targetLimit = targetMap[targetKey] || 0;
+                const limit = targetMap[targetKey] || 0;
 
-                // STRICT CAPACITY CHECK
-                if (currentOcc < targetLimit) {
+                if (currentOcc < limit) {
                     let rank = 1;
                     for (const other of bidders) {
                         if (other.currentKey === targetKey) rank++;
                     }
 
-                    if (pr.bpl_min > 0 && rank > pr.bpl_min) {
-                        if (p.sen === trackSen) trace.push({type:'fail', msg:`BPL REJECT: ${targetKey} Rank ${rank} > ${pr.bpl_min}`});
-                        continue; 
-                    }
+                    if (pr.bpl_min > 0 && rank > pr.bpl_min) continue;
 
-                    // AWARD & RESTART
-                    currentCounts[p.currentKey]--; 
-                    currentCounts[targetKey]++;    
+                    // --- THE AUDIT LOGIC ---
+                    const oldBase = p.currentKey;
+                    const oldVacanciesBefore = targetMap[oldBase] - currentCounts[oldBase];
+                    const targetVacanciesBefore = limit - currentOcc;
+
+                    // Perform Move
+                    currentCounts[oldBase]--; 
+                    currentCounts[targetKey]++;
+
+                    const oldVacanciesAfter = targetMap[oldBase] - currentCounts[oldBase];
+                    const targetVacanciesAfter = limit - currentCounts[targetKey];
+
+                    auditTrail.push({
+                        loop: loops,
+                        sen: p.sen,
+                        name: p.name,
+                        action: 'MOVE',
+                        from: oldBase,
+                        fromVac: `${oldVacanciesBefore} -> ${oldVacanciesAfter}`,
+                        to: targetKey,
+                        toVac: `${targetVacanciesBefore} -> ${targetVacanciesAfter}`,
+                        rank: rank
+                    });
                     
                     if (p.sen === trackSen) {
-                        trace.push({type:'success', msg:`AWARDED ${targetKey} (Rank ${rank}). Base Size: ${currentCounts[targetKey]}/${targetLimit}`});
+                        trace.push({type:'success', msg:`AWARDED ${targetKey}. Vacancies: ${targetVacanciesBefore}->${targetVacanciesAfter}`});
                     }
                     
                     p.currentKey = targetKey;
                     p.moved = true;
                     cascade = true; 
                     break; 
-                } else if (p.sen === trackSen) {
-                    trace.push({type:'fail', msg:`${targetKey} FULL (${currentOcc}/${targetLimit})`});
                 }
             }
             if (cascade) break; 
         }
         if (loops > 10000) break;
     }
-    return { roster: bidders, loops, trace };
+    return { roster: bidders, loops, auditTrail, trace };
 }
