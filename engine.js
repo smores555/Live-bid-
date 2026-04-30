@@ -1,7 +1,6 @@
 /**
- * AIRLINE BID ENGINE - Self-Displacement Fix
- * Calculates Rank and BPL for EVERY preference, allowing pilots to 
- * "force themselves out" of their current base if they fail their own BPL.
+ * AIRLINE BID ENGINE - Exact Company Validation Logging
+ * Fixes: Calculates Rank (more senior only) and checks BPL before Capacity.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const auditTrail = [];
@@ -58,29 +57,32 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
                 
-                // 1. CALCULATE RANK FIRST (Must happen for all prefs, even current base)
+                // 1. CALCULATE RANK ("BPL if awarded")
+                // Only count pilots who are MORE SENIOR than the current pilot
                 let rank = 1;
                 for (const other of bidders) {
+                    if (other.sen >= p.sen) break; // Stop checking when we reach our own seniority
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                // 2. CHECK BPL FIRST
-                // This allows a pilot to force themselves out of their current position
-                if (pr.bpl_min > 0 && rank > pr.bpl_min) {
+                // 2. CHECK BPL FIRST (Catch "bpl", "bpl_min", or "BPL" from your JSON)
+                const reqBPL = parseInt(pr.bpl) || parseInt(pr.bpl_min) || parseInt(pr.BPL) || 0;
+                
+                if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { 
                         status: "Denied", 
-                        reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl_min}. BPL if awarded = ${rank}.` 
+                        reason: `Bid request does not meet BPL requirement. Requested BPL = ${reqBPL}. BPL if awarded = ${rank}.` 
                     };
-                    continue; // Failed BPL, keep reading down the preference list
+                    continue; // Move to the next preference immediately
                 }
 
                 // 3. REMAIN IN CURRENT POSITION (If BPL Passes)
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: "Remain in current position." };
-                    break;
+                    break; // Stop evaluating preferences
                 }
 
-                // 4. NEW POSITION CAPACITY CHECK
+                // 4. CAPACITY CHECK (Only checked if BPL passes)
                 const currentOcc = currentCounts[targetKey] || 0;
                 const limit = targetMap[targetKey] || 0;
                 const targetVacancies = limit - currentOcc;
@@ -96,7 +98,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
 
                     p.prefHistory[pr.order] = { 
                         status: "Awarded", 
-                        reason: `Open position available. Reduce vacancy in ${targetKey} from ${targetVacancies} to ${targetVacancies - 1}. Increase vacancy in ${oldBase} from ${oldVacancies} to ${oldVacancies + 1}.` 
+                        reason: `Open position available. Reduce vacancy in ${targetKey} from ${targetVacancies} to ${targetVacancies - 1}. Increase vacancy in ${oldBase} from ${oldVacancies} to ${oldVacancies + 1}. Proffered from Vacancy.` 
                     };
 
                     auditTrail.push({
