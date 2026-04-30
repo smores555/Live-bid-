@@ -3,353 +3,343 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Airline Cascading Bid System</title>
-    
+    <title>Airline Bid Control Center</title>
     <style>
+        :root {
+            --bg: #0f111a;
+            --card: #1a1d2e;
+            --text: #e6e6e6;
+            --accent: #4a9eff;
+            --border: #2d324d;
+            --green: #4ade80;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1e1e1e;
-            color: #e0e0e0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
             padding: 20px;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* Header & Config Section */
         header {
-            text-align: center;
+            background: var(--card);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
             margin-bottom: 20px;
         }
-        .primary-btn, .export-btn {
-            background-color: #007acc;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            font-size: 14px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
+
+        h1 { margin-top: 0; color: var(--accent); font-weight: 300; }
+
+        /* Capacity Grid */
+        .capacity-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
         }
-        .primary-btn:hover, .export-btn:hover { background-color: #005f9e; }
-        .export-btn { background-color: #28a745; } /* Green for exports */
-        .export-btn:hover { background-color: #218838; }
-        
-        .instructions {
-            background-color: #2d2d2d;
-            padding: 20px;
+
+        .cap-card {
+            background: #242942;
+            padding: 15px;
             border-radius: 8px;
-            border: 1px dashed #555;
-            margin-bottom: 20px;
+            border: 1px solid var(--border);
         }
-        .controls-section {
+
+        .cap-card label { display: block; font-size: 0.8rem; color: #8b92b7; margin-bottom: 5px; }
+        
+        .cap-inputs { display: flex; gap: 10px; align-items: center; }
+        
+        .cap-inputs input {
+            background: #0f111a;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 60px;
+            text-align: center;
+        }
+
+        .cap-title { font-weight: bold; margin-bottom: 10px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+
+        /* Buttons & Search */
+        .action-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: #333;
+            margin-bottom: 20px;
+            background: var(--card);
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
         }
-        .search-bar {
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #555;
-            background-color: #1e1e1e;
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .btn-run { background: var(--accent); color: white; }
+        .btn-export { background: #2d324d; color: white; margin-left: 5px; }
+        .btn:hover { filter: brightness(1.2); }
+
+        .search-box {
+            background: #0f111a;
+            border: 1px solid var(--border);
             color: white;
-            width: 250px;
+            padding: 12px;
+            border-radius: 6px;
+            width: 300px;
         }
-        .hidden { display: none !important; }
-        
+
+        /* Results Table */
         table {
             width: 100%;
             border-collapse: collapse;
-            background-color: #2d2d2d;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            background: var(--card);
+            border-radius: 12px;
+            overflow: hidden;
         }
-        th, td {
-            padding: 10px 15px;
-            text-align: left;
-            border-bottom: 1px solid #404040;
-        }
-        th {
-            background-color: #222;
-            color: #4da6ff;
-            position: sticky;
-            top: 0;
-        }
-        tr:hover { background-color: #383838; }
-        .moved { color: #4caf50; font-weight: bold; }
-        .stayed { color: #888888; }
-        #loading { text-align: center; font-size: 1.2em; color: #ffcc00; margin: 20px; }
+
+        th { background: #242942; color: var(--accent); text-align: left; padding: 15px; font-size: 0.85rem; }
+        td { padding: 12px 15px; border-bottom: 1px solid var(--border); }
+
+        .moved-text { color: var(--green); font-weight: bold; }
+        .hidden { display: none !important; }
+        #loading { text-align: center; color: var(--accent); padding: 20px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <header>
-            <h1>Pilot Vacancy Bid Results</h1>
-            <div class="instructions">
-                <p>Click below to pull the latest JSON files directly from the repository and run the engine.</p>
-                <button id="runBidBtn" class="primary-btn">Fetch Data & Run Simulation</button>
-            </div>
-        </header>
+<div class="container">
+    <header>
+        <h1>System Configuration</h1>
+        <p>Adjust vacancy deltas below before running the bid engine.</p>
+        <div id="capacityContainer" class="capacity-grid">
+            <p>Loading capacities from repository...</p>
+        </div>
+    </header>
 
-        <main>
-            <div id="loading" class="hidden">Fetching files and running cascade simulation...</div>
-            
-            <div id="resultsDashboard" class="hidden">
-                <div class="controls-section">
-                    <div>
-                        <button class="export-btn" onclick="exportMovers()">Export Movers (CSV)</button>
-                        <button class="export-btn" onclick="exportBPL()">Export BPLs (CSV)</button>
-                        <button class="export-btn" onclick="exportLogs()">Export Transaction Log</button>
-                    </div>
-                    <div>
-                        <input type="text" id="searchInput" class="search-bar" placeholder="Search by Seniority # or Name...">
-                    </div>
-                </div>
-
-                <table id="resultsTable">
-                    <thead>
-                        <tr>
-                            <th>Sen #</th>
-                            <th>Name</th>
-                            <th>Previous Base/Seat</th>
-                            <th>Awarded Base/Seat</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resultsBody"></tbody>
-                </table>
-            </div>
-        </main>
+    <div class="action-bar">
+        <div>
+            <button id="runBtn" class="btn btn-run">RUN POSITION BID</button>
+            <button onclick="exportBPL()" class="btn btn-export">EXPORT BPLs</button>
+            <button onclick="exportLogs()" class="btn btn-export">TRANS LOG</button>
+        </div>
+        <input type="text" id="search" class="search-box" placeholder="Search Seniority... (Press Enter)">
     </div>
 
-    <script>
-        // Global variables to store results for our Export buttons
-        let latestRoster = [];
-        let latestLogs = [];
+    <div id="loading" class="hidden">Engine calculating cascades...</div>
 
-        // --- SEARCH FUNCTIONALITY ---
-        document.getElementById('searchInput').addEventListener('keyup', function() {
-            let filter = this.value.toUpperCase();
-            let rows = document.querySelectorAll('#resultsBody tr');
+    <table id="resultsTable" class="hidden">
+        <thead>
+            <tr>
+                <th>Sen #</th>
+                <th>Pilot Name</th>
+                <th>Previous Position</th>
+                <th>Awarded Position</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<script>
+    let rawData = {}; 
+    let finalRoster = [];
+    let transLogs = [];
+
+    // --- 1. INITIAL FETCH ---
+    window.onload = async () => {
+        try {
+            const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
+            const [roster, prefs, caps, retired, noBid] = await Promise.all(
+                files.map(f => fetch(f).then(res => res.json()))
+            );
             
+            rawData = { roster, prefs, caps, retired, noBid };
+            buildCapacityUI(caps);
+        } catch (err) {
+            alert("Error loading repository files. Ensure you are running this from GitHub Pages.");
+        }
+    };
+
+    // --- 2. BUILD UI FOR CAPACITIES ---
+    function buildCapacityUI(caps) {
+        const container = document.getElementById('capacityContainer');
+        container.innerHTML = caps.map((c, i) => `
+            <div class="cap-card">
+                <div class="cap-title">${c.base} ${c.seat}</div>
+                <div class="cap-inputs">
+                    <div>
+                        <label>Start</label>
+                        <input type="number" id="start-${i}" value="${c.startCapacity}" readonly style="opacity: 0.5">
+                    </div>
+                    <div>
+                        <label>Delta</label>
+                        <input type="number" id="delta-${i}" value="${c.delta}" class="delta-input">
+                    </div>
+                    <div>
+                        <label>Total</label>
+                        <input type="number" id="total-${i}" value="${c.startCapacity + c.delta}" readonly style="color: var(--accent)">
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Update Total dynamically if user changes Delta
+        document.querySelectorAll('.delta-input').forEach((input, index) => {
+            input.addEventListener('input', () => {
+                const start = parseInt(document.getElementById(`start-${index}`).value);
+                const delta = parseInt(input.value) || 0;
+                document.getElementById(`total-${index}`).value = start + delta;
+            });
+        });
+    }
+
+    // --- 3. SEARCH (Trigger on Enter) ---
+    document.getElementById('search').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#tbody tr');
             rows.forEach(row => {
-                let sen = row.cells[0].innerText.toUpperCase();
-                let name = row.cells[1].innerText.toUpperCase();
-                if (sen.includes(filter) || name.includes(filter)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+                row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
             });
+        }
+    });
+
+    // --- 4. ENGINE LOGIC ---
+    document.getElementById('runBtn').addEventListener('click', () => {
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('resultsTable').classList.add('hidden');
+
+        // Extract UI-modified capacities
+        const activeCapacities = {};
+        rawData.caps.forEach((c, i) => {
+            const total = parseInt(document.getElementById(`total-${i}`).value);
+            activeCapacities[`${c.base}-${c.seat}`] = total;
         });
 
-        // --- RUN SIMULATION BUTTON ---
-        document.getElementById('runBidBtn').addEventListener('click', async () => {
-            document.getElementById('loading').classList.remove('hidden');
-            document.getElementById('resultsDashboard').classList.add('hidden');
+        // Small timeout so UI can show "Loading"
+        setTimeout(() => {
+            const result = runCascade(activeCapacities);
+            finalRoster = result.roster;
+            transLogs = result.logs;
+            renderTable(finalRoster);
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('resultsTable').classList.remove('hidden');
+        }, 100);
+    });
 
-            try {
-                // Fetch all files directly from the repo/server
-                const [rosterRes, prefsRes, capsRes, retiredRes, noBidRes] = await Promise.all([
-                    fetch('roster.json'),
-                    fetch('preferences.json'),
-                    fetch('capacities.json'),
-                    fetch('retired_pilots.json'),
-                    fetch('nobidpilots.json')
-                ]);
+    function runCascade(capMap) {
+        const retiredSens = new Set(rawData.retired.map(p => p.seniority));
+        const noBidSens = new Set(rawData.noBid.map(p => p.sen));
+        const logs = [];
 
-                // Ensure all files loaded successfully
-                if (!rosterRes.ok || !prefsRes.ok || !capsRes.ok || !retiredRes.ok || !noBidRes.ok) {
-                    throw new Error("One or more files could not be found in the repository. Please check file names.");
-                }
+        // Filter out non-bidding pilots and setup active state
+        let pilots = rawData.roster
+            .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
+            .map(p => ({
+                ...p,
+                original: `${p.current.base}-${p.current.seat}`,
+                prefs: (rawData.prefs[p.id]?.preferences || []).sort((a,b) => a.order - b.order),
+                moved: false
+            }));
 
-                const roster = await rosterRes.json();
-                const preferences = await prefsRes.json();
-                const capacities = await capsRes.json();
-                const retired = await retiredRes.json();
-                const noBid = await noBidRes.json();
+        pilots.sort((a, b) => a.sen - b.sen);
 
-                // Small delay to allow UI to update with loading text
-                setTimeout(() => {
-                    const result = runBidSimulation(roster, preferences, capacities, retired, noBid);
-                    latestRoster = result.roster;
-                    latestLogs = result.logs;
-                    
-                    renderTable(latestRoster);
-                    document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('resultsDashboard').classList.remove('hidden');
-                }, 100);
+        let cascade = true;
+        let loops = 0;
 
-            } catch (error) {
-                console.error(error);
-                alert("Error fetching files: " + error.message);
-                document.getElementById('loading').classList.add('hidden');
-            }
-        });
+        while (cascade) {
+            cascade = false;
+            loops++;
 
-        // --- THE BID ENGINE ---
-        function runBidSimulation(roster, preferences, capacities, retired, noBids) {
-            const retiredSen = new Set(retired.map(p => p.seniority));
-            const noBidSen = new Set(noBids.map(p => p.sen));
+            for (let i = 0; i < pilots.length; i++) {
+                const pilot = pilots[i];
+                const currentKey = `${pilot.current.base}-${pilot.current.seat}`;
 
-            let activePilots = [];
-            let currentCounts = {};
-            let targetCapacities = {};
-            let transactionLog = []; 
+                for (const pref of pilot.prefs) {
+                    if (!pref.bid) continue;
+                    const parts = pref.bid.split(" ");
+                    const targetKey = `${parts[1]}-${parts[2]}`;
 
-            capacities.forEach(cap => {
-                const key = `${cap.base}-${cap.seat}`;
-                targetCapacities[key] = cap.startCapacity + cap.delta;
-                currentCounts[key] = 0;
-            });
+                    if (targetKey === currentKey) break;
 
-            roster.forEach(pilot => {
-                if (!retiredSen.has(pilot.sen) && !noBidSen.has(pilot.sen)) {
-                    let pilotPrefs = preferences[pilot.id] ? preferences[pilot.id].preferences : [];
-                    pilotPrefs.sort((a, b) => a.order - b.order);
-                    let startKey = `${pilot.current.base}-${pilot.current.seat}`;
+                    const occupants = pilots.filter(p => `${p.current.base}-${p.current.seat}` === targetKey).length;
+                    const limit = capMap[targetKey] || 0;
 
-                    activePilots.push({
-                        ...pilot,
-                        prefs: pilotPrefs,
-                        originalBaseSeat: startKey,
-                        moved: false
-                    });
+                    if (occupants < limit) {
+                        // BPL Check
+                        let rank = pilots.filter(p => `${p.current.base}-${p.current.seat}` === targetKey && p.sen < pilot.sen).length + 1;
+                        if (pref.bpl_min > 0 && rank > pref.bpl_min) continue;
 
-                    if (currentCounts[startKey] !== undefined) currentCounts[startKey]++;
-                    else currentCounts[startKey] = 1;
-                }
-            });
-
-            activePilots.sort((a, b) => a.sen - b.sen);
-
-            let stateChanged = true;
-            let loopCount = 0;
-
-            while (stateChanged) {
-                stateChanged = false;
-                loopCount++;
-
-                for (let i = 0; i < activePilots.length; i++) {
-                    let pilot = activePilots[i];
-                    let currentKey = `${pilot.current.base}-${pilot.current.seat}`;
-
-                    for (let pref of pilot.prefs) {
-                        if (!pref.bid || pref.bid === "") continue;
-
-                        let parts = pref.bid.split(" ");
-                        if (parts.length < 3) continue;
-                        let targetKey = `${parts[1]}-${parts[2]}`;
-
-                        if (targetKey === currentKey) break;
-
-                        let targetCap = targetCapacities[targetKey] || 0;
-                        let currentActiveInTarget = currentCounts[targetKey] || 0;
-
-                        if (currentActiveInTarget < targetCap) {
-                            let meetsBPL = true;
-                            if (pref.bpl_min > 0) {
-                                let rankInNewBase = 1;
-                                for (let p of activePilots) {
-                                    if (p.sen < pilot.sen && `${p.current.base}-${p.current.seat}` === targetKey) rankInNewBase++;
-                                }
-                                if (rankInNewBase > pref.bpl_min) meetsBPL = false;
-                            }
-
-                            if (meetsBPL) {
-                                if(currentCounts[currentKey] !== undefined) currentCounts[currentKey]--;
-                                currentCounts[targetKey]++;
-
-                                transactionLog.push({
-                                    loop: loopCount,
-                                    sen: pilot.sen,
-                                    name: pilot.name,
-                                    vacated: currentKey,
-                                    awarded: targetKey
-                                });
-
-                                pilot.current.base = parts[1];
-                                pilot.current.seat = parts[2];
-                                pilot.moved = true;
-
-                                stateChanged = true; 
-                                break; 
-                            }
-                        }
+                        // AWARD
+                        logs.push({ loop: loops, sen: pilot.sen, name: pilot.name, from: currentKey, to: targetKey });
+                        pilot.current.base = parts[1];
+                        pilot.current.seat = parts[2];
+                        pilot.moved = true;
+                        cascade = true; 
+                        break;
                     }
-                    if (stateChanged) break; 
                 }
+                if (cascade) break;
             }
-            return { roster: activePilots, logs: transactionLog };
         }
+        return { roster: pilots, logs };
+    }
 
-        // --- UI RENDERER ---
-        function renderTable(pilots) {
-            const tbody = document.getElementById('resultsBody');
-            tbody.innerHTML = ""; 
-            pilots.forEach(pilot => {
-                const tr = document.createElement('tr');
-                const currentBaseSeat = `${pilot.current.base} ${pilot.current.seat}`;
-                tr.innerHTML = `
-                    <td>${pilot.sen}</td>
-                    <td>${pilot.name}</td>
-                    <td>${pilot.originalBaseSeat.replace('-', ' ')}</td>
-                    <td class="${pilot.moved ? 'moved' : 'stayed'}">${currentBaseSeat}</td>
-                    <td class="${pilot.moved ? 'moved' : 'stayed'}">${pilot.moved ? 'AWARDED' : 'HELD'}</td>
-                `;
-                tbody.appendChild(tr);
+    function renderTable(data) {
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = data.map(p => `
+            <tr>
+                <td>${p.sen}</td>
+                <td>${p.name}</td>
+                <td>${p.original.replace('-', ' ')}</td>
+                <td class="${p.moved ? 'moved-text' : ''}">${p.current.base} ${p.current.seat}</td>
+                <td class="${p.moved ? 'moved-text' : ''}">${p.moved ? 'AWARDED' : 'HELD'}</td>
+            </tr>
+        `).join('');
+    }
+
+    // --- EXPORTS ---
+    function exportBPL() {
+        let csv = "Base,Seat,Rank,Seniority,Name\n";
+        const groups = {};
+        finalRoster.forEach(p => {
+            const k = `${p.current.base}-${p.current.seat}`;
+            if(!groups[k]) groups[k] = [];
+            groups[k].push(p);
+        });
+        Object.keys(groups).sort().forEach(k => {
+            groups[k].sort((a,b) => a.sen - b.sen).forEach((p, i) => {
+                csv += `${p.current.base},${p.current.seat},${i+1},${p.sen},"${p.name}"\n`;
             });
-        }
+        });
+        download(csv, "BPL_Report.csv");
+    }
 
-        // --- CSV EXPORT FUNCTIONS ---
-        function downloadCSV(csvContent, fileName) {
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = fileName;
-            link.style.display = "none";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+    function exportLogs() {
+        let csv = "Loop,Sen,Name,From,To\n";
+        transLogs.forEach(l => csv += `${l.loop},${l.sen},"${l.name}",${l.from},${l.to}\n`);
+        download(csv, "Transaction_Log.csv");
+    }
 
-        function exportMovers() {
-            let csv = "Seniority,Name,Previous Position,Awarded Position\n";
-            latestRoster.filter(p => p.moved).forEach(p => {
-                csv += `${p.sen},"${p.name}",${p.originalBaseSeat.replace('-',' ')},${p.current.base} ${p.current.seat}\n`;
-            });
-            downloadCSV(csv, "awarded_pilots.csv");
-        }
-
-        function exportBPL() {
-            let csv = "Base,Seat,BPL Rank,Seniority,Name\n";
-            let bases = {};
-            latestRoster.forEach(p => {
-                let key = `${p.current.base}-${p.current.seat}`;
-                if (!bases[key]) bases[key] = [];
-                bases[key].push(p);
-            });
-            for (let key of Object.keys(bases).sort()) {
-                let [base, seat] = key.split('-');
-                let pilots = bases[key].sort((a,b) => a.sen - b.sen);
-                pilots.forEach((p, index) => {
-                    csv += `${base},${seat},${index + 1},${p.sen},"${p.name}"\n`;
-                });
-            }
-            downloadCSV(csv, "base_position_lists.csv");
-        }
-
-        function exportLogs() {
-            let csv = "Cascade Loop,Seniority,Name,Vacated Position,Awarded Position\n";
-            latestLogs.forEach(log => {
-                csv += `${log.loop},${log.sen},"${log.name}",${log.vacated.replace('-',' ')},${log.awarded.replace('-',' ')}\n`;
-            });
-            downloadCSV(csv, "transaction_log.csv");
-        }
-    </script>
+    function download(csv, name) {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+    }
+</script>
 </body>
 </html>
