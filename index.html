@@ -2,117 +2,168 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bid Control Center</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airline Bid Control Center</title>
+    <style>
+        :root { 
+            --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; 
+            --border: #30363d; --green: #3fb950; --red: #f85149; 
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        /* Configuration Header */
+        .config-card { background: var(--card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 15px; }
+        .cap-cell { display: flex; flex-direction: column; font-size: 0.75rem; }
+        .cap-cell label { color: var(--accent); margin-bottom: 4px; font-weight: bold; }
+        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: white; padding: 6px; border-radius: 4px; }
+
+        /* Toolbar */
+        .toolbar { display: flex; align-items: center; gap: 15px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .btn-run { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .search-input { background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 220px; }
+        #loadInfo { font-size: 0.85rem; font-weight: bold; }
+
+        /* Debug Trace Box */
+        .trace-box { background: #0d1117; border: 1px solid var(--accent); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 300px; overflow-y: auto; }
+        .trace-box h3 { margin-top: 0; color: var(--accent); font-size: 0.9rem; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .success { color: var(--green); margin-bottom: 4px; border-left: 3px solid var(--green); padding-left: 8px; }
+        .fail { color: var(--red); margin-bottom: 4px; border-left: 3px solid var(--red); padding-left: 8px; }
+
+        /* Results Table */
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .moved { color: var(--green); font-weight: bold; }
+        .match { color: var(--green); }
+        .mismatch { color: var(--red); font-weight: bold; }
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header-status">
-            <h2 id="statusTitle">Loading System...</h2>
-            <div id="capGrid" class="cap-grid"></div>
-        </div>
 
-        <div class="controls">
-            <button id="runBtn" class="btn-run">RUN POSITION BID</button>
-            <input type="number" id="trackInput" placeholder="Track Seniority #">
-            <span id="loadInfo" style="color: #4a9eff; margin-left: 10px;">Checking files...</span>
-        </div>
-
-        <div id="traceLog" class="trace-box hidden"></div>
-
-        <table id="mainTable">
-            <thead>
-                <tr><th>Sen</th><th>Name</th><th>Original</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+<div class="container">
+    <div class="config-card">
+        <h2 style="margin:0; font-size: 1.2rem;">Base Capacity Settings</h2>
+        <div id="capGrid" class="cap-grid">Loading Data...</div>
     </div>
 
-    <script src="engine.js"></script>
-    <script>
-        let store = {};
-        let answerKey = {};
+    <div class="toolbar">
+        <button id="runBtn" class="btn-run">RUN POSITION BID</button>
+        <input type="number" id="trackInput" class="search-input" placeholder="Track Seniority #">
+        <span id="loadInfo" style="color: #58a6ff;">Initializing...</span>
+    </div>
 
-        const setStatus = (msg, error = false) => {
-            const el = document.getElementById('loadInfo');
-            el.innerText = msg;
-            if (error) el.style.color = "#ff4d4d";
-        };
+    <div id="traceLog" class="trace-box hidden"></div>
 
-        window.onload = async () => {
-            // Updated to match your Repository file names (no .txt)
-            const files = [
-                'roster.json', 'preferences.json', 'capacities.json', 
-                'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'
-            ];
+    <table id="mainTable">
+        <thead>
+            <tr>
+                <th>Sen #</th>
+                <th>Pilot Name</th>
+                <th>Original</th>
+                <th>Awarded</th>
+                <th>Status</th>
+                <th>Company Validation</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
 
-            try {
-                const results = await Promise.all(files.map(async f => {
-                    const r = await fetch(f);
-                    if (!r.ok) throw new Error(`Missing: ${f}`);
-                    return f.endsWith('.csv') ? r.text() : r.json();
-                }));
+<script src="engine.js"></script>
+<script>
+    let store = {};
+    let answerKey = {};
 
-                store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-                
-                // Parse Answer Key
-                results[5].split('\n').forEach(line => {
-                    const p = line.split(',');
-                    if(p[1]) answerKey[p[1]] = p[5]?.replace(/"/g, '').trim();
-                });
+    const updateStatus = (msg, isErr = false) => {
+        const el = document.getElementById('loadInfo');
+        el.innerText = msg;
+        el.style.color = isErr ? "#f85149" : "#58a6ff";
+    };
 
-                setStatus("Files Loaded. Ready.");
-                document.getElementById('statusTitle').innerText = "System Configuration";
-                renderCapacities();
-            } catch (e) {
-                setStatus("CRITIAL ERROR: " + e.message, true);
-                console.error(e);
-            }
-        };
+    window.onload = async () => {
+        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'];
+        
+        try {
+            const results = await Promise.all(files.map(async f => {
+                const r = await fetch(f);
+                if (!r.ok) throw new Error(`Missing: ${f}`);
+                return f.endsWith('.csv') ? r.text() : r.json();
+            }));
 
-        function renderCapacities() {
-            document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-                <div class="cap-item">
-                    <label>${c.base} ${c.seat}</label>
-                    <input type="number" id="val-${c.base}-${c.seat}" value="${c.startCapacity + c.delta}">
-                </div>
-            `).join('');
-        }
-
-        document.getElementById('runBtn').onclick = () => {
-            if (!store.roster) return setStatus("Error: No data loaded.", true);
+            store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
             
-            setStatus("Running Bid...");
-            const trackSen = parseInt(document.getElementById('trackInput').value);
-            const caps = {};
-            store.caps.forEach(c => caps[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`val-${c.base}-${c.seat}`).value));
+            // Map Company Answer Key by Seniority
+            const csvLines = results[5].split('\n');
+            csvLines.forEach((line, idx) => {
+                if (idx === 0 || !line.trim()) return;
+                const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                if (cols.length >= 6) {
+                    const sen = cols[1].trim(); 
+                    answerKey[sen] = cols[5].replace(/"/g, '').trim(); 
+                }
+            });
 
-            try {
-                const result = runBidEngine(store, caps, trackSen);
-                
-                // Render Trace for iPad Debugging
-                const traceDiv = document.getElementById('traceLog');
-                traceDiv.innerHTML = result.trace.map(t => `<div class="${t.type}">${t.msg}</div>`).join('');
-                traceDiv.classList.toggle('hidden', !trackSen);
+            updateStatus("System Ready.");
+            renderCapacities();
+        } catch (e) {
+            updateStatus("Load Error: " + e.message, true);
+        }
+    };
 
-                // Render Table
-                document.getElementById('tableBody').innerHTML = result.roster.map(p => {
-                    const awarded = p.currentKey.replace('-', ' ');
-                    const keyAward = answerKey[p.sen] || "N/A";
-                    const match = keyAward.includes(awarded);
-                    return `<tr>
-                        <td>${p.sen}</td><td>${p.name}</td><td>${p.orig}</td>
-                        <td class="${p.moved?'moved':''}">${awarded}</td>
-                        <td>${p.moved?'AWARDED':'HELD'}</td>
-                        <td class="${match?'match':'mismatch'}">${match?'✓':'✗ '+keyAward}</td>
-                    </tr>`;
-                }).join('');
-                
-                setStatus(`Bid Finished: ${result.loops} cascades.`);
-            } catch (err) {
-                setStatus("RUN ERROR: " + err.message, true);
+    function renderCapacities() {
+        document.getElementById('capGrid').innerHTML = store.caps.map(c => `
+            <div class="cap-cell">
+                <label>${c.base} ${c.seat}</label>
+                <input type="number" id="inp-${c.base}-${c.seat}" value="${c.startCapacity + c.delta}">
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('runBtn').onclick = () => {
+        const trackSen = parseInt(document.getElementById('trackInput').value);
+        const caps = {};
+        store.caps.forEach(c => {
+            caps[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`inp-${c.base}-${c.seat}`).value);
+        });
+
+        try {
+            updateStatus("Processing Cascading Bid...");
+            const result = runBidEngine(store, caps, trackSen);
+            
+            // Trace Output
+            const traceDiv = document.getElementById('traceLog');
+            if (trackSen && result.trace.length > 0) {
+                traceDiv.classList.remove('hidden');
+                traceDiv.innerHTML = `<h3>Trace for Seniority #${trackSen}</h3>` + 
+                                     result.trace.map(t => `<div class="${t.type}">${t.msg}</div>`).join('');
+            } else {
+                traceDiv.classList.add('hidden');
             }
-        };
-    </script>
+
+            // Results Table
+            document.getElementById('tableBody').innerHTML = result.roster.map(p => {
+                const awarded = p.currentKey.replace('-', ' ');
+                const keyAward = answerKey[p.sen.toString()] || "No Key";
+                const match = keyAward !== "No Key" && keyAward.includes(awarded);
+
+                return `<tr>
+                    <td>${p.sen}</td>
+                    <td>${p.name}</td>
+                    <td>${p.orig.replace('-', ' ')}</td>
+                    <td class="${p.moved ? 'moved' : ''}">${awarded}</td>
+                    <td>${p.moved ? 'AWARDED' : 'HELD'}</td>
+                    <td class="${match ? 'match' : 'mismatch'}">${match ? '✓ Match' : (keyAward === "No Key" ? 'No Key' : '✗ ' + keyAward)}</td>
+                </tr>`;
+            }).join('');
+            
+            updateStatus(`Complete: ${result.loops} cascades.`);
+        } catch (err) {
+            updateStatus("Engine Error: " + err.message, true);
+        }
+    };
+</script>
 </body>
 </html>
