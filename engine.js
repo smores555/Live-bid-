@@ -1,28 +1,32 @@
 /**
- * AIRLINE BID ENGINE - BPL & Self-Displacement Logic
- * 1. Deduplicate: One pilot object per seniority number.
- * 2. Rank Calculation: Counts ALL pilots (Active, Retired, No-Bid) senior to the pilot.
- * 3. BPL Priority: Checks BPL even for the pilot's current seat.
- * 4. Exact Strings: Matches company "Denied" and "Awarded" messaging.
+ * AIRLINE BID ENGINE - Active-Only Rank Logic
+ * 1. Physical Occupancy: Bidders + No-Bids occupy seats. Retired do not.
+ * 2. Seniority Rank: Only Active Bidders more senior than the pilot are counted.
+ * 3. BPL Check: Performed before "Remain in Position" to allow self-displacement.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const auditTrail = [];
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // Identify all Retired/No-Bid positions for Rank math
-    const ghostPositions = {};
-    data.retired.forEach(p => ghostPositions[p.seniority] = `${p.base}-${p.seat}`);
-    data.noBid.forEach(p => ghostPositions[p.sen] = `${p.base}-${p.seat}`);
+    // 1. Map No-Bid pilots to their fixed seats (Occupancy)
+    const noBidOccupants = {};
+    data.noBid.forEach(p => noBidOccupants[p.sen] = `${p.base}-${p.seat}`);
 
-    // 1. Initialize Counts and Bidders
-    const rosterMap = new Map();
-    data.roster.forEach(p => { if (!rosterMap.has(p.sen)) rosterMap.set(p.sen, p); });
-
+    // 2. Initialize Current Occupancy (Physical Seats)
+    // Counts Bidders + No-Bids. Retired are excluded from the building.
     let currentCounts = {};
     data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
 
-    const bidders = Array.from(rosterMap.values())
+    // Initial count for No-Bids
+    for (let sen in noBidOccupants) {
+        const key = noBidOccupants[sen];
+        if (currentCounts[key] === undefined) currentCounts[key] = 0;
+        currentCounts[key]++;
+    }
+
+    // Initial count for Active Bidders
+    const bidders = data.roster
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
@@ -38,19 +42,15 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 2. Set Hard Targets
+    // 3. Set Hard Targets (Initial Bidders + Initial No-Bids + Delta)
     let targetMap = {};
     for (let key in currentCounts) {
         targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
-    }
-    for (let key in deltaMap) {
-        if (targetMap[key] === undefined) targetMap[key] = deltaMap[key];
     }
 
     let cascade = true;
     let loops = 0;
 
-    // 3. Cascade Engine
     while (cascade) {
         cascade = false;
         loops++;
@@ -63,33 +63,30 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
                 
-                // --- RANK CALCULATION (BPL IF AWARDED) ---
-                // Count ALL pilots (Bidders + Ghosts) more senior than 'p' in the 'targetKey'
+                // --- THE RANK CALCULATION (ACTIVE BIDDERS ONLY) ---
+                // "BPL if awarded" only counts other ACTIVE bidders senior to 'p'
                 let rank = 1;
-                // Count senior active bidders
                 for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
+                    if (other.sen >= p.sen) break; // Seniority limit reached
                     if (other.currentKey === targetKey) rank++;
                 }
-                // Count senior ghosts (Retired/No-Bid)
-                for (let senNum in ghostPositions) {
-                    if (parseInt(senNum) < p.sen && ghostPositions[senNum] === targetKey) rank++;
-                }
 
-                // --- BPL CHECK (Check even for current seat) ---
+                // Note: No-Bid and Retired pilots are completely ignored in this rank check.
+
+                // --- BPL CHECK ---
                 const reqBPL = parseInt(pr.bpl_min) || 0;
                 if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { 
                         status: "Denied", 
                         reason: `Bid request does not meet BPL requirement. Requested BPL = ${reqBPL}. BPL if awarded = ${rank}.` 
                     };
-                    continue; // Skip and check next preference
+                    continue; 
                 }
 
                 // --- REMAIN IN CURRENT POSITION ---
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: "Remain in current position." };
-                    break; 
+                    break;
                 }
 
                 // --- CAPACITY CHECK ---
@@ -128,7 +125,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             }
             if (cascade) break; 
         }
-        if (loops > 5000) break; // Lower safety limit for testing
+        if (loops > 10000) break;
     }
     return { roster: bidders, loops, auditTrail };
 }
