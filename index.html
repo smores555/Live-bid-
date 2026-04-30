@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Position Bid - Stable Validation</title>
+    <title>737 Bid Control - Sharp Yellow Audit</title>
     <style>
-        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; }
+        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
         .container { max-width: 1400px; margin: 0 auto; }
         .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
@@ -14,7 +14,13 @@
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .mismatch-box { background: #2a1215; border: 1px solid var(--red); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        
+        /* THE SHARP YELLOW BADGE */
+        .displaced-tag { background: var(--yellow); color: #0b0e14; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; margin-left: 8px; vertical-align: middle; box-shadow: 0 0 8px rgba(255, 211, 61, 0.2); }
+        
+        .mismatch-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .mismatch-active { border-color: var(--red); background: #2a1215; }
+        .mismatch-perfect { border-color: var(--green); background: #122a15; }
         .audit-box { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.8rem; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
@@ -29,26 +35,26 @@
 
 <div class="container">
     <div class="card">
-        <h3 style="margin:0">Set Deltas (Boeing 737)</h3>
+        <h3 style="margin:0">Position Deltas (Boeing 737)</h3>
         <div id="capGrid" class="cap-grid">Loading...</div>
     </div>
 
     <div id="validationBox" class="mismatch-box hidden">
-        <h4 style="color:#ff7b72; margin:0 0 10px 0;">⚠️ Validation Mismatches (<span id="errCount">0</span>)</h4>
+        <h4 id="validationTitle" style="margin:0 0 10px 0;">Validation Summary</h4>
         <div id="mismatchList" style="display:grid; gap:8px;"></div>
     </div>
 
     <div class="toolbar">
-        <button id="runBtn" class="btn">RUN POSITION BID</button>
+        <button id="runBtn" class="btn">RUN 737 POSITION BID</button>
         <span id="loadInfo" style="font-size:0.85rem; color:var(--accent);">Ready.</span>
         <div style="flex-grow: 1;"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:130px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn" style="background:#30363d;">PILOT LOOKUP</button>
     </div>
 
-    <div id="auditLog" class="audit-box">Seniority logs...</div>
+    <div id="auditLog" class="audit-box">Cascade logs...</div>
 
-    <table id="mainTable">
+    <table>
         <thead>
             <tr><th>Sen #</th><th>Pilot & Preference History</th><th>Original</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
         </thead>
@@ -57,25 +63,18 @@
 </div>
 
 <script>
-/**
- * THE REFINED 737 ENGINE
- */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
 
-    // Completely remove retired and no-bid pilots from the active list
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // Initialize counts for active bidders only
     let currentCounts = {};
     data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
 
     const rosterMap = new Map();
-    data.roster.forEach(p => {
-        if (!rosterMap.has(p.sen) && is737(p.current.seat)) rosterMap.set(p.sen, p);
-    });
+    data.roster.forEach(p => { if (!rosterMap.has(p.sen) && is737(p.current.seat)) rosterMap.set(p.sen, p); });
 
     const bidders = Array.from(rosterMap.values())
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
@@ -84,17 +83,14 @@ function runBidEngine(data, deltaMap) {
             currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
-                ...p, currentKey: key, orig: key, moved: false, moveCount: 0,
+                ...p, currentKey: key, orig: key, moved: false, isDisplaced: false,
                 prefHistory: {}, 
                 prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // Target Map: Initial active count + delta
     let targetMap = {};
-    for (let key in currentCounts) {
-        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
-    }
+    for (let key in currentCounts) { targetMap[key] = currentCounts[key] + (deltaMap[key] || 0); }
 
     let cascade = true;
     let loops = 0;
@@ -102,21 +98,16 @@ function runBidEngine(data, deltaMap) {
     while (cascade) {
         cascade = false;
         loops++;
-        if (loops > 2000) break; // Stability safety break
+        if (loops > 2000) break;
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            
-            // Stability: Stop pilots from ping-ponging between bases infinitely
-            if (p.moveCount > 50) continue;
-
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
                 
-                // Rank calculation (Standing among senior active bidders)
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
@@ -125,51 +116,33 @@ function runBidEngine(data, deltaMap) {
 
                 const limit = targetMap[targetKey] || 0;
                 const reqBPL = parseInt(pr.bpl_min) || 0;
-                const bplLog = `. BPL if awarded = ${rank}.`;
+                const bplLog = `. Rank: ${rank}.`;
 
-                // 1. BPL CHECK
                 if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail. Limit ${reqBPL}${bplLog}` };
                     continue; 
                 }
 
-                // 2. DISPLACEMENT CHECK (Crucial for Thumma #2285)
-                // If you are trying to remain in or move into a base where your rank is > the limit
                 if (rank > limit) {
-                    p.prefHistory[pr.order] = { 
-                        status: "Denied", 
-                        reason: `Displaced: Rank ${rank} exceeds capacity of ${limit}.` 
-                    };
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `Displaced: Rank ${rank} exceeds capacity of ${limit}.` };
+                    if (targetKey === p.currentKey) p.isDisplaced = true; 
                     continue; 
                 }
 
-                // 3. REMAIN IN POSITION
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in position${bplLog}` };
+                    p.isDisplaced = false; 
                     break;
                 }
 
-                // 4. MOVE TO VACANCY
                 const occ = currentCounts[targetKey] || 0;
                 if (occ < limit) {
                     const oldKey = p.currentKey;
-                    const oldV = (targetMap[oldKey] || 0) - currentCounts[oldKey];
-                    
                     currentCounts[oldKey]--; 
                     currentCounts[targetKey]++;
-                    
-                    p.prefHistory[pr.order] = { 
-                        status: "Awarded", 
-                        reason: `Awarded! Vacancy ${limit - (currentCounts[targetKey]-1)}->${limit - currentCounts[targetKey]}${bplLog}` 
-                    };
-
+                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy!${bplLog}` };
                     auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, vT: `${limit - (currentCounts[targetKey]-1)}->${limit - currentCounts[targetKey]}` });
-                    
-                    p.currentKey = targetKey;
-                    p.moved = true;
-                    p.moveCount++;
-                    cascade = true; // Restart from #1
-                    break; 
+                    p.currentKey = targetKey; p.moved = true; cascade = true; break; 
                 } else {
                     p.prefHistory[pr.order] = { status: "Denied", reason: `Full: 0 vacancies.` };
                 }
@@ -180,7 +153,7 @@ function runBidEngine(data, deltaMap) {
     return { roster: bidders, loops, auditTrail };
 }
 
-/** UI HELPERS **/
+/** UI LOGIC **/
 let store = {}; let answerKey = {}; let lastResults = [];
 
 function parseCSV(text) {
@@ -219,7 +192,10 @@ document.getElementById('runBtn').onclick = () => {
 };
 
 function renderMismatchAudit(roster) {
-    const list = document.getElementById('mismatchList'); let count = 0; let html = '';
+    const list = document.getElementById('mismatchList'); 
+    const box = document.getElementById('validationBox');
+    const title = document.getElementById('validationTitle');
+    let count = 0; let html = '';
     roster.forEach(p => {
         const awarded = p.currentKey.replace('-', ' ');
         const company = (answerKey[p.sen.toString()] || "No Key").trim();
@@ -229,9 +205,18 @@ function renderMismatchAudit(roster) {
             html += `<div style="background:#161b22; padding:8px; border-left:4px solid var(--red); font-size:0.8rem;">#${p.sen} ${p.name} | Engine: ${awarded} | Key: ${company}</div>`;
         }
     });
-    document.getElementById('errCount').innerText = count;
-    document.getElementById('validationBox').classList.toggle('hidden', count === 0);
-    list.innerHTML = html;
+    box.classList.remove('hidden');
+    if (count > 0) {
+        box.className = "mismatch-box mismatch-active";
+        title.innerText = `⚠️ Validation Mismatches (${count} Found)`;
+        title.style.color = "#ff7b72";
+        list.innerHTML = html;
+    } else {
+        box.className = "mismatch-box mismatch-perfect";
+        title.innerText = "✓ 100% Seniority Validation Passed";
+        title.style.color = "#3fb950";
+        list.innerHTML = '<div style="font-size:0.85rem; padding:10px;">All awarded seats match the company key exactly.</div>';
+    }
 }
 
 document.getElementById('lookupBtn').onclick = () => {
@@ -245,12 +230,13 @@ function renderTable(roster) {
         const company = answerKey[p.sen.toString()] || "No Key";
         const companyClean = company.replace(/^(737|73G|320|321)\s+/, '');
         const isMatch = company !== "No Key" && companyClean.includes(awarded);
+        const dispBadge = p.isDisplaced ? '<span class="displaced-tag">DISPLACED</span>' : '';
         let prefHtml = '';
         for (let order in (p.prefHistory || {})) {
             const h = p.prefHistory[order];
             prefHtml += `<div class="pref-item"><strong>Pref ${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}</div>`;
         }
-        return `<tr><td>${p.sen}</td><td style="width:50%;"><strong>${p.name}</strong>${prefHtml}</td><td>${p.orig.replace('-',' ')}</td><td style="color:${p.moved?'#3fb950':''}">${awarded}</td><td>${p.moved?'AWARDED':'HELD'}</td><td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td></tr>`;
+        return `<tr><td>${p.sen}</td><td style="width:50%;"><strong>${p.name}</strong>${dispBadge}${prefHtml}</td><td>${p.orig.replace('-',' ')}</td><td style="color:${p.moved?'#3fb950':''}">${awarded}</td><td>${p.moved?'AWARDED':'HELD'}</td><td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td></tr>`;
     }).join('');
 }
 </script>
