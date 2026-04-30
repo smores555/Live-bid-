@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Bid Control - Sharp Yellow Audit</title>
+    <title>737 Bid Control - Permanent Displacement Audit</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -16,7 +16,7 @@
         .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
         /* THE SHARP YELLOW BADGE */
-        .displaced-tag { background: var(--yellow); color: #0b0e14; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; margin-left: 8px; vertical-align: middle; box-shadow: 0 0 8px rgba(255, 211, 61, 0.2); }
+        .displaced-tag { background: var(--yellow); color: #0b0e14; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-left: 10px; vertical-align: middle; text-transform: uppercase; border: 1px solid #000; }
         
         .mismatch-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .mismatch-active { border-color: var(--red); background: #2a1215; }
@@ -54,7 +54,7 @@
 
     <div id="auditLog" class="audit-box">Cascade logs...</div>
 
-    <table>
+    <table id="mainTable">
         <thead>
             <tr><th>Sen #</th><th>Pilot & Preference History</th><th>Original</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
         </thead>
@@ -83,7 +83,7 @@ function runBidEngine(data, deltaMap) {
             currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
-                ...p, currentKey: key, orig: key, moved: false, isDisplaced: false,
+                ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, moveCount: 0,
                 prefHistory: {}, 
                 prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
@@ -102,6 +102,8 @@ function runBidEngine(data, deltaMap) {
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
+            if (p.moveCount > 50) continue;
+
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
@@ -125,13 +127,13 @@ function runBidEngine(data, deltaMap) {
 
                 if (rank > limit) {
                     p.prefHistory[pr.order] = { status: "Denied", reason: `Displaced: Rank ${rank} exceeds capacity of ${limit}.` };
-                    if (targetKey === p.currentKey) p.isDisplaced = true; 
+                    // If they are denied their ORIGINAL seat, mark them as displaced permanently
+                    if (targetKey === p.orig) p.wasDisplaced = true; 
                     continue; 
                 }
 
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in position${bplLog}` };
-                    p.isDisplaced = false; 
                     break;
                 }
 
@@ -142,7 +144,7 @@ function runBidEngine(data, deltaMap) {
                     currentCounts[targetKey]++;
                     p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy!${bplLog}` };
                     auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, vT: `${limit - (currentCounts[targetKey]-1)}->${limit - currentCounts[targetKey]}` });
-                    p.currentKey = targetKey; p.moved = true; cascade = true; break; 
+                    p.currentKey = targetKey; p.moved = true; p.moveCount++; cascade = true; break; 
                 } else {
                     p.prefHistory[pr.order] = { status: "Denied", reason: `Full: 0 vacancies.` };
                 }
@@ -230,7 +232,7 @@ function renderTable(roster) {
         const company = answerKey[p.sen.toString()] || "No Key";
         const companyClean = company.replace(/^(737|73G|320|321)\s+/, '');
         const isMatch = company !== "No Key" && companyClean.includes(awarded);
-        const dispBadge = p.isDisplaced ? '<span class="displaced-tag">DISPLACED</span>' : '';
+        const dispBadge = p.wasDisplaced ? '<span class="displaced-tag">DISPLACED</span>' : '';
         let prefHtml = '';
         for (let order in (p.prefHistory || {})) {
             const h = p.prefHistory[order];
