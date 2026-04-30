@@ -1,13 +1,21 @@
 /**
- * AIRLINE BID ENGINE - Stability & BPL Fix
- * Prevents "Ping-Pong" loops (like Pilot #108) and exacts Company Phrasing.
+ * AIRLINE BID ENGINE - BPL & Self-Displacement Logic
+ * 1. Deduplicate: One pilot object per seniority number.
+ * 2. Rank Calculation: Counts ALL pilots (Active, Retired, No-Bid) senior to the pilot.
+ * 3. BPL Priority: Checks BPL even for the pilot's current seat.
+ * 4. Exact Strings: Matches company "Denied" and "Awarded" messaging.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const auditTrail = [];
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // 1. Deduplicate & Initialize
+    // Identify all Retired/No-Bid positions for Rank math
+    const ghostPositions = {};
+    data.retired.forEach(p => ghostPositions[p.seniority] = `${p.base}-${p.seat}`);
+    data.noBid.forEach(p => ghostPositions[p.sen] = `${p.base}-${p.seat}`);
+
+    // 1. Initialize Counts and Bidders
     const rosterMap = new Map();
     data.roster.forEach(p => { if (!rosterMap.has(p.sen)) rosterMap.set(p.sen, p); });
 
@@ -21,12 +29,10 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             if (currentCounts[key] === undefined) currentCounts[key] = 0;
             currentCounts[key]++;
             
-            // Map preferences using "pil" + sen
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             
             return {
                 ...p, currentKey: key, orig: key, moved: false,
-                moveCount: 0, // Track moves to prevent infinite loops
                 prefHistory: {}, 
                 prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
@@ -51,39 +57,42 @@ function runBidEngine(data, deltaMap, trackSen = null) {
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
             
-            // Stability: If a pilot has swapped 50+ times, lock them to stop the glitch
-            if (p.moveCount > 50) continue; 
-
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
                 
-                // Calculate BPL Rank (Among more senior pilots)
+                // --- RANK CALCULATION (BPL IF AWARDED) ---
+                // Count ALL pilots (Bidders + Ghosts) more senior than 'p' in the 'targetKey'
                 let rank = 1;
+                // Count senior active bidders
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
                     if (other.currentKey === targetKey) rank++;
                 }
+                // Count senior ghosts (Retired/No-Bid)
+                for (let senNum in ghostPositions) {
+                    if (parseInt(senNum) < p.sen && ghostPositions[senNum] === targetKey) rank++;
+                }
 
-                // Check BPL (bpl_min)
+                // --- BPL CHECK (Check even for current seat) ---
                 const reqBPL = parseInt(pr.bpl_min) || 0;
                 if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { 
                         status: "Denied", 
                         reason: `Bid request does not meet BPL requirement. Requested BPL = ${reqBPL}. BPL if awarded = ${rank}.` 
                     };
-                    continue; 
+                    continue; // Skip and check next preference
                 }
 
-                // Remain in current position
+                // --- REMAIN IN CURRENT POSITION ---
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: "Remain in current position." };
-                    break;
+                    break; 
                 }
 
-                // Capacity Check
+                // --- CAPACITY CHECK ---
                 const currentOcc = currentCounts[targetKey] || 0;
                 const limit = targetMap[targetKey] || 0;
                 const targetVacancies = limit - currentOcc;
@@ -108,7 +117,6 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                     
                     p.currentKey = targetKey;
                     p.moved = true;
-                    p.moveCount++;
                     cascade = true; 
                     break; 
                 } else {
@@ -120,7 +128,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             }
             if (cascade) break; 
         }
-        if (loops > 10000) break;
+        if (loops > 5000) break; // Lower safety limit for testing
     }
     return { roster: bidders, loops, auditTrail };
 }
