@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bid Control Center - Displacement Logic</title>
+    <title>Bid Control Center - Target-State Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
@@ -16,9 +16,10 @@
         .toolbar { display: flex; align-items: center; gap: 15px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .btn-run { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .search-input { background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 220px; }
-        .trace-box { background: #0d1117; border: 1px solid var(--accent); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 300px; overflow-y: auto; }
+        .trace-box { background: #0d1117; border: 1px solid var(--accent); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
         .success { color: var(--green); border-left: 4px solid var(--green); padding-left: 10px; margin-bottom: 4px; }
         .fail { color: var(--red); border-left: 4px solid var(--red); padding-left: 10px; margin-bottom: 4px; }
+        .info { color: var(--accent); margin-bottom: 4px; border-left: 4px solid var(--accent); padding-left: 10px; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
@@ -31,7 +32,7 @@
 <body>
 <div class="container">
     <div class="config-card">
-        <h3 style="margin:0">Position Deltas (Hard Target Budgeting)</h3>
+        <h3 style="margin:0">Hard Target Deltas (e.g., SAN CA: 85)</h3>
         <div id="capGrid" class="cap-grid">Loading Data...</div>
     </div>
     <div class="toolbar">
@@ -42,7 +43,7 @@
     <div id="traceLog" class="trace-box hidden"></div>
     <table id="mainTable">
         <thead>
-            <tr><th>Sen #</th><th>Name</th><th>Previous</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
+            <tr><th>Sen #</th><th>Pilot Name</th><th>Previous</th><th>Awarded</th><th>Status</th><th>Company Validation</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
@@ -53,7 +54,6 @@
     let store = {};
     let answerKey = {};
 
-    // State-Machine Parser to handle names with commas correctly
     function parseCSV(text) {
         const rows = [];
         let currentRow = [];
@@ -98,19 +98,21 @@
 
             store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
             
-            // Map Company Answer Key by Seniority Column (Index 1)
             const rows = parseCSV(results[5]);
             let keysFound = 0;
             rows.forEach((cols, idx) => {
-                if (idx === 0) return; // Header
+                if (idx === 0) return;
                 if (cols.length >= 6) {
                     const sen = cols[1].trim(); 
                     const award = cols[5].trim(); 
-                    if (sen) { answerKey[sen] = award; keysFound++; }
+                    if (sen) {
+                        answerKey[sen] = award;
+                        keysFound++;
+                    }
                 }
             });
 
-            updateStatus(`System Ready (${keysFound} keys matched).`);
+            updateStatus(`System Ready (${keysFound} validation keys loaded).`);
             renderCapacities();
         } catch (e) { updateStatus("Load Error: " + e.message, true); }
     };
