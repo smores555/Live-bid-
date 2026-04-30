@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <title>Airline Bid Control Center - Validation Mode</title>
     <style>
-        :root { --bg: #0f111a; --card: #1a1d2e; --text: #e6e6e6; --accent: #4a9eff; --border: #2d324d; --green: #4ade80; --red: #ff4d4d; }
+        :root { 
+            --bg: #0f111a; --card: #1a1d2e; --text: #e6e6e6; --accent: #4a9eff; 
+            --border: #2d324d; --green: #4ade80; --red: #ff4d4d; 
+        }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
         
@@ -27,6 +30,13 @@
         th { background: #242942; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
         
+        /* Trace Log Styling */
+        .trace-container { background: #1a1d2e; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 400px; overflow-y: auto; }
+        .trace-entry { margin-bottom: 8px; border-left: 3px solid #444; padding-left: 10px; line-height: 1.4; }
+        .trace-fail { color: var(--red); border-left-color: var(--red); }
+        .trace-success { color: var(--green); border-left-color: var(--green); }
+        .trace-header { color: var(--accent); font-weight: bold; margin-bottom: 10px; display: block; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+
         .moved-text { color: var(--green); font-weight: bold; }
         .match-yes { color: var(--green); font-weight: bold; }
         .match-no { color: var(--red); font-weight: bold; }
@@ -39,7 +49,7 @@
 <div class="container">
     <div class="config-header">
         <h2 style="margin:0">System Configuration & Validation</h2>
-        <p style="font-size: 0.8rem; color: #888;">Ensure your official answer key CSV is named <b>answer_key.csv</b> and uploaded to the repository.</p>
+        <p style="font-size: 0.8rem; color: #888;">Ensure your official answer key CSV is named <b>answer_key.csv</b>.</p>
         <div id="capacityGrid" class="capacity-grid">Loading configuration...</div>
     </div>
 
@@ -51,8 +61,13 @@
         <div>
             <button onclick="exportCSV('bpl')" class="btn btn-export">BPL REPORT</button>
             <button onclick="exportCSV('log')" class="btn btn-export">TRANS LOG</button>
-            <input type="text" id="search" class="search-box" placeholder="Enter Seniority # then hit Enter">
+            <input type="text" id="search" class="search-box" placeholder="Enter Sen # to Track & Filter">
         </div>
+    </div>
+
+    <div id="traceLog" class="hidden trace-container">
+        <span class="trace-header">LOGIC TRACE: SENIORITY #<span id="traceSenDisplay"></span></span>
+        <div id="traceEntries"></div>
     </div>
 
     <table id="resultsTable" class="hidden">
@@ -71,22 +86,15 @@
 </div>
 
 <script>
-    let dataStore = {}; 
+    let dataStore = {};
     let finalRoster = [];
     let logs = [];
-    let answerKey = null; // Will store our parsed CSV data
+    let answerKey = null;
 
-    // --- Optimized Fetch including the Answer Key ---
     window.onload = async () => {
-        const files = [
-            'roster.json', 'preferences.json', 'capacities.json', 
-            'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'
-        ];
-        
+        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'];
         try {
-            // Fetch everything concurrently
             const responses = await Promise.all(files.map(f => fetch(f)));
-            
             dataStore = { 
                 roster: await responses[0].json(), 
                 prefs: await responses[1].json(), 
@@ -94,45 +102,29 @@
                 retired: await responses[3].json(), 
                 noBid: await responses[4].json() 
             };
-            
-            // Check if Answer Key loaded successfully
             if (responses[5].ok) {
                 const csvText = await responses[5].text();
                 parseAnswerKey(csvText);
-            } else {
-                console.warn("answer_key.csv not found in repository. Validation column will be empty.");
             }
-
             renderCapacities();
-        } catch (e) { alert("Fetch error. Ensure all files (including answer_key.csv) are in the repository."); }
+        } catch (e) { alert("Fetch error. Ensure all files are in the repository."); }
     };
 
-    // --- CSV PARSER LOGIC ---
     function parseAnswerKey(text) {
         answerKey = {};
         const lines = text.split('\n');
-        
         for (let i = 1; i < lines.length; i++) {
             if (!lines[i].trim()) continue;
-            
-            // This Regex splits by comma, but ignores commas inside quotes (like "LAST, FIRST")
             const cols = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            
             if (cols.length >= 3) {
                 const sen = parseInt(cols[0]);
-                const finalAward = cols[2].replace(/"/g, '').trim(); // e.g., "737 SEA CA"
-                
-                // Extract just Base and Seat (Ignore the "737")
+                const finalAward = cols[2].replace(/"/g, '').trim();
                 const parts = finalAward.split(' ');
-                if (parts.length >= 3) {
-                    answerKey[sen] = `${parts[1]} ${parts[2]}`; // Stores "SEA CA"
-                }
+                if (parts.length >= 3) answerKey[sen] = `${parts[1]} ${parts[2]}`;
             }
         }
-        console.log(`Successfully loaded ${Object.keys(answerKey).length} validation answers.`);
     }
 
-    // --- RENDER CAPACITIES UI ---
     function renderCapacities() {
         const grid = document.getElementById('capacityGrid');
         grid.innerHTML = dataStore.caps.map((c, i) => `
@@ -152,20 +144,23 @@
         document.getElementById(`total-${i}`).value = start + delta;
     }
 
-    // --- Search on Enter ---
-    document.getElementById('search').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const val = e.target.value;
-            const rows = document.querySelectorAll('#tbody tr');
-            rows.forEach(r => r.style.display = r.cells[0].innerText === val || val === "" ? '' : 'none');
-        }
-    });
-
-    // --- Optimized Engine ---
     document.getElementById('runBtn').addEventListener('click', () => {
         const status = document.getElementById('status-msg');
+        const searchBox = document.getElementById('search');
+        const trackSen = searchBox.value ? parseInt(searchBox.value) : null;
+        const traceLog = document.getElementById('traceLog');
+        const traceEntries = document.getElementById('traceEntries');
+
         status.innerText = "Processing...";
         
+        if (trackSen) {
+            traceLog.classList.remove('hidden');
+            document.getElementById('traceSenDisplay').innerText = trackSen;
+            traceEntries.innerHTML = ""; 
+        } else {
+            traceLog.classList.add('hidden');
+        }
+
         setTimeout(() => {
             const capMap = {};
             dataStore.caps.forEach((c, i) => {
@@ -181,17 +176,12 @@
                 .map(p => {
                     const key = `${p.current.base}-${p.current.seat}`;
                     counts[key] = (counts[key] || 0) + 1;
-                    return { 
-                        ...p, 
-                        orig: key, 
-                        moved: false,
-                        prefs: (dataStore.prefs[p.id]?.preferences || []).sort((a,b) => a.order - b.order)
-                    };
+                    return { ...p, orig: key, moved: false, 
+                             prefs: (dataStore.prefs[p.id]?.preferences || []).sort((a,b) => a.order - b.order) };
                 });
 
             pilots.sort((a, b) => a.sen - b.sen);
             logs = [];
-
             let cascade = true;
             let loops = 0;
 
@@ -207,13 +197,27 @@
                         const targetKey = pr.bid.split(" ").slice(1).join("-"); 
                         if (targetKey === curKey) break;
 
+                        let logMsg = "";
+                        if (p.sen === trackSen) {
+                            logMsg = `<b>Pref ${pr.order}</b>: ${pr.bid} | Occupied: ${counts[targetKey] || 0} / Cap: ${capMap[targetKey] || 0}`;
+                        }
+
                         if ((counts[targetKey] || 0) < (capMap[targetKey] || 0)) {
                             let rank = 1;
                             for(let j=0; j<i; j++) {
                                 if(`${pilots[j].current.base}-${pilots[j].current.seat}` === targetKey) rank++;
                             }
                             
-                            if (pr.bpl_min > 0 && rank > pr.bpl_min) continue;
+                            if (pr.bpl_min > 0 && rank > pr.bpl_min) {
+                                if (p.sen === trackSen) {
+                                    traceEntries.innerHTML += `<div class="trace-entry trace-fail">${logMsg}<br>❌ REJECTED: BPL Violation (Rank ${rank} > Limit ${pr.bpl_min})</div>`;
+                                }
+                                continue;
+                            }
+
+                            if (p.sen === trackSen) {
+                                traceEntries.innerHTML += `<div class="trace-entry trace-success">${logMsg}<br>✅ AWARDED! (Assigned Rank: ${rank})</div>`;
+                            }
 
                             counts[curKey]--;
                             counts[targetKey] = (counts[targetKey] || 0) + 1;
@@ -222,7 +226,11 @@
                             p.current.base = parts[1]; p.current.seat = parts[2];
                             p.moved = true;
                             cascade = true;
-                            break; 
+                            break;
+                        } else {
+                            if (p.sen === trackSen) {
+                                traceEntries.innerHTML += `<div class="trace-entry trace-fail">${logMsg}<br>❌ REJECTED: Position Full.</div>`;
+                            }
                         }
                     }
                     if (cascade) break;
@@ -230,47 +238,38 @@
             }
 
             finalRoster = pilots;
-            renderTable(pilots);
+            renderTable(pilots, trackSen);
             status.innerText = `Complete! (${loops} loops)`;
             document.getElementById('resultsTable').classList.remove('hidden');
         }, 50);
     });
 
-    // --- RENDER TABLE WITH VALIDATION CHECK ---
-    function renderTable(data) {
-        document.getElementById('tbody').innerHTML = data.map(p => {
-            
-            let validationHtml = `<td style="color: #666;">No Key Data</td>`;
-            const engineAward = `${p.current.base} ${p.current.seat}`;
-            
-            // Compare Engine Result against Answer Key
-            if (answerKey && answerKey[p.sen]) {
-                const companyExpected = answerKey[p.sen];
-                if (companyExpected === engineAward) {
-                    validationHtml = `<td class="match-yes">✅ Match</td>`;
-                } else {
-                    validationHtml = `<td class="match-no">❌ Expected: ${companyExpected}</td>`;
+    function renderTable(data, filterSen) {
+        document.getElementById('tbody').innerHTML = data
+            .filter(p => !filterSen || p.sen === filterSen)
+            .map(p => {
+                let validationHtml = `<td style="color: #666;">No Key</td>`;
+                const engineAward = `${p.current.base} ${p.current.seat}`;
+                if (answerKey && answerKey[p.sen]) {
+                    const expected = answerKey[p.sen];
+                    validationHtml = expected === engineAward ? 
+                        `<td class="match-yes">✅ Match</td>` : `<td class="match-no">❌ Expected: ${expected}</td>`;
                 }
-            }
-
-            return `
-            <tr>
-                <td>${p.sen}</td>
-                <td>${p.name}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
-                <td class="${p.moved ? 'moved-text' : ''}">${engineAward}</td>
-                <td class="${p.moved ? 'moved-text' : ''}">${p.moved ? 'AWARDED' : 'HELD'}</td>
-                ${validationHtml}
-            </tr>
-            `;
-        }).join('');
+                return `
+                <tr>
+                    <td>${p.sen}</td>
+                    <td>${p.name}</td>
+                    <td>${p.orig.replace('-', ' ')}</td>
+                    <td class="${p.moved ? 'moved-text' : ''}">${engineAward}</td>
+                    <td class="${p.moved ? 'moved-text' : ''}">${p.moved ? 'AWARDED' : 'HELD'}</td>
+                    ${validationHtml}
+                </tr>`;
+            }).join('');
     }
 
     function exportCSV(type) {
-        // [Existing CSV Export Code]
-        let csv = "";
+        let csv = type === 'bpl' ? "Base,Seat,Rank,Sen,Name\n" : "Loop,Sen,Name,From,To\n";
         if (type === 'bpl') {
-            csv = "Base,Seat,Rank,Sen,Name\n";
             let groups = {};
             finalRoster.forEach(p => {
                 const k = `${p.current.base}-${p.current.seat}`;
@@ -283,12 +282,10 @@
                 });
             });
         } else {
-            csv = "Loop,Sen,Name,From,To\n";
             logs.forEach(l => csv += `${l.loop},${l.sen},"${l.name}",${l.from},${l.to}\n`);
         }
-        const blob = new Blob([csv], { type: 'text/csv' });
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
         a.download = `${type}_export.csv`;
         a.click();
     }
