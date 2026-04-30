@@ -2,293 +2,112 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Airline Bid Control Center - Validation Mode</title>
-    <style>
-        :root { 
-            --bg: #0f111a; --card: #1a1d2e; --text: #e6e6e6; --accent: #4a9eff; 
-            --border: #2d324d; --green: #4ade80; --red: #ff4d4d; 
-        }
-        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        
-        .config-header { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .capacity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
-        .cap-card { background: #242942; padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
-        .cap-card h4 { margin: 0 0 10px 0; font-size: 0.9rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
-        .cap-inputs { display: flex; gap: 8px; }
-        .cap-inputs div { flex: 1; }
-        .cap-inputs label { font-size: 0.7rem; color: #8b92b7; display: block; }
-        .cap-inputs input { width: 100%; background: #0f111a; border: 1px solid var(--border); color: white; padding: 5px; border-radius: 4px; box-sizing: border-box; }
-
-        .action-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border); }
-        .btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-run { background: var(--accent); color: white; }
-        .btn-export { background: #2d324d; color: white; margin-left: 5px; }
-        .search-box { background: #0f111a; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 300px; }
-
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
-        th { background: #242942; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
-        td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-        
-        /* Trace Log Styling */
-        .trace-container { background: #1a1d2e; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; margin-bottom: 20px; font-family: monospace; font-size: 0.85rem; max-height: 400px; overflow-y: auto; }
-        .trace-entry { margin-bottom: 8px; border-left: 3px solid #444; padding-left: 10px; line-height: 1.4; }
-        .trace-fail { color: var(--red); border-left-color: var(--red); }
-        .trace-success { color: var(--green); border-left-color: var(--green); }
-        .trace-header { color: var(--accent); font-weight: bold; margin-bottom: 10px; display: block; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
-
-        .moved-text { color: var(--green); font-weight: bold; }
-        .match-yes { color: var(--green); font-weight: bold; }
-        .match-no { color: var(--red); font-weight: bold; }
-        .hidden { display: none !important; }
-        #status-msg { color: var(--accent); font-weight: bold; margin-left: 15px; }
-    </style>
+    <title>Bid Control Center</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <div class="config-header">
-        <h2 style="margin:0">System Configuration & Validation</h2>
-        <p style="font-size: 0.8rem; color: #888;">Ensure your official answer key CSV is named <b>answer_key.csv</b>.</p>
-        <div id="capacityGrid" class="capacity-grid">Loading configuration...</div>
+    <div class="header-card">
+        <h2>Airline Cascading Bid Engine</h2>
+        <div id="capacityGrid" class="grid"></div>
     </div>
 
-    <div class="action-bar">
-        <div>
-            <button id="runBtn" class="btn btn-run">RUN POSITION BID</button>
-            <span id="status-msg"></span>
-        </div>
-        <div>
-            <button onclick="exportCSV('bpl')" class="btn btn-export">BPL REPORT</button>
-            <button onclick="exportCSV('log')" class="btn btn-export">TRANS LOG</button>
-            <input type="text" id="search" class="search-box" placeholder="Enter Sen # to Track & Filter">
-        </div>
+    <div class="actions">
+        <button id="runBtn" class="btn-primary">RUN CASCADING BID</button>
+        <input type="text" id="search" placeholder="Track Seniority #">
+        <span id="status">Ready</span>
     </div>
 
-    <div id="traceLog" class="hidden trace-container">
-        <span class="trace-header">LOGIC TRACE: SENIORITY #<span id="traceSenDisplay"></span></span>
-        <div id="traceEntries"></div>
-    </div>
+    <div id="debugTrace" class="trace-box hidden"></div>
 
-    <table id="resultsTable" class="hidden">
+    <table id="results">
         <thead>
             <tr>
                 <th>Sen #</th>
-                <th>Pilot Name</th>
-                <th>Previous</th>
+                <th>Name</th>
+                <th>Original</th>
                 <th>Awarded</th>
-                <th>Status</th>
-                <th>Company Validation</th>
+                <th>Validation</th>
             </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="resultsBody"></tbody>
     </table>
 </div>
 
+<script src="engine.js"></script>
 <script>
-    let dataStore = {};
-    let finalRoster = [];
-    let logs = [];
-    let answerKey = null;
+    let rawData = {};
+    let answerKey = {};
 
     window.onload = async () => {
-        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'];
-        try {
-            const responses = await Promise.all(files.map(f => fetch(f)));
-            dataStore = { 
-                roster: await responses[0].json(), 
-                prefs: await responses[1].json(), 
-                caps: await responses[2].json(), 
-                retired: await responses[3].json(), 
-                noBid: await responses[4].json() 
-            };
-            if (responses[5].ok) {
-                const csvText = await responses[5].text();
-                parseAnswerKey(csvText);
-            }
-            renderCapacities();
-        } catch (e) { alert("Fetch error. Ensure all files are in the repository."); }
+        // Load your JSON/CSV files here
+        const files = ['roster.json.txt', 'preferences.json.txt', 'capacities.json.txt', 'retired_pilots.json.txt', 'nobidpilots.json.txt', 'answer_key.csv'];
+        const res = await Promise.all(files.map(f => fetch(f)));
+        
+        rawData = {
+            roster: await res[0].json(),
+            prefs: await res[1].json(),
+            caps: await res[2].json(),
+            retired: await res[3].json(),
+            noBid: await res[4].json()
+        };
+
+        // Parse Answer Key for validation
+        const csv = await res[5].text();
+        csv.split('\n').slice(1).forEach(line => {
+            const cols = line.split(',');
+            if(cols[0]) answerKey[cols[0]] = cols[2]?.replace(/"/g, '').trim();
+        });
+
+        renderCaps();
     };
 
-    function parseAnswerKey(text) {
-        answerKey = {};
-        const lines = text.split('\n');
-        for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            const cols = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            if (cols.length >= 3) {
-                const sen = parseInt(cols[0]);
-                const finalAward = cols[2].replace(/"/g, '').trim();
-                const parts = finalAward.split(' ');
-                if (parts.length >= 3) answerKey[sen] = `${parts[1]} ${parts[2]}`;
-            }
-        }
-    }
-
-    function renderCapacities() {
-        const grid = document.getElementById('capacityGrid');
-        grid.innerHTML = dataStore.caps.map((c, i) => `
-            <div class="cap-card">
-                <h4>${c.base} ${c.seat}</h4>
-                <div class="cap-inputs">
-                    <div><label>Start</label><input type="number" value="${c.startCapacity}" disabled></div>
-                    <div><label>Delta</label><input type="number" id="delta-${i}" value="${c.delta}" oninput="updateTotal(${i}, ${c.startCapacity})"></div>
-                    <div><label>Total</label><input type="number" id="total-${i}" value="${c.startCapacity + c.delta}" disabled style="color:var(--accent)"></div>
-                </div>
+    function renderCaps() {
+        const container = document.getElementById('capacityGrid');
+        container.innerHTML = rawData.caps.map((c, i) => `
+            <div class="cap-item">
+                <label>${c.base} ${c.seat}</label>
+                <input type="number" id="cap-${c.base}-${c.seat}" value="${c.startCapacity + c.delta}">
             </div>
         `).join('');
     }
 
-    function updateTotal(i, start) {
-        const delta = parseInt(document.getElementById(`delta-${i}`).value) || 0;
-        document.getElementById(`total-${i}`).value = start + delta;
-    }
+    document.getElementById('runBtn').onclick = () => {
+        const trackSen = parseInt(document.getElementById('search').value);
+        const caps = {};
+        rawData.caps.forEach(c => {
+            caps[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`cap-${c.base}-${c.seat}`).value);
+        });
 
-    document.getElementById('runBtn').addEventListener('click', () => {
-        const status = document.getElementById('status-msg');
-        const searchBox = document.getElementById('search');
-        const trackSen = searchBox.value ? parseInt(searchBox.value) : null;
-        const traceLog = document.getElementById('traceLog');
-        const traceEntries = document.getElementById('traceEntries');
-
-        status.innerText = "Processing...";
+        const result = runBidEngine(rawData, caps, trackSen);
         
-        if (trackSen) {
-            traceLog.classList.remove('hidden');
-            document.getElementById('traceSenDisplay').innerText = trackSen;
-            traceEntries.innerHTML = ""; 
-        } else {
-            traceLog.classList.add('hidden');
+        // Render Trace
+        const traceBox = document.getElementById('debugTrace');
+        if (trackSen && result.trace.length > 0) {
+            traceBox.classList.remove('hidden');
+            traceBox.innerHTML = `<h3>Trace for Sen #${trackSen}</h3>` + 
+                result.trace.map(t => `<div class="t-${t.status}">${t.msg}</div>`).join('');
         }
 
-        setTimeout(() => {
-            const capMap = {};
-            dataStore.caps.forEach((c, i) => {
-                capMap[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`total-${i}`).value);
-            });
-
-            const retiredSet = new Set(dataStore.retired.map(p => p.seniority));
-            const noBidSet = new Set(dataStore.noBid.map(p => p.sen));
-
-            let counts = {}; 
-            let pilots = dataStore.roster
-                .filter(p => !retiredSet.has(p.sen) && !noBidSet.has(p.sen))
-                .map(p => {
-                    const key = `${p.current.base}-${p.current.seat}`;
-                    counts[key] = (counts[key] || 0) + 1;
-                    return { ...p, orig: key, moved: false, 
-                             prefs: (dataStore.prefs[p.id]?.preferences || []).sort((a,b) => a.order - b.order) };
-                });
-
-            pilots.sort((a, b) => a.sen - b.sen);
-            logs = [];
-            let cascade = true;
-            let loops = 0;
-
-            while (cascade) {
-                cascade = false;
-                loops++;
-                for (let i = 0; i < pilots.length; i++) {
-                    const p = pilots[i];
-                    const curKey = `${p.current.base}-${p.current.seat}`;
-
-                    for (const pr of p.prefs) {
-                        if (!pr.bid) continue;
-                        const targetKey = pr.bid.split(" ").slice(1).join("-"); 
-                        if (targetKey === curKey) break;
-
-                        let logMsg = "";
-                        if (p.sen === trackSen) {
-                            logMsg = `<b>Pref ${pr.order}</b>: ${pr.bid} | Occupied: ${counts[targetKey] || 0} / Cap: ${capMap[targetKey] || 0}`;
-                        }
-
-                        if ((counts[targetKey] || 0) < (capMap[targetKey] || 0)) {
-                            let rank = 1;
-                            for(let j=0; j<i; j++) {
-                                if(`${pilots[j].current.base}-${pilots[j].current.seat}` === targetKey) rank++;
-                            }
-                            
-                            if (pr.bpl_min > 0 && rank > pr.bpl_min) {
-                                if (p.sen === trackSen) {
-                                    traceEntries.innerHTML += `<div class="trace-entry trace-fail">${logMsg}<br>❌ REJECTED: BPL Violation (Rank ${rank} > Limit ${pr.bpl_min})</div>`;
-                                }
-                                continue;
-                            }
-
-                            if (p.sen === trackSen) {
-                                traceEntries.innerHTML += `<div class="trace-entry trace-success">${logMsg}<br>✅ AWARDED! (Assigned Rank: ${rank})</div>`;
-                            }
-
-                            counts[curKey]--;
-                            counts[targetKey] = (counts[targetKey] || 0) + 1;
-                            logs.push({ loop: loops, sen: p.sen, name: p.name, from: curKey, to: targetKey });
-                            const parts = pr.bid.split(" ");
-                            p.current.base = parts[1]; p.current.seat = parts[2];
-                            p.moved = true;
-                            cascade = true;
-                            break;
-                        } else {
-                            if (p.sen === trackSen) {
-                                traceEntries.innerHTML += `<div class="trace-entry trace-fail">${logMsg}<br>❌ REJECTED: Position Full.</div>`;
-                            }
-                        }
-                    }
-                    if (cascade) break;
-                }
-            }
-
-            finalRoster = pilots;
-            renderTable(pilots, trackSen);
-            status.innerText = `Complete! (${loops} loops)`;
-            document.getElementById('resultsTable').classList.remove('hidden');
-        }, 50);
-    });
-
-    function renderTable(data, filterSen) {
-        document.getElementById('tbody').innerHTML = data
-            .filter(p => !filterSen || p.sen === filterSen)
-            .map(p => {
-                let validationHtml = `<td style="color: #666;">No Key</td>`;
-                const engineAward = `${p.current.base} ${p.current.seat}`;
-                if (answerKey && answerKey[p.sen]) {
-                    const expected = answerKey[p.sen];
-                    validationHtml = expected === engineAward ? 
-                        `<td class="match-yes">✅ Match</td>` : `<td class="match-no">❌ Expected: ${expected}</td>`;
-                }
-                return `
+        // Render Table
+        document.getElementById('resultsBody').innerHTML = result.roster.map(p => {
+            const awarded = p.currentKey.replace('-', ' ');
+            const expected = answerKey[p.sen] || "N/A";
+            const match = expected.includes(awarded);
+            return `
                 <tr>
                     <td>${p.sen}</td>
                     <td>${p.name}</td>
-                    <td>${p.orig.replace('-', ' ')}</td>
-                    <td class="${p.moved ? 'moved-text' : ''}">${engineAward}</td>
-                    <td class="${p.moved ? 'moved-text' : ''}">${p.moved ? 'AWARDED' : 'HELD'}</td>
-                    ${validationHtml}
-                </tr>`;
-            }).join('');
-    }
-
-    function exportCSV(type) {
-        let csv = type === 'bpl' ? "Base,Seat,Rank,Sen,Name\n" : "Loop,Sen,Name,From,To\n";
-        if (type === 'bpl') {
-            let groups = {};
-            finalRoster.forEach(p => {
-                const k = `${p.current.base}-${p.current.seat}`;
-                if(!groups[k]) groups[k] = [];
-                groups[k].push(p);
-            });
-            Object.keys(groups).sort().forEach(k => {
-                groups[k].sort((a,b) => a.sen - b.sen).forEach((p, i) => {
-                    csv += `${p.current.base},${p.current.seat},${i+1},${p.sen},"${p.name}"\n`;
-                });
-            });
-        } else {
-            logs.forEach(l => csv += `${l.loop},${l.sen},"${l.name}",${l.from},${l.to}\n`);
-        }
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-        a.download = `${type}_export.csv`;
-        a.click();
-    }
+                    <td>${p.orig}</td>
+                    <td class="${p.moved ? 'moved' : ''}">${awarded}</td>
+                    <td class="${match ? 'match' : 'mismatch'}">${match ? '✓ Match' : '✗ ' + expected}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        document.getElementById('status').innerText = `Finished: ${result.loops} cascades`;
+    };
 </script>
 </body>
 </html>
