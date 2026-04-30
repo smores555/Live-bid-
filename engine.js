@@ -1,23 +1,18 @@
 /**
- * AIRLINE BID ENGINE - Exact Company Validation Logging
- * Fixes: Calculates Rank (more senior only) and checks BPL before Capacity.
+ * AIRLINE BID ENGINE - Stability & BPL Fix
+ * Prevents "Ping-Pong" loops (like Pilot #108) and exacts Company Phrasing.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const auditTrail = [];
-    
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // Deduplicate Roster
+    // 1. Deduplicate & Initialize
     const rosterMap = new Map();
-    data.roster.forEach(p => {
-        if (!rosterMap.has(p.sen)) rosterMap.set(p.sen, p);
-    });
+    data.roster.forEach(p => { if (!rosterMap.has(p.sen)) rosterMap.set(p.sen, p); });
 
     let currentCounts = {};
-    if (data.caps) {
-        data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
-    }
+    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
 
     const bidders = Array.from(rosterMap.values())
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
@@ -26,14 +21,18 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             if (currentCounts[key] === undefined) currentCounts[key] = 0;
             currentCounts[key]++;
             
+            // Map preferences using "pil" + sen
+            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+            
             return {
                 ...p, currentKey: key, orig: key, moved: false,
+                moveCount: 0, // Track moves to prevent infinite loops
                 prefHistory: {}, 
-                prefs: (data.prefs[p.id]?.preferences || []).sort((a, b) => a.order - b.order)
+                prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // Set Hard Targets
+    // 2. Set Hard Targets
     let targetMap = {};
     for (let key in currentCounts) {
         targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
@@ -45,60 +44,60 @@ function runBidEngine(data, deltaMap, trackSen = null) {
     let cascade = true;
     let loops = 0;
 
+    // 3. Cascade Engine
     while (cascade) {
         cascade = false;
         loops++;
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
             
+            // Stability: If a pilot has swapped 50+ times, lock them to stop the glitch
+            if (p.moveCount > 50) continue; 
+
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
                 
-                // 1. CALCULATE RANK ("BPL if awarded")
-                // Only count pilots who are MORE SENIOR than the current pilot
+                // Calculate BPL Rank (Among more senior pilots)
                 let rank = 1;
                 for (const other of bidders) {
-                    if (other.sen >= p.sen) break; // Stop checking when we reach our own seniority
+                    if (other.sen >= p.sen) break;
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                // 2. CHECK BPL FIRST (Catch "bpl", "bpl_min", or "BPL" from your JSON)
-                const reqBPL = parseInt(pr.bpl) || parseInt(pr.bpl_min) || parseInt(pr.BPL) || 0;
-                
+                // Check BPL (bpl_min)
+                const reqBPL = parseInt(pr.bpl_min) || 0;
                 if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { 
                         status: "Denied", 
                         reason: `Bid request does not meet BPL requirement. Requested BPL = ${reqBPL}. BPL if awarded = ${rank}.` 
                     };
-                    continue; // Move to the next preference immediately
+                    continue; 
                 }
 
-                // 3. REMAIN IN CURRENT POSITION (If BPL Passes)
+                // Remain in current position
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: "Remain in current position." };
-                    break; // Stop evaluating preferences
+                    break;
                 }
 
-                // 4. CAPACITY CHECK (Only checked if BPL passes)
+                // Capacity Check
                 const currentOcc = currentCounts[targetKey] || 0;
                 const limit = targetMap[targetKey] || 0;
                 const targetVacancies = limit - currentOcc;
 
                 if (currentOcc < limit) {
                     const oldBase = p.currentKey;
-                    const oldOcc = currentCounts[oldBase] || 0;
-                    const oldLimit = targetMap[oldBase] || 0;
-                    const oldVacancies = oldLimit - oldOcc;
+                    const oldVacancies = (targetMap[oldBase] || 0) - (currentCounts[oldBase] || 0);
 
                     currentCounts[oldBase]--; 
                     currentCounts[targetKey]++;
 
                     p.prefHistory[pr.order] = { 
                         status: "Awarded", 
-                        reason: `Open position available. Reduce vacancy in ${targetKey} from ${targetVacancies} to ${targetVacancies - 1}. Increase vacancy in ${oldBase} from ${oldVacancies} to ${oldVacancies + 1}. Proffered from Vacancy.` 
+                        reason: `Open position available. Reduce vacancy in ${targetKey} from ${targetVacancies} to ${targetVacancies - 1}. Increase vacancy in ${oldBase} from ${oldVacancies} to ${oldVacancies + 1}.` 
                     };
 
                     auditTrail.push({
@@ -109,6 +108,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                     
                     p.currentKey = targetKey;
                     p.moved = true;
+                    p.moveCount++;
                     cascade = true; 
                     break; 
                 } else {
