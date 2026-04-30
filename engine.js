@@ -1,10 +1,6 @@
 /**
  * AIRLINE DISPLACEMENT & TARGET-STATE ENGINE
- * 1. Dedup: Ensures each pilot is processed only once.
- * 2. Ghost Pilots: Filtered out; do not count toward Target Budget or Rank.
- * 3. Hard Target: Target Budget = (Initial Active Pilots) + (Delta).
- * 4. Displacement: Entry only allowed if Current Active Count < Target Budget.
- * 5. Cascade: Restart from Pilot #1 on every successful award.
+ * Fixed: NaN initialization bug and SAN-CA overfill.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const logs = [];
@@ -13,60 +9,48 @@ function runBidEngine(data, deltaMap, trackSen = null) {
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // Deduplicate Roster to ensure count accuracy
-    const uniqueRoster = [];
-    const seenSens = new Set();
-    data.roster.forEach(p => {
-        if (!seenSens.has(p.sen)) {
-            uniqueRoster.push(p);
-            seenSens.add(p.sen);
-        }
+    // 1. Initialize ALL possible bases to 0 to prevent NaN
+    let currentCounts = {};
+    data.caps.forEach(c => {
+        currentCounts[`${c.base}-${c.seat}`] = 0;
     });
 
-    // 1. Initialize Current Occupancy (Active Bidders ONLY)
-    let currentCounts = {};
-    const bidders = uniqueRoster
+    // 2. Count Active Bidders only
+    const bidders = data.roster
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
-            currentCounts[key] = (currentCounts[key] || 0) + 1;
+            // If a base isn't in caps, initialize it now
+            if (currentCounts[key] === undefined) currentCounts[key] = 0;
+            currentCounts[key]++;
+            
             return {
-                ...p, 
-                currentKey: key, 
-                orig: key, 
-                moved: false,
+                ...p, currentKey: key, orig: key, moved: false,
                 prefs: (data.prefs[p.id]?.preferences || []).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 2. SET THE HARD TARGET BUDGET
-    // Logic: Initial Active Count + Delta = Max Allowable Active Pilots
+    // 3. Set Hard Targets (Initial + Delta)
     let targetMap = {};
-    // Ensure all bases from capacities are initialized
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`;
-        const initialActive = currentCounts[key] || 0;
+    for (let key in currentCounts) {
         const delta = deltaMap[key] || 0;
-        targetMap[key] = initialActive + delta;
-    });
-
-    if (trackSen) {
-        trace.push({type:'info', msg: `DEBUG: SAN-CA Target Budget set to ${targetMap['SAN-CA'] || 'N/A'}`});
+        targetMap[key] = currentCounts[key] + delta;
+    }
+    // Ensure new bases like SAN are in the map even if initial count is 0
+    for (let key in deltaMap) {
+        if (targetMap[key] === undefined) targetMap[key] = deltaMap[key];
     }
 
     let cascade = true;
     let loops = 0;
 
-    // 3. The Cascading Seniority Draft
     while (cascade) {
         cascade = false;
         loops++;
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
-                
                 const parts = pr.bid.trim().split(/\s+/);
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
@@ -76,44 +60,37 @@ function runBidEngine(data, deltaMap, trackSen = null) {
                 const currentOcc = currentCounts[targetKey] || 0;
                 const targetLimit = targetMap[targetKey] || 0;
 
-                // 4. THE CAPACITY CHECK
-                // Only award if current count is strictly less than the Hard Target
+                // STRICT CAPACITY CHECK
                 if (currentOcc < targetLimit) {
-                    
-                    // BPL Rank Check
-                    let projectedRank = 1;
+                    let rank = 1;
                     for (const other of bidders) {
-                        if (other.currentKey === targetKey) projectedRank++;
+                        if (other.currentKey === targetKey) rank++;
                     }
 
-                    if (pr.bpl_min > 0 && projectedRank > pr.bpl_min) {
-                        if (p.sen === trackSen) {
-                            trace.push({type:'fail', msg:`Pref ${pr.order}: BPL REJECT (Rank ${projectedRank} > Limit ${pr.bpl_min})`});
-                        }
+                    if (pr.bpl_min > 0 && rank > pr.bpl_min) {
+                        if (p.sen === trackSen) trace.push({type:'fail', msg:`BPL REJECT: ${targetKey} Rank ${rank} > ${pr.bpl_min}`});
                         continue; 
                     }
 
-                    // 5. AWARD, VACATE, & RESTART
-                    currentCounts[p.currentKey]--; // Old seat vacated
-                    currentCounts[targetKey]++;    // New seat filled
-                    
-                    logs.push({loop: loops, sen: p.sen, name: p.name, from: p.currentKey, to: targetKey});
+                    // AWARD & RESTART
+                    currentCounts[p.currentKey]--; 
+                    currentCounts[targetKey]++;    
                     
                     if (p.sen === trackSen) {
-                        trace.push({type:'success', msg:`AWARDED ${targetKey}. Base Size: ${currentCounts[targetKey]}/${targetLimit}`});
+                        trace.push({type:'success', msg:`AWARDED ${targetKey} (Rank ${rank}). Base Size: ${currentCounts[targetKey]}/${targetLimit}`});
                     }
                     
                     p.currentKey = targetKey;
                     p.moved = true;
-                    cascade = true; // RESTART FROM PILOT #1
+                    cascade = true; 
                     break; 
                 } else if (p.sen === trackSen) {
-                    trace.push({type:'fail', msg:`Pref ${pr.order}: ${targetKey} FULL/DISPLACING (${currentOcc} occupants >= ${targetLimit} target)`});
+                    trace.push({type:'fail', msg:`${targetKey} FULL (${currentOcc}/${targetLimit})`});
                 }
             }
             if (cascade) break; 
         }
-        if (loops > 10000) break; 
+        if (loops > 10000) break;
     }
-    return { roster: bidders, logs, trace, loops };
+    return { roster: bidders, loops, trace };
 }
