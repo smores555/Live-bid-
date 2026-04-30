@@ -1,40 +1,31 @@
 /**
- * AIRLINE BID ENGINE - Active-Only Rank Logic
- * 1. Physical Occupancy: Bidders + No-Bids occupy seats. Retired do not.
- * 2. Seniority Rank: Only Active Bidders more senior than the pilot are counted.
- * 3. BPL Check: Performed before "Remain in Position" to allow self-displacement.
+ * AIRLINE BID ENGINE - Full BPL Tracking
+ * Logs "Requested BPL" vs "BPL at time of award" for ALL awarded preferences.
  */
 function runBidEngine(data, deltaMap, trackSen = null) {
     const auditTrail = [];
     const retiredSens = new Set(data.retired.map(p => p.seniority));
     const noBidSens = new Set(data.noBid.map(p => p.sen));
 
-    // 1. Map No-Bid pilots to their fixed seats (Occupancy)
     const noBidOccupants = {};
     data.noBid.forEach(p => noBidOccupants[p.sen] = `${p.base}-${p.seat}`);
 
-    // 2. Initialize Current Occupancy (Physical Seats)
-    // Counts Bidders + No-Bids. Retired are excluded from the building.
     let currentCounts = {};
     data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
 
-    // Initial count for No-Bids
     for (let sen in noBidOccupants) {
         const key = noBidOccupants[sen];
         if (currentCounts[key] === undefined) currentCounts[key] = 0;
         currentCounts[key]++;
     }
 
-    // Initial count for Active Bidders
     const bidders = data.roster
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
             if (currentCounts[key] === undefined) currentCounts[key] = 0;
             currentCounts[key]++;
-            
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-            
             return {
                 ...p, currentKey: key, orig: key, moved: false,
                 prefHistory: {}, 
@@ -42,7 +33,6 @@ function runBidEngine(data, deltaMap, trackSen = null) {
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. Set Hard Targets (Initial Bidders + Initial No-Bids + Delta)
     let targetMap = {};
     for (let key in currentCounts) {
         targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
@@ -56,25 +46,23 @@ function runBidEngine(data, deltaMap, trackSen = null) {
         loops++;
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 if (parts.length < 3) continue;
                 const targetKey = `${parts[1]}-${parts[2]}`;
                 
-                // --- THE RANK CALCULATION (ACTIVE BIDDERS ONLY) ---
-                // "BPL if awarded" only counts other ACTIVE bidders senior to 'p'
+                // --- RANK CALCULATION ---
                 let rank = 1;
                 for (const other of bidders) {
-                    if (other.sen >= p.sen) break; // Seniority limit reached
+                    if (other.sen >= p.sen) break;
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                // Note: No-Bid and Retired pilots are completely ignored in this rank check.
+                const reqBPL = parseInt(pr.bpl_min) || 0;
+                const bplInfo = reqBPL > 0 ? `. Requested BPL = ${reqBPL}. BPL at time of award = ${rank}.` : `. BPL at time of award = ${rank}.`;
 
                 // --- BPL CHECK ---
-                const reqBPL = parseInt(pr.bpl_min) || 0;
                 if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { 
                         status: "Denied", 
@@ -85,11 +73,14 @@ function runBidEngine(data, deltaMap, trackSen = null) {
 
                 // --- REMAIN IN CURRENT POSITION ---
                 if (targetKey === p.currentKey) {
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: "Remain in current position." };
+                    p.prefHistory[pr.order] = { 
+                        status: "Awarded", 
+                        reason: `Remain in current position${bplInfo}` 
+                    };
                     break;
                 }
 
-                // --- CAPACITY CHECK ---
+                // --- NEW AWARD CAPACITY CHECK ---
                 const currentOcc = currentCounts[targetKey] || 0;
                 const limit = targetMap[targetKey] || 0;
                 const targetVacancies = limit - currentOcc;
@@ -103,7 +94,7 @@ function runBidEngine(data, deltaMap, trackSen = null) {
 
                     p.prefHistory[pr.order] = { 
                         status: "Awarded", 
-                        reason: `Open position available. Reduce vacancy in ${targetKey} from ${targetVacancies} to ${targetVacancies - 1}. Increase vacancy in ${oldBase} from ${oldVacancies} to ${oldVacancies + 1}.` 
+                        reason: `Open position available. Reduce vacancy in ${targetKey} from ${targetVacancies} to ${targetVacancies - 1}. Increase vacancy in ${oldBase} from ${oldVacancies} to ${oldVacancies + 1}${bplInfo}` 
                     };
 
                     auditTrail.push({
