@@ -1,5 +1,6 @@
 /**
- * THE 737 ADMIN ENGINE - BPL COMPLIANT (STRICT DISPLACEMENT)
+ * THE 737 ADMIN ENGINE - BPL RANK CONSTRAINT VERSION
+ * Handles "Self-Displacement" via BPL numbers.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -8,124 +9,104 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // 1. Initialize Target Capacities (Hard Cap + User Delta)
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`;
         targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
     });
 
-    // 2. Prepare Bidders
     let currentCounts = {};
+    Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
+
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
-            const key = `${p.current.base}-${p.current.seat}`;
-            currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
-                ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, isUnassigned: false,
-                awardedPrefNum: "N/A", awardedReason: "Holding Seniority",
-                prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
+                ...p,
+                orig: `${p.current.base}-${p.current.seat}`,
+                currentKey: "UNASSIGNED",
+                moved: false,
+                wasDisplaced: false,
+                isUnassigned: false,
+                awardedPrefNum: "N/A",
+                awardedReason: "",
+                // Ensure BPL is treated as a number
+                prefs: (prefData.preferences || []).map(pr => ({
+                    ...pr,
+                    bpl: parseInt(pr.bpl) || 99999 // Default to high number if no BPL set
+                })).sort((a, b) => a.order - b.order)
             };
-        }).sort((a, b) => a.sen - b.sen);
+        })
+        .sort((a, b) => a.sen - b.sen);
 
-    // 3. Execution Cascade
-    let cascade = true; 
-    let loops = 0;
-    
-    while (cascade) {
-        cascade = false; 
-        loops++; 
-        if (loops > 5000) break; // Infinite loop protection
+    bidders.forEach(p => {
+        let awarded = false;
+        let bidForOwnSeat = p.prefs.some(pr => {
+            const parts = pr.bid.trim().split(/\s+/);
+            const tKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
+            return tKey === p.orig;
+        });
 
-        for (let i = 0; i < bidders.length; i++) {
-            const p = bidders[i];
+        // STEP A: Try to award Bids (with BPL check)
+        for (const pr of p.prefs) {
+            if (!pr.bid || pr.bid === "0") continue;
             
-            // STAGE 1: MANDATORY EVICTION (The "Seth" Rule)
-            // If the pilot is in a seat, check if they are senior enough to stay.
-            if (p.currentKey !== "UNASSIGNED") {
-                let rankInCurrent = 1;
-                bidders.forEach(other => { 
-                    if (other.sen < p.sen && other.currentKey === p.currentKey) rankInCurrent++; 
-                });
-                
-                const limit = targetMap[p.currentKey] || 0;
-                if (rankInCurrent > limit) {
-                    const oldKey = p.currentKey;
-                    currentCounts[oldKey]--;
-                    p.currentKey = "UNASSIGNED";
-                    p.wasDisplaced = true;
-                    p.awardedReason = "Displaced (Over Capacity)";
-                    p.awardedPrefNum = "N/A";
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: "UNASSIGNED", type: "Eviction" });
-                    cascade = true;
-                    continue; // Skip to next pilot to let the displacement ripple
-                }
+            const parts = pr.bid.trim().split(/\s+/);
+            let targetKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
+            let rankInBase = currentCounts[targetKey] + 1;
+
+            // CONDITION: Must be under Base Cap AND meet the Pilot's BPL Rank
+            if (currentCounts[targetKey] < targetMap[targetKey] && rankInBase <= pr.bpl) {
+                p.currentKey = targetKey;
+                currentCounts[targetKey]++;
+                p.awardedPrefNum = pr.order;
+                p.awardedReason = (targetKey === p.orig) ? "Held Position" : "Bid Award";
+                p.moved = (targetKey !== p.orig);
+                awarded = true;
+                auditTrail.push({ pass: 1, sen: p.sen, name: p.name, to: targetKey, type: "Award" });
+                break;
             }
-
-            // STAGE 2: PREFERENCE EVALUATION
-            // Only triggers if they are UNASSIGNED (either evicted or moved)
-            if (p.currentKey === "UNASSIGNED") {
-                let foundAward = false;
-                for (const pr of p.prefs) {
-                    if (!pr.bid || pr.bid === "0") continue;
-                    const parts = pr.bid.trim().split(/\s+/);
-                    let targetKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
-                    
-                    let rankInTarget = 1;
-                    let targetOcc = 0;
-                    bidders.forEach(other => {
-                        if (other.currentKey === targetKey) targetOcc++;
-                        if (other.sen < p.sen && other.currentKey === targetKey) rankInTarget++;
-                    });
-
-                    const limit = targetMap[targetKey] || 0;
-
-                    // Strictly Awarded based on seniority limit
-                    if (rankInTarget <= limit) {
-                        p.currentKey = targetKey;
-                        p.moved = true;
-                        p.awardedPrefNum = pr.order;
-                        p.awardedReason = (targetOcc < limit) ? "Vacancy Award" : "Seniority Bump";
-                        currentCounts[targetKey]++;
-                        auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: "UNASSIGNED", to: targetKey, type: "Award" });
-                        cascade = true;
-                        foundAward = true;
-                        break;
-                    }
-                }
-
-                // STAGE 3: CATEGORY SWEEP (Fallback for displaced pilots)
-                if (!foundAward) {
-                    const seatType = p.current.seat;
-                    for (let key in targetMap) {
-                        if (key.endsWith(`-${seatType}`)) {
-                            let occ = bidders.filter(b => b.currentKey === key).length;
-                            if (occ < targetMap[key]) {
-                                p.currentKey = key; 
-                                p.moved = true; 
-                                cascade = true; 
-                                foundAward = true;
-                                p.awardedPrefNum = "Sweep"; 
-                                p.awardedReason = `${seatType} Category Vacancy`;
-                                currentCounts[key]++;
-                                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: "UNASSIGNED", to: key, type: "Sweep" });
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // STAGE 4: FINAL DISPLACEMENT (At Mercy)
-                if (!foundAward) {
-                    p.isUnassigned = true; 
-                    p.awardedReason = "At Mercy of Company";
-                    p.awardedPrefNum = "Pool";
-                }
-            }
-            if (cascade) break; // Restart pass whenever a seat changes
         }
-    }
-    return { roster: bidders, loops, auditTrail, targetMap };
+
+        // STEP B: Automatic Hold
+        // ONLY triggers if they DID NOT bid for their own seat with a condition (like Seth)
+        if (!awarded && !bidForOwnSeat) {
+            const targetKey = p.orig;
+            if (currentCounts[targetKey] < targetMap[targetKey]) {
+                p.currentKey = targetKey;
+                currentCounts[targetKey]++;
+                p.awardedReason = "Held Position (Seniority)";
+                awarded = true;
+            }
+        }
+
+        // STEP C: Category Sweep (Only if they haven't explicitly "bid" themselves out)
+        if (!awarded && !bidForOwnSeat) {
+            const seatType = p.current.seat;
+            for (let key in targetMap) {
+                if (key.endsWith(`-${seatType}`) && currentCounts[key] < targetMap[key]) {
+                    p.currentKey = key;
+                    currentCounts[key]++;
+                    p.awardedReason = `${seatType} Category Vacancy`;
+                    p.awardedPrefNum = "Sweep";
+                    p.moved = true;
+                    awarded = true;
+                    break;
+                }
+            }
+        }
+
+        // STEP D: POOL / SELF-DISPLACEMENT
+        if (!awarded) {
+            p.currentKey = "UNASSIGNED";
+            p.isUnassigned = true;
+            p.wasDisplaced = true;
+            p.awardedReason = bidForOwnSeat ? "Self-Displaced (BPL Failed)" : "Displaced (Over Capacity)";
+            p.awardedPrefNum = "Pool";
+            auditTrail.push({ pass: 1, sen: p.sen, name: p.name, to: "POOL", type: "Displacement" });
+        }
+    });
+
+    return { roster: bidders, loops: 1, auditTrail, targetMap };
 }
