@@ -140,89 +140,133 @@ function runBidEngine(data, deltaMap) {
         };
     }).sort((a, b) => a.sen - b.sen);
 
-    bidders.forEach(p => {
-        let awarded = false;
-        const [origBase, origStatus] = p.orig.split('-');
+    // --- CONTINUOUS EVALUATION LOOP ---
+    let hasMoved = true;
+    let safetyCounter = 0; // Prevents infinite loops if test data has circular logic
 
-        // Step A: Primary Preference Bids
-        for (const pr of p.prefs) {
-            if (!pr.targetKey) continue;
-            let cap = targetMap[pr.targetKey] || 0;
-            let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
+    while (hasMoved && safetyCounter < 5000) {
+        hasMoved = false;
+        safetyCounter++;
 
-            if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
-                let oldTargetVac = cap - (currentCounts[pr.targetKey] || 0);
-                let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+        for (let i = 0; i < bidders.length; i++) {
+            let p = bidders[i];
+            let awarded = false;
+            const [origBase, origStatus] = p.orig.split('-');
 
-                if (p.orig !== pr.targetKey) {
-                    currentCounts[p.orig]--;
-                    currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
-                    p.moved = true;
-                    p.awardedReason = `Awarded Pref #${pr.order}. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${pr.targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
-                } else {
-                    p.awardedReason = `Awarded Preference #${pr.order}. Held current position; vacancy remains at ${oldTargetVac}.`;
-                    p.moved = false;
+            // Step A: Primary Preference Bids
+            for (const pr of p.prefs) {
+                if (!pr.targetKey) continue;
+                let cap = targetMap[pr.targetKey] || 0;
+                let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
+
+                if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
+                    // Check if this is a NEW move for this pilot
+                    if (p.currentKey !== pr.targetKey) {
+                        let oldTargetVac = cap - (currentCounts[pr.targetKey] || 0);
+                        let oldOrigVac = (targetMap[p.currentKey] || 0) - (currentCounts[p.currentKey] || 0);
+
+                        if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
+                        currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
+
+                        p.moved = true;
+                        p.isUnassigned = false;
+                        p.awardedReason = `Awarded Pref #${pr.order}. Increase ${p.currentKey} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${pr.targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
+                        p.currentKey = pr.targetKey;
+                        p.awardedPrefNum = pr.order;
+
+                        hasMoved = true; // Flag the engine to restart
+                        break; // Break preferences loop
+                    } else {
+                        // They are already sitting in this award, but we update the reason
+                        p.awardedReason = `Awarded Preference #${pr.order}. Held current position.`;
+                        p.isUnassigned = false;
+                    }
+                    awarded = true;
+                    break; // Break preferences loop
                 }
+            }
+
+            // If a move happened, immediately break the bidder loop to restart from Pilot #1
+            if (hasMoved) break; 
+
+            // Step B: Seniority Hold
+            if (!awarded) {
+                let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                let bplLimit = selfBid ? selfBid.bpl : 9999;
+
+                if (seniorsInMyBase < (targetMap[p.orig] || 0) && (seniorsInMyBase + 1) <= bplLimit) {
+                    if (p.currentKey !== p.orig) {
+                        if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
+                        currentCounts[p.orig] = (currentCounts[p.orig] || 0) + 1;
+                        p.currentKey = p.orig;
+                        p.moved = false;
+                        hasMoved = true;
+                        break;
+                    }
+                    let currentVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+                    p.awardedReason = `Held Position (Seniority). Vacancy remains at ${currentVac}.`;
+                    p.isUnassigned = false;
+                    awarded = true;
+                }
+            }
+
+            if (hasMoved) break;
+
+            // Step C: Section 24 Secondary Displacement
+            if (!awarded) {
+                const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
+                for (const targetKey of cascadeOptions) {
+                    if (targetMap[targetKey] === undefined) continue;
+                    let cap = targetMap[targetKey] || 0;
+                    let seniorCount = bidders.filter(other => other.sen < p.sen && other.currentKey === targetKey).length;
+
+                    if (seniorCount < cap) {
+                        if (p.currentKey !== targetKey) {
+                            let oldTargetVac = cap - (currentCounts[targetKey] || 0);
+                            let oldOrigVac = (targetMap[p.currentKey] || 0) - (currentCounts[p.currentKey] || 0);
+
+                            if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
+                            currentCounts[targetKey] = (currentCounts[targetKey] || 0) + 1;
+
+                            p.awardedReason = `Section 24: Awarded ${targetKey}. Increase ${p.currentKey} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
+                            p.currentKey = targetKey;
+                            p.moved = true;
+                            p.isUnassigned = false;
+                            hasMoved = true;
+                            break;
+                        }
+                        awarded = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasMoved) break;
+
+            // Step D: Pool
+            if (!awarded && p.currentKey !== "UNASSIGNED") {
+                let oldOrigVac = (targetMap[p.currentKey] || 0) - (currentCounts[p.currentKey] || 0);
+                if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
                 
-                p.currentKey = pr.targetKey;
-                p.awardedPrefNum = pr.order;
-                awarded = true;
+                p.currentKey = "UNASSIGNED";
+                p.isUnassigned = true;
+                p.moved = true;
+
+                let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
+                p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}). Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}.` : `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}.`;
+
+                hasMoved = true;
                 break;
             }
         }
+    }
 
-        // Step B: Seniority Hold
-        if (!awarded) {
-            let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
-            const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
-            let bplLimit = selfBid ? selfBid.bpl : 9999;
-
-            if (seniorsInMyBase < (targetMap[p.orig] || 0) && (seniorsInMyBase + 1) <= bplLimit) {
-                let currentVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-                p.currentKey = p.orig;
-                p.awardedReason = `Held Position (Seniority). Vacancy remains at ${currentVac}.`;
-                p.moved = false;
-                awarded = true;
-            }
-        }
-
-        // Step C: Section 24 Secondary Displacement
-        if (!awarded) {
-            const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
-            for (const targetKey of cascadeOptions) {
-                if (targetMap[targetKey] === undefined) continue;
-                let cap = targetMap[targetKey] || 0;
-                let seniorCount = bidders.filter(other => other.sen < p.sen && other.currentKey === targetKey).length;
-
-                if (seniorCount < cap) {
-                    let oldTargetVac = cap - (currentCounts[targetKey] || 0);
-                    let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
-                    currentCounts[p.orig]--;
-                    currentCounts[targetKey]++;
-                    p.currentKey = targetKey;
-                    p.awardedReason = `Section 24: Awarded ${targetKey}. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
-                    p.moved = true;
-                    awarded = true;
-                    break;
-                }
-            }
-        }
-
-        // Step D: Pool
-        if (!awarded) {
-            let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-            currentCounts[p.orig]--; 
-            p.currentKey = "UNASSIGNED";
-            p.isUnassigned = true;
-            p.moved = true;
-            
-            let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
-            const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
-            p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
-            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}). Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}.` : `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}.`;
-        }
-    });
+    if (safetyCounter >= 5000) {
+        console.warn("Bid engine reached maximum iterations. Check test data for circular displacements.");
+    }
 
     return { roster: bidders, targetMap };
 }
