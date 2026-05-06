@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Fixed Logic & Original UI</title>
+    <title>737 Master Bid Control - BPL Audit Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -15,7 +15,7 @@
         .dash-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        .audit-step { display: block; font-size: 0.72rem; border-bottom: 1px solid #30363d; padding: 2px 0; }
+        .audit-step { display: block; font-size: 0.75rem; margin-bottom: 4px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
         .denied-text { color: var(--red); font-weight: 500; }
         .awarded-text { color: var(--green); font-weight: bold; }
         .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; display: block; margin-top: 5px; }
@@ -33,26 +33,35 @@
 <div class="container">
     <div class="card">
         <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading Files...</div>
+        <div id="capGrid" class="cap-grid">Loading...</div>
     </div>
 
     <div class="dash-container">
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList"></div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList"></div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool (Reduction)</h4><div id="unassignedList"></div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox">Ready.</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool</h4><div id="unassignedList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
     </div>
 
     <div class="toolbar" style="margin-bottom:20px;">
-        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN BID</button>
-        <button id="expBase" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: BASE</button>
-        <button id="expMaster" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: MASTER</button>
-        <button id="expLog" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: LOG</button>
+        <button id="runBtn" class="btn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN POSITION BID</button>
+        <button id="expBase" class="btn" style="padding:10px; margin-left:10px;">CSV: BASE</button>
+        <button id="expMaster" class="btn" style="padding:10px; margin-left:10px;">CSV: MASTER</button>
+        <button id="expLog" class="btn" style="padding:10px; margin-left:10px;">CSV: LOG</button>
+        <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px; margin-left:20px;" placeholder="Sen #">
+        <button id="lookupBtn" style="padding:10px; border-radius:6px; background:var(--accent); color:white; border:none; cursor:pointer;">LOOKUP</button>
     </div>
 
     <table>
         <thead>
-            <tr><th>Sen #</th><th>Name</th><th>Awarded Position</th><th>Standing</th><th>Audit Path</th><th>Original Position</th></tr>
+            <tr>
+                <th>Sen #</th>
+                <th>Pilot Name</th>
+                <th>Awarded Position</th>
+                <th>Standing</th>
+                <th>Notes / Mathematical Audit Path</th>
+                <th>Original Position</th>
+            </tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
@@ -60,58 +69,19 @@
 
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
+let fillers = {};
 let lastResults = [];
 
-// Flexible Loader: Handles files with (2) or without
-async function loadFiles() {
-    const fetchF = async (n) => {
-        try { let r = await fetch(n); if (r.ok) return await r.json(); } catch(e) {}
-        try { let r = await fetch(n.replace('.json', ' (2).json')); if (r.ok) return await r.json(); } catch(e) {}
-        return null;
-    };
-    store.roster = await fetchF('roster.json');
-    store.prefs = await fetchF('preferences.json');
-    store.caps = await fetchF('capacities.json');
-    store.retired = await fetchF('retired_pilots.json');
-    store.noBid = await fetchF('nobidpilots.json');
-    if (store.caps) renderCapacities();
-}
-
-window.onload = loadFiles;
-
-function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="0"></div>`).join('');
-}
-
 function runBidEngine(data, deltaMap) {
-    const is737 = (s) => s && !s.includes('320') && !s.includes('321');
+    const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
     let targetMap = {};
-    let awardedCount = {};
-    let origRemaining = {};
-
-    // 1. Initial count of who starts where
-    data.roster.forEach(p => {
-        if (is737(p.current.seat)) {
-            const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            origRemaining[key] = (origRemaining[key] || 0) + 1;
-        }
-    });
-
-    // 2. Set Hard Caps from File
+    fillers = {};
+    
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
-        targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
-        awardedCount[key] = 0;
+        targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
+        fillers[key] = 0;
     });
-
-    const getTargetKey = (s) => {
-        if (!s || s === "0") return null;
-        const pts = s.trim().toUpperCase().split(/\s+/);
-        const b = pts.find(x => ['SEA','PDX','ANC','SFO','LAX','SAN','LAS'].includes(x));
-        const st = pts.find(x => ['CA','FO'].includes(x));
-        return (b && st) ? `${b}-${st}` : null;
-    };
 
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
@@ -119,129 +89,164 @@ function runBidEngine(data, deltaMap) {
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
+            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            let f = data.prefs['pil' + p.sen] || data.prefs[p.id] || data.prefs[p.sen];
-            let pd = f ? (f.preferences || f.bids || []) : [];
-            const cleanPrefs = pd.map(pr => ({
-                targetKey: getTargetKey(pr.bid || pr.position),
-                bpl: parseInt(pr.bpl_min || pr.bpl || 0),
-                order: pr.order
-            })).filter(pr => pr.targetKey);
-            const bplOnOwn = cleanPrefs.some(pr => pr.targetKey === pilotOrig && pr.bpl > 0);
-            return { ...p, orig: pilotOrig, currentKey: "UNASSIGNED", awardAudit: [], bplOnOwn, prefs: cleanPrefs };
+            const getTargetKey = (bidStr) => {
+                const parts = bidStr.trim().toUpperCase().split(/\s+/);
+                const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
+                const seats = ['CA', 'FO'];
+                let b = parts.find(x => bases.includes(x));
+                let s = parts.find(x => seats.includes(x));
+                return (b && s) ? `${b}-${s}` : null;
+            };
+
+            const selfBidWithBpl = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
+            return {
+                ...p, orig: pilotOrig, currentKey: "UNASSIGNED", awardAudit: [],
+                finalReason: "", isMover: false, isSelfDisp: false,
+                bplOnOwn: !!selfBidWithBpl,
+                prefs: (prefData.preferences || []).map(pr => ({
+                    ...pr, targetKey: getTargetKey(pr.bid),
+                    bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
+                })).sort((a, b) => a.order - b.order)
+            };
         }).sort((a, b) => a.sen - b.sen);
 
     bidders.forEach(p => {
         let awarded = false;
-        // THE VACANCY FIX: Current pilot "stands up"
-        if (origRemaining[p.orig] > 0) origRemaining[p.orig]--;
-
-        // STEP 1: PREFERENCES
         for (const pr of p.prefs) {
-            let seatedTotal = (awardedCount[pr.targetKey] || 0) + (origRemaining[pr.targetKey] || 0);
-            let bplRank = (awardedCount[pr.targetKey] || 0) + 1;
+            if (!pr.targetKey) continue;
+            let rank = fillers[pr.targetKey] + 1;
             let cap = targetMap[pr.targetKey] || 0;
-            let bplLimit = pr.bpl > 0 ? pr.bpl : 9999;
 
-            if (seatedTotal < cap && bplRank <= bplLimit) {
-                p.currentKey = pr.targetKey;
-                awardedCount[pr.targetKey]++;
-                p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey}</span> (Rank ${bplRank})`);
-                awarded = true; break;
+            if (rank > cap) {
+                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied</span> Rank ${rank} > ${cap}`);
+            } else if (rank > pr.bpl) {
+                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied BPL Fail</span> Rank ${rank} > ${pr.bpl}`);
             } else {
-                let reason = seatedTotal >= cap ? "Full" : "BPL Fail";
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">${reason}</span>`);
+                p.currentKey = pr.targetKey;
+                fillers[pr.targetKey]++;
+                let msg = `<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}`;
+                if (pr.bpl < 9999) {
+                    msg += ` | BPL ${pr.bpl} | ${rank} < ${pr.bpl}</span>`;
+                } else {
+                    msg += ` | Pass ${rank} / ${cap}</span>`;
+                }
+                p.awardAudit.push(msg);
+                awarded = true;
+                p.finalReason = "Bid Award";
+                p.isMover = (p.currentKey !== p.orig);
+                break;
             }
         }
 
-        // STEP 2: SENIORITY HOLD (Skip if BPL on own seat)
         if (!awarded && !p.bplOnOwn) {
-            let seatedTotal = (awardedCount[p.orig] || 0) + (origRemaining[p.orig] || 0);
-            if (seatedTotal < (targetMap[p.orig] || 0)) {
-                p.currentKey = p.orig;
-                awardedCount[p.orig]++;
-                p.awardAudit.push(`<span class="awarded-text">Seniority Hold</span>`);
+            const targetKey = p.orig;
+            let cap = targetMap[targetKey] || 0;
+            let rank = fillers[targetKey] + 1;
+            if (rank <= cap) {
+                fillers[targetKey]++;
+                p.currentKey = targetKey;
+                p.awardAudit.push(`<span class="awarded-text">Awarded ${targetKey.replace('-',' ')} (Hold Pass ${rank} / ${cap})</span>`);
                 awarded = true;
+                p.finalReason = "Seniority Hold";
+                p.isMover = false;
+            } else {
+                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Denied Base Full</span> Rank ${rank} > ${cap}`);
             }
         }
 
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
+            p.isSelfDisp = p.bplOnOwn;
+            p.finalReason = p.isSelfDisp ? "Self-Displacement via BPL" : "Juniority Displacement";
             p.awardAudit.push(`<span class="denied-text">POOL</span>`);
         }
     });
     return { roster: bidders, targetMap };
 }
 
-// CSV Logic
+window.onload = async () => {
+    try {
+        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
+        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
+        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
+        renderCapacities();
+    } catch (e) { console.error(e); }
+};
+
+function renderCapacities() {
+    document.getElementById('capGrid').innerHTML = store.caps.map(c => `
+        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>`).join('');
+}
+
 function downloadCSV(filename, rows) {
-    const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
 }
 
 document.getElementById('runBtn').onclick = () => {
-    let deltas = {};
-    store.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        deltas[key] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0;
-    });
+    const deltas = {};
+    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('statusBox').innerHTML = `Done: ${lastResults.length} Pilots`;
-    renderTable(lastResults, result.targetMap);
-    renderDashboards(lastResults);
+    renderTable(result.roster, result.targetMap);
+    renderDashboards(result.roster);
 };
 
+// CSV Event Listeners
 document.getElementById('expBase').onclick = () => {
     const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
-    downloadCSV("Base_List.csv", rows);
+    downloadCSV("737_Base_List.csv", rows);
 };
 document.getElementById('expMaster').onclick = () => {
-    const rows = [["Sen #", "Name", "Awarded", "Original", "Reason"], ...lastResults.map(p => [p.sen, p.name, p.currentKey, p.orig, p.currentKey === "UNASSIGNED" ? "Displaced" : "Awarded"])];
-    downloadCSV("Master_Awards.csv", rows);
+    const rows = [["Sen #", "Name", "Awarded Position", "Original Position"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' ')])];
+    downloadCSV("737_Master_Awards.csv", rows);
 };
 document.getElementById('expLog').onclick = () => {
-    const rows = [["Sen #", "Name", "Audit Log"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.join(" | ")])];
-    downloadCSV("Bid_Log.csv", rows);
+    const rows = [["Sen #", "Name", "Audit Trail Summary"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | ")])];
+    downloadCSV("737_Bid_Log.csv", rows);
 };
 
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         let tags = '';
-        const isSelfDisp = p.bplOnOwn && p.currentKey === "UNASSIGNED";
-        const isMover = p.currentKey !== p.orig && p.currentKey !== "UNASSIGNED";
-        if (isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        if (isMover) tags += '<span class="tag tag-yellow">MOVER</span>';
-        if (p.currentKey === "UNASSIGNED" && !isSelfDisp) tags += '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
+        if (p.isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
+        if (p.isMover) tags += '<span class="tag tag-yellow">MOVER</span>';
+        if (p.currentKey === "UNASSIGNED" && !p.isSelfDisp) tags += '<span class="tag tag-yellow">DISPLACED</span>';
 
         let finalRank = 1;
         roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
         const limit = targetMap[p.currentKey] || 0;
 
-        return `<tr>
-            <td>${p.sen}</td>
-            <td><strong>${p.name}</strong><br>${tags}</td>
-            <td style="color:${isMover?'#3fb950':''}">${p.currentKey.replace('-', ' ')}</td>
-            <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
-            <td>${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}</td>
-            <td>${p.orig.replace('-',' ')}</td>
-        </tr>`;
+        return `
+            <tr>
+                <td>${p.sen}</td>
+                <td><strong>${p.name}</strong><br>${tags}</td>
+                <td>${p.currentKey.replace('-', ' ')}</td>
+                <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
+                <td>
+                    ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
+                    <span class="via-text">via ${p.finalReason}</span>
+                </td>
+                <td>${p.orig.replace('-',' ')}</td>
+            </tr>`;
     }).join('');
 }
 
 function renderDashboards(roster) {
-    let un = '', sd = '', mv = '';
+    let unHtml = ''; let sDHtml = ''; let mHtml = '';
     roster.forEach(p => {
         const item = `<div>#${p.sen} ${p.name}</div>`;
-        if (p.bplOnOwn && p.currentKey === "UNASSIGNED") sd += item;
-        else if (p.currentKey === "UNASSIGNED") un += item;
-        if (p.currentKey !== p.orig && p.currentKey !== "UNASSIGNED") mv += item;
+        if (p.isSelfDisp) sDHtml += `<div class="self-disp-item">${item}</div>`;
+        else if (p.currentKey === "UNASSIGNED") unHtml += `<div class="unassigned-item">${item}</div>`;
+        if (p.isMover) mHtml += `<div class="mover-item">${item}</div>`;
     });
-    document.getElementById('selfDispList').innerHTML = sd || "None";
-    document.getElementById('moversList').innerHTML = mv || "None";
-    document.getElementById('unassignedList').innerHTML = un || "None";
+    document.getElementById('selfDispList').innerHTML = sDHtml || "None.";
+    document.getElementById('moversList').innerHTML = mHtml || "None.";
+    document.getElementById('unassignedList').innerHTML = unHtml || "None.";
 }
 </script>
 </body>
