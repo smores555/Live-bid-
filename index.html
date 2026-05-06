@@ -14,15 +14,19 @@
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
         .btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+        
         .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
+        
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
+        
         .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
@@ -84,6 +88,7 @@
 
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
+let lastResults = [];
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
@@ -119,7 +124,7 @@ function runBidEngine(data, deltaMap) {
             
             const getTargetKey = (bidStr) => {
                 const parts = bidStr.trim().toUpperCase().split(/\s+/);
-                const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
+                const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'];
                 const seats = ['CA', 'FO'];
                 let b = parts.find(x => bases.includes(x));
                 let s = parts.find(x => seats.includes(x));
@@ -156,7 +161,7 @@ function runBidEngine(data, deltaMap) {
                 currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
                 p.currentKey = pr.targetKey;
                 p.awardedPrefNum = pr.order;
-                p.awardedReason = `Awarded Preference #${pr.order} via Vacancy.`;
+                p.awardedReason = (pr.targetKey === p.orig) ? `Remain in position via Pref #${pr.order}.` : `Awarded Pref #${pr.order} via Vacancy.`;
                 p.moved = (pr.targetKey !== p.orig);
                 awarded = true;
                 break;
@@ -181,12 +186,8 @@ function runBidEngine(data, deltaMap) {
         // Step C: Section 24 Secondary Displacement Cascade
         if (!awarded) {
             const cascadeOptions = [
-                // 1. Same Domicile (Status) - Handled by Step B
-                // 2. Another Domicile (Maintain Status)
                 ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
-                // 3. Current Domicile (Lower Status)
                 `${origBase}-FO`,
-                // 4. Any Base (Next Lower Status)
                 ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)
             ];
 
@@ -199,7 +200,7 @@ function runBidEngine(data, deltaMap) {
                     currentCounts[p.orig]--;
                     currentCounts[targetKey]++;
                     p.currentKey = targetKey;
-                    p.awardedReason = `Section 24 Displacement: Awarded ${targetKey} (Juniority/Vacancy).`;
+                    p.awardedReason = `Section 24 Displacement: Awarded ${targetKey}.`;
                     p.moved = true;
                     awarded = true;
                     break;
@@ -207,13 +208,17 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step D: Pool
+        // Step D: Pool (System Displacement)
         if (!awarded) {
             currentCounts[p.orig]--; 
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
             p.moved = true;
             p.awardedReason = `Displaced: System-wide Reduction/Insufficent Preferences.`;
+            const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+            let rankInBase = 0;
+            bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
+            p.wasSelfDisplaced = selfBid && (rankInBase > selfBid.bpl);
         }
     });
 
@@ -250,21 +255,24 @@ document.getElementById('runBtn').onclick = () => {
 };
 
 function renderDashboards(roster) {
-    let unassignedHtml = ''; let selfDispHtml = ''; let allDispHtml = '';
+    let unassignedHtml = ''; let selfDispHtml = ''; let allMoverHtml = '';
     roster.forEach(p => {
-        const item = `<div class="${p.isUnassigned ? 'unassigned-item' : 'disp-item'}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
+        const item = `<div class="${p.isUnassigned ? 'unassigned-item' : (p.wasSelfDisplaced ? 'self-disp-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
         if (p.isUnassigned) unassignedHtml += item;
-        if (p.moved) allDispHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
+        if (p.wasSelfDisplaced) selfDispHtml += item;
+        if (p.moved && !p.isUnassigned) allMoverHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
     });
     document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
-    document.getElementById('displacedList').innerHTML = allDispHtml || "None.";
+    document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
+    document.getElementById('displacedList').innerHTML = allMoverHtml || "None.";
 }
 
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awardedPos = p.currentKey.replace('-', ' ');
-        let tags = p.moved ? '<span class="tag tag-yellow">MOVER</span>' : '';
+        let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
         if (p.isUnassigned) tags = '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
+        
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") {
             roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
@@ -273,7 +281,7 @@ function renderTable(roster, targetMap) {
             <tr>
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
+                <td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td>
                 <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td>
                 <td>${p.awardedReason}</td>
                 <td>${p.orig.replace('-',' ')}</td>
