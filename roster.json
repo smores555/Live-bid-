@@ -2660,16 +2660,6 @@
     }
   },
   {
-    "id": "pil267",
-    "sen": 267,
-    "name": "COOK, MICHAEL ",
-    "current": {
-      "equip": "737",
-      "base": "PDX",
-      "seat": "CA"
-    }
-  },
-  {
     "id": "pil268",
     "sen": 268,
     "name": "DOYEL, JOHN M.",
@@ -22160,16 +22150,6 @@
     }
   },
   {
-    "id": "pil2217",
-    "sen": 2217,
-    "name": "PETERSON, JOHN",
-    "current": {
-      "equip": "737",
-      "base": "PDX",
-      "seat": "FO"
-    }
-  },
-  {
     "id": "pil2218",
     "sen": 2218,
     "name": "CORLEY, LAUREN",
@@ -27716,16 +27696,6 @@
     "current": {
       "equip": "737",
       "base": "SEA",
-      "seat": "FO"
-    }
-  },
-  {
-    "id": "pil2773",
-    "sen": 2773,
-    "name": "JOHNSON, ZACHARY",
-    "current": {
-      "equip": "737",
-      "base": "PDX",
       "seat": "FO"
     }
   },
