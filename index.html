@@ -50,15 +50,15 @@
     <div class="dash-container">
         <div class="dash-box">
             <h4 class="dash-title" style="color:var(--yellow)">⚡ Displaced Pilots</h4>
-            <div id="displacedList">Waiting for bid run...</div>
+            <div id="displacedList">Ready to run...</div>
         </div>
         <div class="dash-box">
             <h4 class="dash-title" style="color:var(--purple)">🆘 At Mercy (Unassigned)</h4>
-            <div id="unassignedList">Waiting for bid run...</div>
+            <div id="unassignedList">Ready to run...</div>
         </div>
         <div class="dash-box">
             <h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4>
-            <div id="mismatchList">Ready.</div>
+            <div id="mismatchList">System Idle.</div>
         </div>
     </div>
 
@@ -72,7 +72,7 @@
         <button id="lookupBtn" class="btn btn-export">LOOKUP</button>
     </div>
 
-    <div id="auditLog" class="audit-log">Real-time seniority movements will appear here...</div>
+    <div id="auditLog" class="audit-log">Audit trail will generate here...</div>
 
     <table>
         <thead>
@@ -80,7 +80,7 @@
                 <th>Sen #</th>
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
-                <th>Base Standing (Rank / Limit)</th>
+                <th>Final Standing (Rank / Limit)</th>
                 <th>Award Path</th>
                 <th>Original Position</th>
             </tr>
@@ -91,7 +91,7 @@
 
 <script>
 /**
- * THE 737 ADMIN ENGINE - STRICT EVICTION & BUMPING LOGIC
+ * THE 737 ADMIN ENGINE - EVICTION-FIRST LOGIC
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -114,7 +114,7 @@ function runBidEngine(data, deltaMap) {
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
                 ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, isUnassigned: false,
-                awardedPrefNum: "N/A", awardedReason: "Held Original Seat",
+                awardedPrefNum: "N/A", awardedReason: "Held Position", prefHistory: {}, 
                 prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
@@ -124,100 +124,97 @@ function runBidEngine(data, deltaMap) {
 
     let cascade = true; let loops = 0;
     while (cascade) {
-        cascade = false; loops++; if (loops > 4000) break;
+        cascade = false; loops++; if (loops > 5000) break;
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            
-            // 1. DISPLACEMENT AUDIT: Am I senior enough to stay?
-            let rankInCurrent = 1;
-            for (const other of bidders) {
-                if (other.sen < p.sen && other.currentKey === p.currentKey) rankInCurrent++;
-            }
-            const currentLimit = targetMap[p.currentKey] || 0;
-            
-            // EVICTION: If I'm junior and the base shrank, I am forcefully kicked out.
-            if (rankInCurrent > currentLimit) {
-                p.wasDisplaced = true;
-            }
-
             let foundAward = false;
 
-            // 2. PREFERENCE EVALUATION
+            // STAGE 1: EVICTION CHECK
+            // If the pilot is currently in a base, check if they are senior enough to stay.
+            if (p.currentKey !== "UNASSIGNED") {
+                let rankInCurrent = 1;
+                bidders.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) rankInCurrent++; });
+                const currentLimit = targetMap[p.currentKey] || 0;
+                
+                if (rankInCurrent > currentLimit) {
+                    const oldKey = p.currentKey;
+                    currentCounts[oldKey]--;
+                    p.currentKey = "UNASSIGNED";
+                    p.wasDisplaced = true;
+                    p.awardedReason = "Forced Eviction (Over Capacity)";
+                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: "UNASSIGNED", type: "Eviction" });
+                    cascade = true; 
+                    // No break here, we want them to immediately try their bids/sweep below
+                }
+            }
+
+            // STAGE 2: PREFERENCE EVALUATION
+            // Only runs if they were evicted above OR they want to move voluntarily
             for (const pr of p.prefs) {
                 if (!pr.bid || pr.bid === "0") continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 let targetKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
                 
-                let rank = 1; let targetOcc = 0;
-                for (const other of bidders) {
+                let rankInTarget = 1; let targetOcc = 0;
+                bidders.forEach(other => {
                     if (other.currentKey === targetKey) targetOcc++;
-                    if (other.sen < p.sen && other.currentKey === targetKey) rank++;
-                }
+                    if (other.sen < p.sen && other.currentKey === targetKey) rankInTarget++;
+                });
 
                 const limit = targetMap[targetKey] || 0;
 
-                // RULE: If I am currently in this base AND I am senior enough to hold it
-                if (targetKey === p.currentKey && rank <= limit) {
+                // Hold Position Logic: If they are already here and rank is okay, they stay.
+                if (targetKey === p.currentKey && rankInTarget <= limit) {
                     p.awardedPrefNum = pr.order; p.awardedReason = "Held Position";
                     foundAward = true; break;
                 }
 
-                // RULE: Capacity check (Base can never be over limit)
-                if (rank > limit) continue; 
+                if (rankInTarget > limit) continue; // Base is full for them
 
-                // AWARD PATHS
-                if (targetOcc < limit) {
-                    // Path A: Vacancy Award
+                // Move Logic
+                if (targetOcc < limit || p.wasDisplaced) {
                     const oldKey = p.currentKey;
-                    currentCounts[oldKey]--; currentCounts[targetKey]++;
-                    p.awardedPrefNum = pr.order; p.awardedReason = "Vacancy Award";
+                    if (oldKey !== "UNASSIGNED") currentCounts[oldKey]--;
+                    currentCounts[targetKey]++;
+                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true;
+                    p.awardedPrefNum = pr.order; 
+                    p.awardedReason = (targetOcc < limit) ? "Vacancy Award" : "Seniority Bump";
                     auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Award" });
-                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true; break; 
-                } 
-                else if (p.wasDisplaced) {
-                    // Path B: Seniority Bump (Only for Displaced Pilots)
-                    const oldKey = p.currentKey;
-                    currentCounts[oldKey]--; currentCounts[targetKey]++;
-                    p.awardedPrefNum = pr.order; p.awardedReason = "Seniority Bump";
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Bump" });
-                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true; break; 
+                    break; 
                 }
             }
 
-            // 3. AUTO-HOLD: If I wasn't displaced and didn't move, I hold my current seat
-            if (!foundAward && !p.wasDisplaced) {
-                foundAward = true; 
+            // STAGE 3: VOLUNTARY HOLD
+            // If they weren't evicted and didn't move, they keep their seat by default.
+            if (!foundAward && p.currentKey !== "UNASSIGNED") {
+                foundAward = true;
             }
 
-            // 4. FLEET SWEEP: Displaced pilots without bids look for empty seats in category (CA/FO)
-            if (!foundAward && p.wasDisplaced) {
+            // STAGE 4: FLEET CATEGORY SWEEP
+            // If they are unassigned and displaced, look for a vacant seat in their category (CA/FO).
+            if (!foundAward && p.currentKey === "UNASSIGNED") {
                 const currentSeatType = p.current.seat;
                 for (let key in targetMap) {
                     if (key.endsWith(`-${currentSeatType}`)) {
                         let occ = bidders.filter(b => b.currentKey === key).length;
                         if (occ < targetMap[key]) {
-                            const oldKey = p.currentKey;
-                            currentCounts[oldKey]--; currentCounts[key]++;
-                            p.currentKey = key; p.moved = true; 
+                            p.currentKey = key; p.moved = true; cascade = true; foundAward = true;
                             p.awardedPrefNum = "Sweep"; p.awardedReason = `${currentSeatType} Category Vacancy`;
-                            auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: key, type: "Sweep" });
-                            cascade = true; foundAward = true; break;
+                            currentCounts[key]++;
+                            auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: "UNASSIGNED", to: key, type: "Sweep" });
+                            break;
                         }
                     }
                 }
             }
 
-            // 5. AT MERCY: Kick to unassigned list
-            if (!foundAward && p.wasDisplaced) {
-                const oldKey = p.currentKey;
-                currentCounts[oldKey]--; 
-                p.isUnassigned = true; p.currentKey = "UNASSIGNED"; p.awardedReason = "At Mercy of Company";
-                cascade = true; // Restart to allow juniors to claim the seat we just left
-                foundAward = true;
+            // STAGE 5: AT MERCY
+            if (!foundAward && p.currentKey === "UNASSIGNED") {
+                p.isUnassigned = true; p.awardedReason = "At Mercy of Company";
             }
 
-            if (cascade) break; 
+            if (cascade) break; // Restart from Pilot 1 whenever a seat change occurs
         }
     }
     return { roster: bidders, loops, auditTrail };
@@ -250,7 +247,7 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `<div>[Loop ${a.loop}] <strong>#${a.sen} ${a.name}</strong> to <strong>${a.to}</strong></div>`).join('');
+    document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `<div>[Pass ${a.loop}] <strong>#${a.sen} ${a.name}</strong> to <strong>${a.to}</strong></div>`).join('');
     renderTable(lastResults);
     renderDashboards(lastResults);
 };
@@ -259,7 +256,7 @@ function renderDashboards(roster) {
     let dispHtml = ''; let unassignedHtml = '';
     roster.forEach(p => {
         if (p.isUnassigned) unassignedHtml += `<div class="unassigned-item">#${p.sen} ${p.name}: Assigned by Company</div>`;
-        else if (p.wasDisplaced) dispHtml += `<div class="displaced-item">#${p.sen} ${p.name}: Moved to ${p.currentKey.replace('-',' ')}</div>`;
+        else if (p.wasDisplaced) dispHtml += `<div class="displaced-item">#${p.sen} ${p.name}: Awarded ${p.currentKey.replace('-',' ')}</div>`;
     });
     document.getElementById('displacedList').innerHTML = dispHtml || "None.";
     document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
@@ -282,7 +279,7 @@ function renderTable(roster) {
                 <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
                 <td><span class="rank-badge">${finalRank} / ${limit}</span></td>
                 <td>
-                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "N/A" : "Pref #" + p.awardedPrefNum}</span>
+                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
                     <span class="award-reason">via ${p.awardedReason}</span>
                 </td>
                 <td>${p.orig.replace('-',' ')}</td>
