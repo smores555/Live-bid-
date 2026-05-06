@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - BPL Audit Mode</title>
+    <title>737 Master Bid Control - Ripple Audit Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -75,12 +75,10 @@ let lastResults = [];
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
     let targetMap = {};
-    fillers = {};
     
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
-        fillers[key] = 0;
     });
 
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
@@ -89,10 +87,11 @@ function runBidEngine(data, deltaMap) {
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
-            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || data.prefs[p.sen] || { preferences: [] };
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             const getTargetKey = (bidStr) => {
-                const parts = bidStr.trim().toUpperCase().split(/\s+/);
+                if (!bidStr || bidStr === "0") return null;
+                const parts = String(bidStr).trim().toUpperCase().split(/\s+/);
                 const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
                 const seats = ['CA', 'FO'];
                 let b = parts.find(x => bases.includes(x));
@@ -102,67 +101,74 @@ function runBidEngine(data, deltaMap) {
 
             const selfBidWithBpl = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
             return {
-                ...p, orig: pilotOrig, currentKey: "UNASSIGNED", awardAudit: [],
+                ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
                 finalReason: "", isMover: false, isSelfDisp: false,
                 bplOnOwn: !!selfBidWithBpl,
+                ownSeatBpl: selfBidWithBpl ? (parseInt(selfBidWithBpl.bpl || selfBidWithBpl.bpl_min) || 0) : 9999,
                 prefs: (prefData.preferences || []).map(pr => ({
                     ...pr, targetKey: getTargetKey(pr.bid),
                     bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
-                })).sort((a, b) => a.order - b.order)
+                })).filter(pr => pr.targetKey).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    bidders.forEach(p => {
-        let awarded = false;
-        for (const pr of p.prefs) {
-            if (!pr.targetKey) continue;
-            let rank = fillers[pr.targetKey] + 1;
-            let cap = targetMap[pr.targetKey] || 0;
+    let iterationCount = 0;
+    let wasChanged = true;
 
-            if (rank > cap) {
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied</span> Rank ${rank} > ${cap}`);
-            } else if (rank > pr.bpl) {
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied BPL Fail</span> Rank ${rank} > ${pr.bpl}`);
-            } else {
-                p.currentKey = pr.targetKey;
-                fillers[pr.targetKey]++;
-                let msg = `<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}`;
-                if (pr.bpl < 9999) {
-                    msg += ` | BPL ${pr.bpl} | ${rank} < ${pr.bpl}</span>`;
+    while (wasChanged && iterationCount < 100) {
+        wasChanged = false;
+        iterationCount++;
+        fillers = {}; // Reset counts for this iterative pass
+
+        for (let p of bidders) {
+            let previousKey = p.currentKey;
+            let awarded = false;
+            p.awardAudit = []; // Reset audit to keep it clean for final iteration
+
+            // 1. Preference Bids
+            for (const pr of p.prefs) {
+                let rank = (fillers[pr.targetKey] || 0) + 1;
+                let cap = targetMap[pr.targetKey] || 0;
+
+                if (rank <= cap && rank <= pr.bpl) {
+                    p.currentKey = pr.targetKey;
+                    fillers[pr.targetKey] = rank;
+                    awarded = true;
+                    p.finalReason = "Bid Award";
+                    p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}</span> (Rank ${rank}/${cap})`);
+                    break;
                 } else {
-                    msg += ` | Pass ${rank} / ${cap}</span>`;
+                    let reason = rank > cap ? `Full (${rank}>${cap})` : `BPL Fail (${rank}>${pr.bpl})`;
+                    p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">${reason}</span>`);
                 }
-                p.awardAudit.push(msg);
-                awarded = true;
-                p.finalReason = "Bid Award";
-                p.isMover = (p.currentKey !== p.orig);
-                break;
             }
-        }
 
-        if (!awarded && !p.bplOnOwn) {
-            const targetKey = p.orig;
-            let cap = targetMap[targetKey] || 0;
-            let rank = fillers[targetKey] + 1;
-            if (rank <= cap) {
-                fillers[targetKey]++;
-                p.currentKey = targetKey;
-                p.awardAudit.push(`<span class="awarded-text">Awarded ${targetKey.replace('-',' ')} (Hold Pass ${rank} / ${cap})</span>`);
-                awarded = true;
-                p.finalReason = "Seniority Hold";
-                p.isMover = false;
-            } else {
-                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Denied Base Full</span> Rank ${rank} > ${cap}`);
+            // 2. Seniority Hold
+            if (!awarded && !p.bplOnOwn) {
+                let rank = (fillers[p.orig] || 0) + 1;
+                let cap = targetMap[p.orig] || 0;
+                if (rank <= cap) {
+                    p.currentKey = p.orig;
+                    fillers[p.orig] = rank;
+                    awarded = true;
+                    p.finalReason = "Seniority Hold";
+                    p.awardAudit.push(`<span class="awarded-text">Held ${p.orig.replace('-',' ')}</span> (Pass ${rank}/${cap})`);
+                }
             }
-        }
 
-        if (!awarded) {
-            p.currentKey = "UNASSIGNED";
-            p.isSelfDisp = p.bplOnOwn;
-            p.finalReason = p.isSelfDisp ? "Self-Displacement via BPL" : "Juniority Displacement";
-            p.awardAudit.push(`<span class="denied-text">POOL</span>`);
+            // 3. Pool
+            if (!awarded) {
+                p.currentKey = "UNASSIGNED";
+                p.isSelfDisp = p.bplOnOwn;
+                p.finalReason = p.isSelfDisp ? "Self-Displacement via BPL" : "Juniority Displacement";
+                p.awardAudit.push(`<span class="denied-text">POOL</span>`);
+            }
+
+            if (p.currentKey !== previousKey) wasChanged = true;
+            p.isMover = (p.currentKey !== p.orig && p.currentKey !== "UNASSIGNED");
         }
-    });
+    }
+    document.getElementById('statusBox').innerText = `Completed in ${iterationCount} ripple passes.`;
     return { roster: bidders, targetMap };
 }
 
@@ -196,7 +202,6 @@ document.getElementById('runBtn').onclick = () => {
     renderDashboards(result.roster);
 };
 
-// CSV Event Listeners
 document.getElementById('expBase').onclick = () => {
     const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
     downloadCSV("737_Base_List.csv", rows);
