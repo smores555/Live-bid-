@@ -1,5 +1,12 @@
-// This map tells the engine which files to look for. 
-// It will try the first name, and if it fails, it will try the second.
+/**
+ * AIRLINE POSITION BID ENGINE - CORE LOGIC
+ * Features: 
+ * - Seniority-based awarding with Pilot #1 restart for knock-on effects.
+ * - BPL (Bid Position List) rank validation.
+ * - Displacement handling for negative capacity deltas.
+ * - Detailed transaction logging of vacancy changes.
+ */
+
 const FILE_MAP = {
     roster: ["roster (2).json", "roster.json"],
     retired: ["retired_pilots (2).json", "retired_pilots.json"],
@@ -10,14 +17,35 @@ const FILE_MAP = {
 
 let state = {
     pilots: [],
-    positions: {},
+    positions: {}, // Keyed by "BASE SEAT"
     raw: {}
 };
 
-// --- DATA LOADING WITH AUTO-RETRY ---
+// --- HELPERS ---
+
+function formatPosName(posKey) {
+    if (!posKey) return "Unassigned";
+    const baseMap = { 
+        "SEA": "Seattle", "LAX": "Los Angeles", "ANC": "Anchorage", 
+        "PDX": "Portland", "SFO": "San Francisco", "SAN": "San Diego" 
+    };
+    const seatMap = { "CA": "Captain", "FO": "First Officer" };
+    const parts = posKey.split(' ');
+    const base = baseMap[parts[0]] || parts[0];
+    const seat = seatMap[parts[1]] || parts[1];
+    return `${base} ${seat}`;
+}
+
+function getVacancyCount(posKey) {
+    const pos = state.positions[posKey];
+    if (!pos) return 0;
+    return pos.target - pos.holding.length;
+}
+
+// --- DATA LOADING ---
+
 window.onload = async () => {
     const status = document.getElementById('load-status');
-    
     try {
         const fetchWithRetry = async (key) => {
             const names = FILE_MAP[key];
@@ -25,17 +53,14 @@ window.onload = async () => {
                 try {
                     const response = await fetch(`./${encodeURIComponent(name)}`);
                     if (response.ok) return await response.json();
-                } catch (e) { /* continue to next name */ }
+                } catch (e) {}
             }
-            throw new Error(`Could not find ${key} file (tried: ${names.join(', ')})`);
+            throw new Error(`Critical: Could not find ${key} file.`);
         };
 
         const [roster, retired, prefs, nobid, caps] = await Promise.all([
-            fetchWithRetry('roster'),
-            fetchWithRetry('retired'),
-            fetchWithRetry('prefs'),
-            fetchWithRetry('nobid'),
-            fetchWithRetry('caps')
+            fetchWithRetry('roster'), fetchWithRetry('retired'),
+            fetchWithRetry('prefs'), fetchWithRetry('nobid'), fetchWithRetry('caps')
         ]);
 
         state.raw = { roster, retired, prefs, nobid, caps };
@@ -57,42 +82,36 @@ function setupEngine() {
     state.positions = {};
     state.pilots = [];
 
-    // 1. Initialize Positions from Capacities (Target = Start + Delta)
+    // 1. Initialize Positions from Capacities JSON
     state.raw.caps.forEach(c => {
         const key = `${c.base} ${c.seat}`;
         state.positions[key] = {
-            currentCount: 0,
             target: (c.startCapacity || 0) + (c.delta || 0),
             holding: [] 
         };
     });
 
-    // 2. Build Active Pilot List (Skip No-Bids & Retired)
+    // 2. Build Active Pilot List (Excluding Retired and No-Bids)
     state.raw.roster.forEach(p => {
         if (noBidSens.has(p.sen) || retiredSens.has(p.sen)) return;
 
         const posKey = `${p.current.base} ${p.current.seat}`;
         const pPrefData = state.raw.prefs[`pil${p.sen}`] || state.raw.prefs[p.id];
         
-        const pilot = {
+        state.pilots.push({
             sen: p.sen,
             name: p.name,
             originalPos: posKey,
-            awardedPos: posKey,
+            awardedPos: posKey, // Default is currently holding
+            displaced: false,
             preferences: (pPrefData?.preferences || [])
                 .filter(pr => pr.bid && pr.bid.trim() !== "")
                 .map(pr => ({
-                    // Cleans prefixes like "73G " or "737 " to match the "BASE SEAT" keys
+                    // Clean equipment tags to match "BASE SEAT" keys
                     bid: pr.bid.replace(/73G |737 /g, '').trim(),
                     bpl: pr.bpl_min || 0
                 }))
-        };
-
-        state.pilots.push(pilot);
-        if (state.positions[posKey]) {
-            state.positions[posKey].currentCount++;
-            state.positions[posKey].holding.push(pilot);
-        }
+        });
     });
 
     renderCapTable();
@@ -100,114 +119,140 @@ function setupEngine() {
 
 function renderCapTable() {
     const body = document.getElementById('cap-body');
+    if (!body) return;
     body.innerHTML = '';
     Object.keys(state.positions).sort().forEach(key => {
         const pos = state.positions[key];
         body.innerHTML += `
             <tr>
-                <td><strong>${key}</strong></td>
-                <td>${pos.currentCount}</td>
-                <td><input type="number" class="cap-input" value="${pos.target}" onchange="updateCap('${key}', this.value)"></td>
+                <td><strong>${formatPosName(key)}</strong></td>
+                <td><input type="number" class="cap-input" value="${pos.target}" onchange="state.positions['${key}'].target = parseInt(this.value) || 0"></td>
             </tr>
         `;
     });
 }
 
-function updateCap(key, val) {
-    state.positions[key].target = parseInt(val) || 0;
-}
+// --- CORE BID LOGIC ---
 
-// --- THE RESTART ENGINE ---
 function runBid() {
     const pilots = state.pilots;
     const positions = state.positions;
+    const logArea = document.getElementById('transaction-log');
+    let transactionLogs = [];
 
-    // Reset positions
-    Object.keys(positions).forEach(k => positions[k].holding = []);
-
-    // Step 1: Initial Displacements (Negative Delta logic)
-    Object.keys(positions).forEach(key => {
-        const pos = positions[key];
-        const initialHolders = pilots.filter(p => p.originalPos === key);
+    // 1. Initial State Setup & Displacements
+    Object.keys(positions).forEach(k => {
+        positions[k].holding = [];
+        // Group pilots who currently sit in this base
+        const currentInBase = pilots.filter(p => p.originalPos === k);
+        // Sort junior to senior (highest number first) to displace from bottom
+        currentInBase.sort((a,b) => b.sen - a.sen);
         
-        // Displace from bottom up (Junior first)
-        initialHolders.sort((a,b) => b.sen - a.sen);
-        
-        const overage = initialHolders.length - pos.target;
+        const overage = currentInBase.length - positions[k].target;
         for (let i = 0; i < overage; i++) {
-            if (initialHolders[i]) initialHolders[i].awardedPos = null;
+            if (currentInBase[i]) {
+                currentInBase[i].awardedPos = null; // Unassign current spot
+                currentInBase[i].displaced = true;
+            }
         }
 
-        initialHolders.forEach(p => {
-            if (p.awardedPos) pos.holding.push(p);
+        // Add survivors to the holding list
+        currentInBase.forEach(p => {
+            if (p.awardedPos) {
+                positions[k].holding.push(p);
+                p.displaced = false;
+            }
         });
     });
 
-    // Step 2: Main Bid Loop (Restart from #1 on every award)
-    let awardMade = true;
-    while (awardMade) {
-        awardMade = false;
-        pilots.sort((a, b) => a.sen - b.sen); // Seniority order
+    transactionLogs.push(">> BID ENGINE STARTED: PROCESSING PREFERENCES BY SENIORITY");
+
+    // 2. Main Award Loop (Honors Knock-on Effects)
+    let awardFound = true;
+    while (awardFound) {
+        awardFound = false;
+        // Process in strict seniority order (1 is most senior)
+        pilots.sort((a, b) => a.sen - b.sen);
 
         for (let i = 0; i < pilots.length; i++) {
             const pilot = pilots[i];
             const currentAward = pilot.awardedPos;
 
             for (const pref of pilot.preferences) {
-                if (pref.bid === currentAward) break; // Already has it or better
+                // If they already have this or better, move to next pilot
+                if (pref.bid === currentAward) break;
 
-                const target = positions[pref.bid];
-                if (!target) continue;
+                const targetPos = positions[pref.bid];
+                if (!targetPos) continue;
 
-                // Rule 1: Vacancy must exist
-                const hasVacancy = target.holding.length < target.target;
+                // Rule 1: Vacancy Check
+                const hasVacancy = targetPos.holding.length < targetPos.target;
                 
-                // Rule 2: BPL Check (BPL Rank = senior holders + 1)
-                const bplRank = target.holding.filter(p => p.sen < pilot.sen).length + 1;
-                const passesBPL = pref.bpl === 0 || bplRank <= pref.bpl;
+                // Rule 2: BPL Check (BPL Rank = Seniors already there + 1)
+                const currentBPLRank = targetPos.holding.filter(p => p.sen < pilot.sen).length + 1;
+                const passesBPL = pref.bpl === 0 || currentBPLRank <= pref.bpl;
 
                 if (hasVacancy && passesBPL) {
-                    // Update holdings
+                    // --- LOG TRANSACTION ---
+                    const targetOldVac = getVacancyCount(pref.bid);
+                    let logStr = `Open position available. Reduce vacancy in ${formatPosName(pref.bid)} from ${targetOldVac} to ${targetOldVac - 1}.`;
+
+                    // Handle backfill if leaving a spot
                     if (pilot.awardedPos) {
-                        positions[pilot.awardedPos].holding = positions[pilot.awardedPos].holding.filter(p => p.sen !== pilot.sen);
+                        const oldPosKey = pilot.awardedPos;
+                        const sourceOldVac = getVacancyCount(oldPosKey);
+                        logStr += ` Increase vacancy in ${formatPosName(oldPosKey)} from ${sourceOldVac} to ${sourceOldVac + 1}.`;
+                        
+                        // Vacate old spot
+                        positions[oldPosKey].holding = positions[oldPosKey].holding.filter(p => p.sen !== pilot.sen);
                     }
 
+                    logStr += ` Proffered from ${pilot.sen} - ${pilot.name}.`;
+                    transactionLogs.push(logStr);
+
+                    // --- EXECUTE AWARD ---
                     pilot.awardedPos = pref.bid;
-                    target.holding.push(pilot);
+                    pilot.displaced = false;
+                    targetPos.holding.push(pilot);
+                    targetPos.holding.sort((a, b) => a.sen - b.sen);
                     
-                    awardMade = true;
-                    break; // Award found! BREAK pilot loop to RESTART from Pilot #1
+                    awardFound = true;
+                    break; // Restart from Pilot #1
                 }
             }
-            if (awardMade) break; 
+            if (awardFound) break; // Exit loop to restart while(awardFound)
         }
     }
+
+    // 3. UI Update
+    logArea.innerHTML = transactionLogs.join('<br><br>');
     renderResults();
 }
 
 function renderResults() {
     const tbody = document.getElementById('results-body');
+    if (!tbody) return;
     tbody.innerHTML = '';
     
     state.pilots.sort((a,b) => a.sen - b.sen).forEach(p => {
         let status = p.awardedPos === p.originalPos ? 'held' : 'moved';
         let label = p.awardedPos === p.originalPos ? 'Held' : 'Awarded';
         
-        if (!p.awardedPos) {
+        if (p.displaced && !p.awardedPos) {
             status = 'displaced';
-            label = 'Displaced';
+            label = 'UNASSIGNED (Displaced)';
         }
 
-        const rank = p.awardedPos ? 
+        const bplRank = p.awardedPos ? 
             state.positions[p.awardedPos].holding.filter(h => h.sen < p.sen).length + 1 : '-';
 
         tbody.innerHTML += `
             <tr>
                 <td>${p.sen}</td>
                 <td>${p.name}</td>
-                <td>${p.originalPos}</td>
-                <td><strong>${p.awardedPos || 'UNASSIGNED'}</strong></td>
-                <td>${rank}</td>
+                <td>${formatPosName(p.originalPos)}</td>
+                <td><strong>${formatPosName(p.awardedPos)}</strong></td>
+                <td>${bplRank}</td>
                 <td><span class="status ${status}">${label}</span></td>
             </tr>
         `;
