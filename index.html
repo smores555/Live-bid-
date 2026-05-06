@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Cascade Mode</title>
+    <title>737 Master Bid Control - Incumbent Protection Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -15,10 +15,6 @@
         .dash-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        .audit-step { display: block; font-size: 0.75rem; margin-bottom: 4px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
-        .denied-text { color: var(--red); font-weight: 500; }
-        .awarded-text { color: var(--green); font-weight: bold; }
-        .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; display: block; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -37,14 +33,14 @@
     </div>
 
     <div class="dash-container">
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL)</h4><div id="selfDispList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Displaced</h4><div id="unassignedList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Cycles</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Base Reduction Evictions</h4><div id="unassignedList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
     </div>
 
     <div class="toolbar" style="margin-bottom:20px;">
-        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN CASCADE BID</button>
+        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN INCUMBENT BID</button>
         <button id="expBase" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: BASE</button>
         <button id="expMaster" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: MASTER</button>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px; margin-left:20px;" placeholder="Sen #">
@@ -58,7 +54,7 @@
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
                 <th>Standing</th>
-                <th>Notes / Mathematical Audit Path</th>
+                <th>Notes</th>
                 <th>Original Position</th>
             </tr>
         </thead>
@@ -78,7 +74,7 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = {};
     let targetMap = {};
 
-    // 1. Calculate actual starting headcount
+    // 1. Calculate actual starting headcount & Target Limits
     data.roster.forEach(p => {
         if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
             const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -86,42 +82,95 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    // 2. Set limits using actual headcounts + delta
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         const start = currentCounts[key] || 0;
         targetMap[key] = start + (deltaMap[`${c.base}-${c.seat}`] || 0);
     });
 
-    const bidders = data.roster
+    // Robust Bid Parser (Handles any JSON structure)
+    const getTargetKey = (rawString) => {
+        if (!rawString || String(rawString) === "0") return null;
+        const parts = String(rawString).trim().toUpperCase().split(/\s+/);
+        const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
+        const seats = ['CA', 'FO'];
+        let b = parts.find(x => bases.includes(x));
+        let s = parts.find(x => seats.includes(x));
+        return (b && s) ? `${b}-${s}` : null;
+    };
+
+    // 2. Initialize Bidders (Everyone starts in their Incumbent Seat)
+    let bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
-            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             
-            const getTargetKey = (bidStr) => {
-                if (!bidStr || bidStr === "0") return null;
-                const parts = bidStr.trim().toUpperCase().split(/\s+/);
-                const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
-                const seats = ['CA', 'FO'];
-                let b = parts.find(x => bases.includes(x));
-                let s = parts.find(x => seats.includes(x));
-                return (b && s) ? `${b}-${s}` : null;
-            };
+            // Find preferences regardless of JSON structure
+            let prefData = [];
+            if (Array.isArray(data.prefs)) {
+                let found = data.prefs.find(item => item.id == p.sen || item.pilId == 'pil'+p.sen || item.sen == p.sen);
+                if (found) prefData = found.preferences || found.bids || found.choices || [];
+            } else {
+                let found = data.prefs['pil' + p.sen] || data.prefs[p.id] || data.prefs[p.sen];
+                if (found) prefData = found.preferences || found.bids || found.choices || [];
+            }
 
-            const bplOnOwn = (prefData.preferences || []).some(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
+            const cleanPrefs = prefData.map(pr => ({
+                targetKey: getTargetKey(pr.bid || pr.position || pr.target || pr.request),
+                bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
+            })).filter(pr => pr.targetKey);
+
+            const bplOnOwn = cleanPrefs.some(pr => pr.targetKey === pilotOrig && pr.bpl < 9999);
 
             return {
-                ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
-                finalReason: "Seniority Hold", moved: false, isSelfDisp: false, isDisplaced: false,
-                bplOnOwn: bplOnOwn,
-                prefs: (prefData.preferences || []).map(pr => ({
-                    ...pr, targetKey: getTargetKey(pr.bid), bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
-                })).sort((a, b) => a.order - b.order)
+                ...p, orig: pilotOrig, currentKey: pilotOrig, // Starts in own seat
+                finalReason: "Held Incumbent Seat", moved: false, isSelfDisp: false, isDisplaced: false,
+                bplOnOwn: bplOnOwn, prefs: cleanPrefs
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. Cascade Loop (The Net-Zero Headcount Fix)
+    // ==========================================
+    // PHASE 1: BASE REDUCTION EVICTIONS
+    // Only happens if Delta is negative. Protects junior pilots otherwise.
+    // ==========================================
+    Object.keys(targetMap).forEach(base => {
+        let overage = currentCounts[base] - targetMap[base];
+        if (overage > 0) {
+            // Sort pilots currently in this base by JUNIORITY (Highest Sen # first)
+            let basePilots = bidders.filter(p => p.currentKey === base).sort((a, b) => b.sen - a.sen);
+            for (let i = 0; i < overage; i++) {
+                if (basePilots[i]) {
+                    basePilots[i].currentKey = "UNASSIGNED";
+                    basePilots[i].isDisplaced = true;
+                    basePilots[i].finalReason = "Evicted (Base Reduction)";
+                    currentCounts[base]--;
+                }
+            }
+        }
+    });
+
+    // ==========================================
+    // PHASE 2: VOLUNTARY BPL SELF-DISPLACEMENT
+    // ==========================================
+    bidders.forEach(p => {
+        if (p.currentKey !== "UNASSIGNED" && p.bplOnOwn) {
+            let rank = 1;
+            bidders.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) rank++; });
+            
+            let ownPref = p.prefs.find(pr => pr.targetKey === p.orig);
+            if (ownPref && rank > ownPref.bpl) {
+                p.currentKey = "UNASSIGNED";
+                p.isSelfDisp = true;
+                p.finalReason = "Self-Displaced (BPL Fail)";
+                currentCounts[p.orig]--;
+            }
+        }
+    });
+
+    // ==========================================
+    // PHASE 3: THE VACANCY CASCADE
+    // Junior pilots are now safely fenced in. Senior pilots trade open chairs.
+    // ==========================================
     let cascade = true;
     let loops = 0;
     while (cascade && loops < 1000) {
@@ -129,82 +178,29 @@ function runBidEngine(data, deltaMap) {
         loops++;
 
         for (let p of bidders) {
-            let foundAward = false;
-            p.awardAudit = []; 
-
             for (const pr of p.prefs) {
-                if (!pr.targetKey) continue;
-                
+                // If this is the seat they currently sit in, stop looking.
+                if (pr.targetKey === p.currentKey) break;
+
                 let rank = 1;
-                for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === pr.targetKey) rank++;
-                }
+                bidders.forEach(other => { if (other.sen < p.sen && other.currentKey === pr.targetKey) rank++; });
+                
+                if (rank > pr.bpl) continue; // Fails quality of life constraint
 
-                const limit = targetMap[pr.targetKey] || 0;
-
-                if (rank > pr.bpl) {
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">Denied BPL Fail (${rank})</span>`);
-                    continue;
-                }
-                if (rank > limit) {
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">Full (${rank}/${limit})</span>`);
-                    if (pr.targetKey === p.orig) p.isDisplaced = true;
-                    continue;
-                }
-
-                if (pr.targetKey === p.currentKey) {
-                    p.awardAudit.push(`<span class="awarded-text">Holding ${pr.targetKey} (Rank ${rank})</span>`);
-                    foundAward = true;
+                // Is there an empty chair?
+                if (currentCounts[pr.targetKey] < targetMap[pr.targetKey]) {
+                    if (p.currentKey !== "UNASSIGNED") {
+                        currentCounts[p.currentKey]--; // Stand up from old chair
+                    }
+                    p.currentKey = pr.targetKey; // Sit in new chair
+                    currentCounts[pr.targetKey]++;
+                    p.moved = true;
+                    p.finalReason = `Awarded Vacancy (${pr.targetKey})`;
+                    
+                    cascade = true; // Tell the engine a chair just opened up!
                     break;
                 }
-
-                // Mathematical Seat Exchange
-                const oldKey = p.currentKey;
-                currentCounts[oldKey]--;
-                currentCounts[pr.targetKey]++;
-                p.currentKey = pr.targetKey;
-                p.moved = true;
-                p.finalReason = "Bid Awarded";
-                p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey} (Rank ${rank})</span>`);
-                cascade = true;
-                foundAward = true;
-                break;
             }
-
-            if (!foundAward && !p.bplOnOwn) {
-                let rank = 1;
-                for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.orig) rank++;
-                }
-                if (rank <= (targetMap[p.orig] || 0)) {
-                    if (p.currentKey !== p.orig) {
-                        currentCounts[p.currentKey]--;
-                        currentCounts[p.orig]++;
-                        p.currentKey = p.orig;
-                        cascade = true;
-                    }
-                    p.awardAudit.push(`<span class="awarded-text">Seniority Hold ${p.orig} (${rank})</span>`);
-                    foundAward = true;
-                    p.moved = false;
-                    p.isDisplaced = false; // Safe!
-                    p.finalReason = "Seniority Hold";
-                }
-            }
-
-            if (!foundAward) {
-                if (p.currentKey !== "UNASSIGNED") {
-                    currentCounts[p.currentKey]--; // Vacate chair if displaced
-                    p.currentKey = "UNASSIGNED";
-                    cascade = true;
-                }
-                p.isDisplaced = true;
-                p.isSelfDisp = p.bplOnOwn;
-                p.finalReason = p.isSelfDisp ? "Self-Displaced" : "Reduction Displaced";
-                p.awardAudit.push(`<span class="denied-text">POOL / DISPLACED</span>`);
-            }
-            if (cascade) break;
         }
     }
     return { roster: bidders, loops, targetMap };
@@ -247,7 +243,7 @@ document.getElementById('expBase').onclick = () => {
 };
 
 document.getElementById('expMaster').onclick = () => {
-    const rows = [["Sen #", "Name", "Awarded Position", "Original Position"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' ')])];
+    const rows = [["Sen #", "Name", "Awarded Position", "Original Position", "Reason"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' '), p.finalReason])];
     downloadCSV("737_Master_Awards.csv", rows);
 };
 
@@ -256,7 +252,7 @@ function renderTable(roster, targetMap) {
         let tags = '';
         if (p.isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
         if (p.moved) tags += '<span class="tag tag-yellow">MOVER</span>';
-        if (p.isDisplaced && !p.isSelfDisp) tags += '<span class="tag tag-yellow">DISPLACED</span>';
+        if (p.isDisplaced && !p.isSelfDisp) tags += '<span class="tag tag-yellow">EVICTED</span>';
 
         let finalRank = 1;
         roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
@@ -266,12 +262,9 @@ function renderTable(roster, targetMap) {
             <tr>
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${p.moved?'#3fb950':''}">${p.currentKey.replace('-', ' ')}</td>
+                <td style="color:${p.moved?'#3fb950':(p.isDisplaced?'#f85149':'')}">${p.currentKey.replace('-', ' ')}</td>
                 <td><span class="rank-badge">${p.currentKey === 'UNASSIGNED' ? '-' : finalRank + ' / ' + limit}</span></td>
-                <td>
-                    ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
-                    <span class="via-text">via ${p.finalReason}</span>
-                </td>
+                <td style="font-size: 0.75rem; color: #8b949e;">${p.finalReason}</td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
     }).join('');
@@ -293,7 +286,6 @@ function renderDashboards(roster) {
 document.getElementById('lookupBtn').onclick = () => {
     const sen = document.getElementById('lookupInput').value;
     if (sen && lastResults.length) {
-        // Need targetMap for the lookup table render
         const deltas = {};
         store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
         let targetMap = {};
