@@ -1,139 +1,209 @@
-/**
- * UPDATED AIRLINE BID ENGINE
- * Fixes: Corrected preference parsing for "73G SEAT BASE" format 
- * and fixed ID lookups for the preferences object.
- */
-function runBidEngine(data, deltaMap) {
-    const auditTrail = [];
-    
-    // 1. Scrub the Data - Identify 737 only
-    const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
+// --- CONFIGURATION ---
+const CONFIG = {
+    username: "YOUR_GITHUB_USERNAME", // Update this
+    repo: "YOUR_REPO_NAME",           // Update this
+    branch: "main"
+};
 
-    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.sen));
-    const noBid737 = data.noBid.filter(p => is737(p.seat));
-    const noBidSens = new Set(noBid737.map(p => p.sen));
+const BASE_URL = `https://raw.githubusercontent.com/${CONFIG.username}/${CONFIG.repo}/${CONFIG.branch}/`;
 
-    const noBidOccupancy = {};
-    noBid737.forEach(p => noBidOccupancy[p.sen] = `${p.base}-${p.seat}`);
+let state = {
+    roster: [],
+    retired: new Set(),
+    noBid: new Set(),
+    prefs: {},
+    positions: {},
+    pilots: []
+};
 
-    // 2. Initialize Current Occupancy
-    let currentCounts = {};
-    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
+// 1. AUTO-FETCH ON LOAD
+window.onload = async () => {
+    try {
+        const [roster, retired, noBid, prefs] = await Promise.all([
+            fetch(BASE_URL + 'roster%20(2).json').then(r => r.json()),
+            fetch(BASE_URL + 'retired_pilots%20(2).json').then(r => r.json()),
+            fetch(BASE_URL + 'nobidpilots%20(2).json').then(r => r.json()),
+            fetch(BASE_URL + 'preferences%20(4).json').then(r => r.json())
+        ]);
 
-    for (let sen in noBidOccupancy) {
-        const key = noBidOccupancy[sen];
-        if (currentCounts[key] === undefined) currentCounts[key] = 0;
-        currentCounts[key]++;
+        state.roster = roster;
+        state.retired = new Set(retired.map(p => p.sen));
+        state.noBid = new Set(noBid.map(p => p.sen));
+        state.prefs = prefs;
+
+        initPositions();
+    } catch (err) {
+        console.error("Failed to fetch data:", err);
+        document.getElementById('cap-body').innerHTML = `<tr><td colspan="5" style="color:red">Error loading data. Check CONFIG or GitHub URL.</td></tr>`;
     }
+};
 
-    // 3. Prepare Active Bidders
-    const rosterMap = new Map();
-    data.roster.forEach(p => {
-        if (!rosterMap.has(p.sen) && is737(p.current.seat)) {
-            rosterMap.set(p.sen, p);
+function initPositions() {
+    state.positions = {};
+    state.pilots = [];
+
+    state.roster.forEach(p => {
+        // Skip No-Bid Pilots entirely
+        if (state.noBid.has(p.sen)) return;
+
+        const posKey = `${p.current.equip} ${p.current.base} ${p.current.seat}`;
+        
+        if (!state.positions[posKey]) {
+            state.positions[posKey] = { current: 0, retiring: 0, target: 0, holding: [] };
         }
+
+        // Retired pilots open vacancies but don't stay in the active pilot pool
+        if (state.retired.has(p.sen)) {
+            state.positions[posKey].retiring++;
+            return;
+        }
+
+        // Active Pilots
+        state.positions[posKey].current++;
+        state.positions[posKey].target++; // Initial default
+        
+        let pilotPrefs = state.prefs[`pil${p.sen}`]?.preferences || [];
+        
+        state.pilots.push({
+            sen: p.sen,
+            name: p.name,
+            originalPos: posKey,
+            awardedPos: posKey,
+            prefs: pilotPrefs.filter(pr => pr.bid).map(pr => ({
+                bid: pr.bid,
+                bpl: pr.bpl_min || 999
+            }))
+        });
     });
 
-    const bidders = Array.from(rosterMap.values())
-        .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
-        .map(p => {
-            const key = `${p.current.base}-${p.current.seat}`;
-            if (currentCounts[key] === undefined) currentCounts[key] = 0;
-            currentCounts[key]++; 
-            
-            // Fix: Check for both "pil123" and raw "123" seniority keys
-            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.sen] || { preferences: [] };
-            
-            return {
-                ...p, 
-                currentKey: key, 
-                orig: key, 
-                moved: false,
-                prefHistory: {}, 
-                prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
-            };
-        }).sort((a, b) => a.sen - b.sen);
+    renderCapTable();
+}
 
-    // 4. Set Hard Targets
-    let targetMap = {};
-    for (let key in currentCounts) {
-        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
-    }
+function renderCapTable() {
+    const tbody = document.getElementById('cap-body');
+    tbody.innerHTML = '';
+    
+    Object.keys(state.positions).sort().forEach(key => {
+        const pos = state.positions[key];
+        const delta = pos.target - (pos.current - pos.retiring);
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${key}</td>
+            <td>${pos.current}</td>
+            <td>${pos.retiring}</td>
+            <td><input type="number" class="cap-input" value="${pos.target}" onchange="updateCap('${key}', this.value)"></td>
+            <td style="color:${delta < 0 ? 'red' : 'green'}">${delta > 0 ? '+' + delta : delta}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
 
-    let cascade = true;
-    let loops = 0;
+function updateCap(key, val) {
+    state.positions[key].target = parseInt(val);
+    renderCapTable();
+}
 
-    // 5. The Seniority Cascade
-    while (cascade) {
-        cascade = false;
-        loops++;
-        for (let i = 0; i < bidders.length; i++) {
-            const p = bidders[i];
-            
-            for (const pr of p.prefs) {
-                if (!pr.bid || pr.bid.trim() === "") continue;
+// 2. THE ENGINE
+function runBid() {
+    // Reset positions "holding" lists
+    Object.keys(state.positions).forEach(k => state.positions[k].holding = []);
+    
+    // Sort pilots by Seniority (1 is most senior)
+    state.pilots.sort((a, b) => a.sen - b.sen);
+
+    // Initial Displacements
+    // If target < (current - retiring), the junior pilots in that base are kicked out
+    Object.keys(state.positions).forEach(key => {
+        const pos = state.positions[key];
+        const initialHolders = state.pilots.filter(p => p.originalPos === key);
+        const capacity = pos.target;
+
+        if (initialHolders.length > capacity) {
+            // Sort junior to senior to displace from bottom
+            initialHolders.sort((a, b) => b.sen - a.sen);
+            const displacedCount = initialHolders.length - capacity;
+            for (let i = 0; i < displacedCount; i++) {
+                initialHolders[i].awardedPos = null; 
+            }
+        }
+        
+        // Those not nullified are initially "holding" their spot
+        initialHolders.forEach(p => {
+            if (p.awardedPos) pos.holding.push(p);
+        });
+    });
+
+    // Main Loop: Honors Knock-on Effects
+    let changed = true;
+    while (changed) {
+        changed = false;
+        
+        for (let i = 0; i < state.pilots.length; i++) {
+            const pilot = state.pilots[i];
+            const currentAward = pilot.awardedPos;
+
+            for (const pref of pilot.prefs) {
+                if (pref.bid === currentAward) break; // Already has it or better
+
+                const targetPos = state.positions[pref.bid];
+                if (!targetPos) continue;
+
+                // Rule: Must be a vacancy
+                const hasVacancy = targetPos.holding.length < targetPos.target;
                 
-                // Fix: Parse "73G SEAT BASE" (e.g. "73G CA SEA")
-                const parts = pr.bid.trim().split(/\s+/);
-                if (parts.length < 3) continue;
-                const targetKey = `${parts[2]}-${parts[1]}`; // Result: SEA-CA
-                
-                // --- RANK CALCULATION ---
-                let rank = 1;
-                for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === targetKey) rank++;
-                }
+                // Rule: BPL Check
+                // Your BPL rank = (Number of senior pilots currently holding) + 1
+                const myBPLRank = targetPos.holding.filter(p => p.sen < pilot.sen).length + 1;
+                const passesBPL = myBPLRank <= pref.bpl;
 
-                const reqBPL = parseInt(pr.bpl_min) || 0;
-                const bplLog = `. BPL if awarded = ${rank}${reqBPL > 0 ? ` (Req: ${reqBPL})` : ''}`;
-
-                if (reqBPL > 0 && rank > reqBPL) {
-                    p.prefHistory[pr.order] = { 
-                        status: "Denied", 
-                        reason: `BPL requirement failed. Rank: ${rank}, Req: ${reqBPL}` 
-                    };
-                    continue;
-                }
-
-                if (targetKey === p.currentKey) {
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in current position${bplLog}` };
-                    break;
-                }
-
-                // --- CAPACITY CHECK ---
-                const currentOcc = currentCounts[targetKey] || 0;
-                const limit = targetMap[targetKey] || 0;
-
-                if (currentOcc < limit) {
-                    const oldKey = p.currentKey;
+                if (hasVacancy && passesBPL) {
+                    // Remove from old
+                    if (pilot.awardedPos) {
+                        const oldPos = state.positions[pilot.awardedPos];
+                        oldPos.holding = oldPos.holding.filter(p => p.sen !== pilot.sen);
+                    }
                     
-                    currentCounts[oldKey]--; 
-                    currentCounts[targetKey]++;
-
-                    p.prefHistory[pr.order] = { 
-                        status: "Awarded", 
-                        reason: `Awarded ${targetKey} (Vacancy was ${limit - currentOcc})${bplLog}` 
-                    };
-
-                    auditTrail.push({
-                        loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey
-                    });
+                    // Award New
+                    pilot.awardedPos = pref.bid;
+                    targetPos.holding.push(pilot);
                     
-                    p.currentKey = targetKey;
-                    p.moved = true;
-                    cascade = true; 
-                    break; 
-                } else {
-                    p.prefHistory[pr.order] = { 
-                        status: "Denied", 
-                        reason: `No vacancy in ${targetKey}` 
-                    };
+                    changed = true;
+                    break; // Exit pilot loop
                 }
             }
-            if (cascade) break;
+            if (changed) break; // Restart from Pilot #1
         }
-        if (loops > 5000) break; // Safety limit
     }
-    return { roster: bidders, loops, auditTrail };
+    renderResults();
+}
+
+function renderResults() {
+    const area = document.getElementById('results-area');
+    const tbody = document.getElementById('results-body');
+    area.style.display = 'block';
+    tbody.innerHTML = '';
+
+    state.pilots.forEach(p => {
+        let statusClass = '';
+        let statusText = 'Held';
+
+        if (!p.awardedPos) {
+            statusClass = 'displaced';
+            statusText = 'DISPLACED';
+        } else if (p.awardedPos !== p.originalPos) {
+            statusClass = 'moved';
+            statusText = 'Awarded';
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${p.sen}</td>
+            <td>${p.name}</td>
+            <td>${p.originalPos}</td>
+            <td><strong>${p.awardedPos || 'UNASSIGNED'}</strong></td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
