@@ -14,21 +14,16 @@
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
         .btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
-        
-        /* Updated to 4 columns for the new box */
         .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        
         .audit-log { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; margin-bottom: 20px; color: #8b949e; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
-        
         .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
@@ -49,7 +44,7 @@
             <div id="selfDispList">Ready...</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--yellow)">⚠️ All Displaced Pilots</h4>
+            <h4 class="dash-title" style="color:var(--yellow)">⚠️ Forced Displacements</h4>
             <div id="displacedList">Ready...</div>
         </div>
         <div class="dash-box">
@@ -64,9 +59,6 @@
 
     <div class="toolbar">
         <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
-        <button id="expBase" class="btn btn-export" style="margin-left:10px;">CSV: BASE LIST</button>
-        <button id="expMaster" class="btn btn-export">CSV: MASTER AWARDS</button>
-        <button id="expLog" class="btn btn-export">CSV: TRANSITION LOG</button>
         <div style="flex-grow:1"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn">LOOKUP</button>
@@ -91,8 +83,6 @@
 
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
-let lastResults = [];
-let lastAuditTrail = [];
 
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -125,15 +115,17 @@ function runBidEngine(data, deltaMap) {
                 return (b && s) ? `${b}-${s}` : null;
             };
 
-            const selfBid = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig);
+            const selfBidWithBpl = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
+            const wantsToStay = (prefData.preferences.length === 0) || (getTargetKey(prefData.preferences[0].bid) === pilotOrig && !selfBidWithBpl);
 
             return {
                 ...p,
                 orig: pilotOrig,
                 currentKey: "UNASSIGNED",
-                moved: false, wasSelfDisplaced: false, isUnassigned: false,
+                moved: false, wasSelfDisplaced: false, isDisplaced: false, isUnassigned: false,
+                wantsToStay: wantsToStay,
                 awardedPrefNum: "N/A", awardedReason: "",
-                bplRestrictionOnOwnSeat: selfBid ? true : false,
+                bplRestrictionOnOwnSeat: !!selfBidWithBpl,
                 prefs: (prefData.preferences || []).map(pr => ({
                     ...pr, 
                     targetKey: getTargetKey(pr.bid),
@@ -158,7 +150,6 @@ function runBidEngine(data, deltaMap) {
                 p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Bid Awarded";
                 p.moved = (pr.targetKey !== p.orig);
                 awarded = true;
-                auditTrail.push({ sen: p.sen, name: p.name, to: pr.targetKey, type: "Award" });
                 break;
             }
         }
@@ -170,22 +161,22 @@ function runBidEngine(data, deltaMap) {
                 currentCounts[targetKey]++;
                 p.awardedReason = "Held Position (Seniority)";
                 awarded = true;
-                p.moved = false; // Seniority hold means NOT displaced
+                p.moved = false;
             }
         }
 
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
-            p.moved = true; // Any move to pool is a displacement
             p.wasSelfDisplaced = p.bplRestrictionOnOwnSeat;
+            // NEW LOGIC: Forced displacement is when they wanted to stay but failed
+            p.isDisplaced = p.wantsToStay && !p.wasSelfDisplaced;
             p.awardedReason = p.wasSelfDisplaced ? "BPL Rank Constraint Failed" : "Juniority Displacement";
             p.awardedPrefNum = "Pool";
-            auditTrail.push({ sen: p.sen, name: p.name, to: "POOL", type: p.wasSelfDisplaced ? "Self-Displacement" : "Displacement" });
         }
     });
 
-    return { roster: bidders, auditTrail, targetMap };
+    return { roster: bidders, targetMap };
 }
 
 window.onload = async () => {
@@ -200,7 +191,7 @@ window.onload = async () => {
 function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `
         <div class="cap-cell">
-            <label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label>
+            <label>${c.base} ${c.seat}</label>
             <input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}">
         </div>`).join('');
 }
@@ -209,38 +200,29 @@ document.getElementById('runBtn').onclick = () => {
     const deltas = {};
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
-    lastResults = result.roster;
-    lastAuditTrail = result.auditTrail;
-    renderTable(lastResults, result.targetMap);
-    renderDashboards(lastResults);
+    renderTable(result.roster, result.targetMap);
+    renderDashboards(result.roster);
 };
 
 function renderDashboards(roster) {
-    let unassignedHtml = ''; let selfDispHtml = ''; let allDispHtml = '';
+    let unassignedHtml = ''; let selfDispHtml = ''; let forceDispHtml = '';
     roster.forEach(p => {
-        const item = `<div class="${p.wasSelfDisplaced ? 'self-disp-item' : (p.isUnassigned ? 'unassigned-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
-        
-        if (p.wasSelfDisplaced) selfDispHtml += item;
-        if (p.isUnassigned) unassignedHtml += item;
-        
-        // Populate the General Displaced list
-        if (p.moved) {
-            allDispHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
-        }
+        const item = `<div>#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
+        if (p.wasSelfDisplaced) selfDispHtml += `<div class="self-disp-item">${item}</div>`;
+        else if (p.isDisplaced) forceDispHtml += `<div class="disp-item">${item}</div>`;
+        if (p.isUnassigned) unassignedHtml += `<div class="unassigned-item">${item}</div>`;
     });
     document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
+    document.getElementById('displacedList').innerHTML = forceDispHtml || "None.";
     document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
-    document.getElementById('displacedList').innerHTML = allDispHtml || "None.";
 }
 
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awardedPos = p.currentKey.replace('-', ' ');
-        
-        // Logic for tags
         let tags = '';
         if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        if (p.moved) tags += '<span class="tag tag-yellow">DISPLACED</span>';
+        if (p.isDisplaced) tags += '<span class="tag tag-yellow">DISPLACED</span>';
         if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
 
         let finalRank = 1;
@@ -251,12 +233,9 @@ function renderTable(roster, targetMap) {
             <tr>
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
+                <td>${awardedPos}</td>
                 <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
-                <td>
-                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
-                    <span class="award-reason">via ${p.awardedReason}</span>
-                </td>
+                <td>Pref #${p.awardedPrefNum} via ${p.awardedReason}</td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
     }).join('');
