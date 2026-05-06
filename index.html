@@ -3,52 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid - Vacancy & Backfill Mode</title>
+    <title>737 Master Bid Control - Fixed Logic & Original UI</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
         .container { max-width: 1600px; margin: 0 auto; }
         .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { background: #0d1117; padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
-        .cap-cell label { font-size: 0.7rem; color: var(--accent); display: block; margin-bottom: 5px; }
-        .cap-cell input { background: #161b22; border: 1px solid var(--border); color: #4ade80; width: 50px; padding: 4px; border-radius: 4px; font-weight: bold; }
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
+        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
         .dash-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
+        .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
         .audit-step { display: block; font-size: 0.72rem; border-bottom: 1px solid #30363d; padding: 2px 0; }
-        .denied { color: var(--red); }
-        .awarded { color: var(--green); font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); }
-        th { background: #21262d; text-align: left; padding: 12px; font-size: 0.8rem; color: var(--accent); }
-        td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+        .denied-text { color: var(--red); font-weight: 500; }
+        .awarded-text { color: var(--green); font-weight: bold; }
+        .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; display: block; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
+        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
         .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
         .tag-red { background: var(--red); color: white; }
+        .tag-yellow { background: var(--yellow); color: #000; }
+        .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="card">
-        <h3 style="margin:0">Position Capacities & Deltas</h3>
+        <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
         <div id="capGrid" class="cap-grid">Loading Files...</div>
     </div>
 
     <div class="dash-container">
-        <div class="dash-box"><h4 style="color:var(--red)">🛑 Self-Displaced (BPL)</h4><div id="selfDispList"></div></div>
-        <div class="dash-box"><h4 style="color:var(--yellow)">🚚 Movers</h4><div id="moversList"></div></div>
-        <div class="dash-box"><h4 style="color:var(--purple)">🆘 Pool (Reductions)</h4><div id="unassignedList"></div></div>
-        <div class="dash-box"><h4 style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox">Ready.</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList"></div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList"></div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool (Reduction)</h4><div id="unassignedList"></div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox">Ready.</div></div>
     </div>
 
-    <div style="margin-bottom:20px;">
-        <button id="runBtn" style="background:var(--green); color:white; padding:12px 30px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN VACANCY BID</button>
+    <div class="toolbar" style="margin-bottom:20px;">
+        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN BID</button>
+        <button id="expBase" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: BASE</button>
         <button id="expMaster" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: MASTER</button>
         <button id="expLog" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: LOG</button>
     </div>
 
     <table>
         <thead>
-            <tr><th>Sen #</th><th>Name</th><th>Award</th><th>Standing</th><th>Audit Path</th><th>Original</th></tr>
+            <tr><th>Sen #</th><th>Name</th><th>Awarded Position</th><th>Standing</th><th>Audit Path</th><th>Original Position</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
@@ -56,8 +60,9 @@
 
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
+let lastResults = [];
 
-// Flexible loader for files with (2) in the name
+// Flexible Loader: Handles files with (2) or without
 async function loadFiles() {
     const fetchF = async (n) => {
         try { let r = await fetch(n); if (r.ok) return await r.json(); } catch(e) {}
@@ -76,11 +81,7 @@ window.onload = loadFiles;
 
 function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-        <div class="cap-cell">
-            <label>${c.base} ${c.seat}</label>
-            <input type="number" id="delta-${c.base}-${c.seat}" value="0">
-            <span style="font-size:0.65rem; color:#8b949e; margin-left:5px;">Cap: ${c.startCapacity}</span>
-        </div>`).join('');
+        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="0"></div>`).join('');
 }
 
 function runBidEngine(data, deltaMap) {
@@ -89,7 +90,7 @@ function runBidEngine(data, deltaMap) {
     let awardedCount = {};
     let origRemaining = {};
 
-    // 1. Initial Count: How many pilots start in each seat?
+    // 1. Initial count of who starts where
     data.roster.forEach(p => {
         if (is737(p.current.seat)) {
             const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -97,7 +98,7 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    // 2. Set Hard Caps
+    // 2. Set Hard Caps from File
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
@@ -132,49 +133,52 @@ function runBidEngine(data, deltaMap) {
 
     bidders.forEach(p => {
         let awarded = false;
-
-        // THE VACANCY FIX: As this pilot is evaluated, they "stand up". 
-        // This makes their chair available for anyone behind them.
+        // THE VACANCY FIX: Current pilot "stands up"
         if (origRemaining[p.orig] > 0) origRemaining[p.orig]--;
 
         // STEP 1: PREFERENCES
         for (const pr of p.prefs) {
-            // A seat is vacant if: (Awarded so far) + (Originals still seated) < Hard Cap
-            let currentlySeated = (awardedCount[pr.targetKey] || 0) + (origRemaining[pr.targetKey] || 0);
+            let seatedTotal = (awardedCount[pr.targetKey] || 0) + (origRemaining[pr.targetKey] || 0);
+            let bplRank = (awardedCount[pr.targetKey] || 0) + 1;
             let cap = targetMap[pr.targetKey] || 0;
-            let bpl = pr.bpl > 0 ? pr.bpl : 9999;
-            
-            // Your rank for BPL is strictly the awarded count + 1
-            let bplRank = awardedCount[pr.targetKey] + 1;
+            let bplLimit = pr.bpl > 0 ? pr.bpl : 9999;
 
-            if (currentlySeated < cap && bplRank <= bpl) {
+            if (seatedTotal < cap && bplRank <= bplLimit) {
                 p.currentKey = pr.targetKey;
                 awardedCount[pr.targetKey]++;
-                p.awardAudit.push(`<span class="awarded">Awarded ${pr.targetKey}</span> (BPL Rank ${bplRank})`);
+                p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey}</span> (Rank ${bplRank})`);
                 awarded = true; break;
             } else {
-                let reason = currentlySeated >= cap ? "Full" : "BPL Fail";
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied">${reason}</span>`);
+                let reason = seatedTotal >= cap ? "Full" : "BPL Fail";
+                p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">${reason}</span>`);
             }
         }
 
-        // STEP 2: SENIORITY HOLD (Only if no BPL on own seat)
+        // STEP 2: SENIORITY HOLD (Skip if BPL on own seat)
         if (!awarded && !p.bplOnOwn) {
-            let currentlySeated = (awardedCount[p.orig] || 0) + (origRemaining[p.orig] || 0);
-            if (currentlySeated < (targetMap[p.orig] || 0)) {
+            let seatedTotal = (awardedCount[p.orig] || 0) + (origRemaining[p.orig] || 0);
+            if (seatedTotal < (targetMap[p.orig] || 0)) {
                 p.currentKey = p.orig;
                 awardedCount[p.orig]++;
-                p.awardAudit.push(`<span class="awarded">Seniority Hold</span>`);
+                p.awardAudit.push(`<span class="awarded-text">Seniority Hold</span>`);
                 awarded = true;
             }
         }
 
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
-            p.awardAudit.push(`<span class="denied">POOL</span>`);
+            p.awardAudit.push(`<span class="denied-text">POOL</span>`);
         }
     });
     return { roster: bidders, targetMap };
+}
+
+// CSV Logic
+function downloadCSV(filename, rows) {
+    const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
 }
 
 document.getElementById('runBtn').onclick = () => {
@@ -184,23 +188,45 @@ document.getElementById('runBtn').onclick = () => {
         deltas[key] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0;
     });
     const result = runBidEngine(store, deltas);
-    renderTable(result.roster, result.targetMap);
-    renderDashboards(result.roster);
+    lastResults = result.roster;
+    document.getElementById('statusBox').innerHTML = `Done: ${lastResults.length} Pilots`;
+    renderTable(lastResults, result.targetMap);
+    renderDashboards(lastResults);
+};
+
+document.getElementById('expBase').onclick = () => {
+    const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
+    downloadCSV("Base_List.csv", rows);
+};
+document.getElementById('expMaster').onclick = () => {
+    const rows = [["Sen #", "Name", "Awarded", "Original", "Reason"], ...lastResults.map(p => [p.sen, p.name, p.currentKey, p.orig, p.currentKey === "UNASSIGNED" ? "Displaced" : "Awarded"])];
+    downloadCSV("Master_Awards.csv", rows);
+};
+document.getElementById('expLog').onclick = () => {
+    const rows = [["Sen #", "Name", "Audit Log"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.join(" | ")])];
+    downloadCSV("Bid_Log.csv", rows);
 };
 
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
+        let tags = '';
+        const isSelfDisp = p.bplOnOwn && p.currentKey === "UNASSIGNED";
+        const isMover = p.currentKey !== p.orig && p.currentKey !== "UNASSIGNED";
+        if (isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
+        if (isMover) tags += '<span class="tag tag-yellow">MOVER</span>';
+        if (p.currentKey === "UNASSIGNED" && !isSelfDisp) tags += '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
+
         let finalRank = 1;
         roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
-        const isMover = p.currentKey !== p.orig && p.currentKey !== "UNASSIGNED";
-        const isSelfDisp = p.bplOnOwn && p.currentKey === "UNASSIGNED";
+        const limit = targetMap[p.currentKey] || 0;
+
         return `<tr>
             <td>${p.sen}</td>
-            <td><strong>${p.name}</strong>${isSelfDisp?' <span class="tag tag-red">BPL DISPLACED</span>':''}</td>
-            <td style="color:${isMover?'#3fb950':''}">${p.currentKey}</td>
-            <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey]||0)}</span></td>
+            <td><strong>${p.name}</strong><br>${tags}</td>
+            <td style="color:${isMover?'#3fb950':''}">${p.currentKey.replace('-', ' ')}</td>
+            <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
             <td>${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}</td>
-            <td>${p.orig}</td>
+            <td>${p.orig.replace('-',' ')}</td>
         </tr>`;
     }).join('');
 }
