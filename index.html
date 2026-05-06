@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>737 Master Bid Control - Cascade Mode</title>
     <style>
-        /* UI STYLES FROM INDEX 14 */
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
         .container { max-width: 1600px; margin: 0 auto; }
@@ -40,7 +39,7 @@
     <div class="dash-container">
         <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool</h4><div id="unassignedList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Displaced</h4><div id="unassignedList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Cycles</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
     </div>
 
@@ -71,31 +70,35 @@
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
 let lastResults = [];
 
-// BLENDED ENGINE: CASCADE LOGIC WITH INDEX 14 UI COMPATIBILITY
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // 1. Initialize Headcounts and Target Maps
     let currentCounts = {};
     let targetMap = {};
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
-        currentCounts[key] = 0;
+
+    // 1. Calculate actual starting headcount
+    data.roster.forEach(p => {
+        if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
+            const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            currentCounts[orig] = (currentCounts[orig] || 0) + 1;
+        }
     });
 
-    // 2. Prepare Bidders and Extract Preference Keywords
+    // 2. Set limits using actual headcounts + delta
+    data.caps.forEach(c => {
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        const start = currentCounts[key] || 0;
+        targetMap[key] = start + (deltaMap[`${c.base}-${c.seat}`] || 0);
+    });
+
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             
-            // Increment Initial Count for Seniority Hold logic
-            currentCounts[pilotOrig] = (currentCounts[pilotOrig] || 0) + 1;
-
             const getTargetKey = (bidStr) => {
                 if (!bidStr || bidStr === "0") return null;
                 const parts = bidStr.trim().toUpperCase().split(/\s+/);
@@ -106,22 +109,19 @@ function runBidEngine(data, deltaMap) {
                 return (b && s) ? `${b}-${s}` : null;
             };
 
-            const bplOnOwn = (prefData.preferences || []).some(pr => 
-                getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min)
-            );
+            const bplOnOwn = (prefData.preferences || []).some(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
 
             return {
                 ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
                 finalReason: "Seniority Hold", moved: false, isSelfDisp: false, isDisplaced: false,
                 bplOnOwn: bplOnOwn,
                 prefs: (prefData.preferences || []).map(pr => ({
-                    ...pr, targetKey: getTargetKey(pr.bid),
-                    bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
+                    ...pr, targetKey: getTargetKey(pr.bid), bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
                 })).sort((a, b) => a.order - b.order)
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. Main Cascade Loop
+    // 3. Cascade Loop
     let cascade = true;
     let loops = 0;
     while (cascade && loops < 1000) {
@@ -130,12 +130,11 @@ function runBidEngine(data, deltaMap) {
 
         for (let p of bidders) {
             let foundAward = false;
-            p.awardAudit = []; // Reset audit for this pass
+            p.awardAudit = []; 
 
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
                 
-                // Calculate Rank in Target Base
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
@@ -144,7 +143,6 @@ function runBidEngine(data, deltaMap) {
 
                 const limit = targetMap[pr.targetKey] || 0;
 
-                // Check BPL and Capacity Constraints
                 if (rank > pr.bpl) {
                     p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">Denied BPL Fail (${rank})</span>`);
                     continue;
@@ -155,14 +153,12 @@ function runBidEngine(data, deltaMap) {
                     continue;
                 }
 
-                // Award Logic
                 if (pr.targetKey === p.currentKey) {
                     p.awardAudit.push(`<span class="awarded-text">Holding ${pr.targetKey} (Rank ${rank})</span>`);
                     foundAward = true;
                     break;
                 }
 
-                // Found a move! Vacate old chair, take new chair
                 const oldKey = p.currentKey;
                 currentCounts[oldKey]--;
                 currentCounts[pr.targetKey]++;
@@ -175,7 +171,6 @@ function runBidEngine(data, deltaMap) {
                 break;
             }
 
-            // Fallback: Check if they can still hold their seat without a specific bid
             if (!foundAward && !p.bplOnOwn) {
                 let rank = 1;
                 for (const other of bidders) {
@@ -199,7 +194,7 @@ function runBidEngine(data, deltaMap) {
             if (!foundAward) {
                 p.isDisplaced = true;
                 p.isSelfDisp = p.bplOnOwn;
-                p.finalReason = p.isSelfDisp ? "Self-Displaced" : "Juniority Displaced";
+                p.finalReason = p.isSelfDisp ? "Self-Displaced" : "Reduction Displaced";
             }
             if (cascade) break;
         }
@@ -207,7 +202,6 @@ function runBidEngine(data, deltaMap) {
     return { roster: bidders, loops, targetMap };
 }
 
-// UI AND DATA LOADING FROM INDEX 14
 window.onload = async () => {
     try {
         const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
