@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Tracking Mode</title>
+    <title>737 Master Bid Control - BPL Audit Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -12,13 +12,13 @@
         .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
         .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
-        .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .dash-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        .audit-step { display: block; font-size: 0.75rem; margin-bottom: 2px; }
+        .audit-step { display: block; font-size: 0.75rem; margin-bottom: 4px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
         .denied-text { color: var(--red); font-weight: 500; }
         .awarded-text { color: var(--green); font-weight: bold; }
-        .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; margin-top: 4px; display: block; }
+        .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; display: block; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -45,6 +45,9 @@
 
     <div class="toolbar" style="margin-bottom:20px;">
         <button id="runBtn" class="btn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN POSITION BID</button>
+        <button id="expBase" class="btn" style="padding:10px; margin-left:10px;">CSV: BASE</button>
+        <button id="expMaster" class="btn" style="padding:10px; margin-left:10px;">CSV: MASTER</button>
+        <button id="expLog" class="btn" style="padding:10px; margin-left:10px;">CSV: LOG</button>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px; margin-left:20px;" placeholder="Sen #">
         <button id="lookupBtn" style="padding:10px; border-radius:6px; background:var(--accent); color:white; border:none; cursor:pointer;">LOOKUP</button>
     </div>
@@ -56,8 +59,8 @@
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
                 <th>Standing</th>
-                <th>Notes / Audit Trail</th>
-                <th>Original</th>
+                <th>Notes / Mathematical Audit Path</th>
+                <th>Original Position</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -67,6 +70,7 @@
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
 let fillers = {};
+let lastResults = [];
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
@@ -116,13 +120,19 @@ function runBidEngine(data, deltaMap) {
             let cap = targetMap[pr.targetKey] || 0;
 
             if (rank > cap) {
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied Base Full</span> Rank ${rank} > ${cap}`);
+                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied</span> Rank ${rank} > ${cap}`);
             } else if (rank > pr.bpl) {
                 p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied BPL Fail</span> Rank ${rank} > ${pr.bpl}`);
             } else {
                 p.currentKey = pr.targetKey;
                 fillers[pr.targetKey]++;
-                p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')} (Pass ${rank} / ${cap})</span>`);
+                let msg = `<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}`;
+                if (pr.bpl < 9999) {
+                    msg += ` | BPL ${pr.bpl} | ${rank} < ${pr.bpl}</span>`;
+                } else {
+                    msg += ` | Pass ${rank} / ${cap}</span>`;
+                }
+                p.awardAudit.push(msg);
                 awarded = true;
                 p.finalReason = "Bid Award";
                 p.isMover = (p.currentKey !== p.orig);
@@ -142,7 +152,7 @@ function runBidEngine(data, deltaMap) {
                 p.finalReason = "Seniority Hold";
                 p.isMover = false;
             } else {
-                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Denied Base Full</span>`);
+                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Denied Base Full</span> Rank ${rank} > ${cap}`);
             }
         }
 
@@ -170,12 +180,34 @@ function renderCapacities() {
         <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>`).join('');
 }
 
+function downloadCSV(filename, rows) {
+    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
+}
+
 document.getElementById('runBtn').onclick = () => {
     const deltas = {};
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
+    lastResults = result.roster;
     renderTable(result.roster, result.targetMap);
     renderDashboards(result.roster);
+};
+
+// CSV Event Listeners
+document.getElementById('expBase').onclick = () => {
+    const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
+    downloadCSV("737_Base_List.csv", rows);
+};
+document.getElementById('expMaster').onclick = () => {
+    const rows = [["Sen #", "Name", "Awarded Position", "Original Position"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' ')])];
+    downloadCSV("737_Master_Awards.csv", rows);
+};
+document.getElementById('expLog').onclick = () => {
+    const rows = [["Sen #", "Name", "Audit Trail Summary"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | ")])];
+    downloadCSV("737_Bid_Log.csv", rows);
 };
 
 function renderTable(roster, targetMap) {
