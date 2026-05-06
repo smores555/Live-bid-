@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Hard Cap Edition</title>
+    <title>737 Master Bid Control - Hard Cap & Debug Edition</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -18,7 +18,6 @@
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
@@ -37,7 +36,7 @@
 <div class="container">
     <div class="card">
         <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading...</div>
+        <div id="capGrid" class="cap-grid">Checking Data Files...</div>
     </div>
 
     <div class="dash-container">
@@ -104,7 +103,6 @@ function runBidEngine(data, deltaMap) {
     let targetMap = {};
     Object.keys(liveHeadcount).forEach(key => {
         targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
-        // APPLY HARD CAPS
         if (key === "LAX-CA") targetMap[key] = 189;
         if (key === "SFO-CA") targetMap[key] = 153;
     });
@@ -145,18 +143,14 @@ function runBidEngine(data, deltaMap) {
         let awarded = false;
         const [origBase, origStatus] = p.orig.split('-');
 
-        // Step A: Primary Preference Eval
         for (const pr of p.prefs) {
-            if (!pr.targetKey) {
-                p.bidLog.push(`<div class="log-fail">Pref #${pr.order}: Invalid Bid String (${pr.bid})</div>`);
-                continue;
-            }
+            if (!pr.targetKey) continue;
             let cap = targetMap[pr.targetKey] || 0;
             let seniorOccupancy = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
             let rank = seniorOccupancy + 1;
 
             if (seniorOccupancy >= cap) {
-                p.bidLog.push(`<div class="log-fail">Pref #${pr.order} (${pr.targetKey}): Denied (Base Full at ${cap})</div>`);
+                p.bidLog.push(`<div class="log-fail">Pref #${pr.order} (${pr.targetKey}): Denied (Base Full)</div>`);
                 continue;
             }
             if (rank > pr.bpl) {
@@ -164,7 +158,6 @@ function runBidEngine(data, deltaMap) {
                 continue;
             }
 
-            // SUCCESS
             let targetOldVac = cap - (currentCounts[pr.targetKey] || 0);
             let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             
@@ -172,13 +165,11 @@ function runBidEngine(data, deltaMap) {
                 currentCounts[p.orig]--;
                 currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
                 p.moved = true;
-                
-                let targetNewVac = cap - currentCounts[pr.targetKey];
-                let origNewVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
+                let tNewVac = cap - currentCounts[pr.targetKey];
+                let oNewVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
                 p.awardedReason = targetOldVac > 0 ? 
-                    `Awarded Pref #${pr.order} via Vacancy. Reduce ${pr.targetKey} vacancy ${targetOldVac} → ${targetNewVac}. Increase ${p.orig} vacancy ${origOldVac} → ${origNewVac}.` : 
-                    `Awarded Pref #${pr.order} (Displaced Junior Pilot). Increase ${p.orig} vacancy ${origOldVac} → ${origNewVac}.`;
+                    `Awarded Pref #${pr.order} via Vacancy. Reduce ${pr.targetKey} vacancy ${targetOldVac} → ${tNewVac}. Increase ${p.orig} vacancy ${origOldVac} → ${oNewVac}.` : 
+                    `Awarded Pref #${pr.order} (Displaced Junior Pilot). Increase ${p.orig} vacancy ${origOldVac} → ${oNewVac}.`;
             } else {
                 p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
                 p.moved = false;
@@ -191,7 +182,6 @@ function runBidEngine(data, deltaMap) {
             break;
         }
 
-        // Step B: Seniority Hold Eval
         if (!awarded) {
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             let rank = seniorsInMyBase + 1;
@@ -209,7 +199,6 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step C: Section 24 Eval
         if (!awarded) {
             const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
             for (const targetKey of cascadeOptions) {
@@ -220,18 +209,14 @@ function runBidEngine(data, deltaMap) {
                 if (seniorCount < cap) {
                     let targetOldVac = cap - (currentCounts[targetKey] || 0);
                     let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
                     currentCounts[p.orig]--;
                     currentCounts[targetKey]++;
-
-                    let targetNewVac = cap - currentCounts[targetKey];
-                    let origNewVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
                     p.currentKey = targetKey;
+                    let tNewVac = cap - currentCounts[targetKey];
+                    let oNewVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
                     p.awardedReason = targetOldVac > 0 ? 
-                        `Section 24 Displacement: Awarded ${targetKey}. Reduce vacancy ${targetOldVac} → ${targetNewVac}. Increase ${p.orig} vacancy ${origOldVac} → ${origNewVac}.` : 
-                        `Section 24 Displacement: Displaced Junior Pilot in ${targetKey}. Increase ${p.orig} vacancy ${origOldVac} → ${origNewVac}.`;
-                    
+                        `Section 24 Displacement: Awarded ${targetKey}. Reduce vacancy ${targetOldVac} → ${tNewVac}. Increase ${p.orig} vacancy ${origOldVac} → ${oNewVac}.` : 
+                        `Section 24 Displacement: Displaced Junior Pilot in ${targetKey}. Increase ${p.orig} vacancy ${origOldVac} → ${oNewVac}.`;
                     p.bidLog.push(`<div class="log-success">Section 24 (${targetKey}): Awarded</div>`);
                     p.moved = true;
                     awarded = true;
@@ -242,12 +227,9 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step D: Pool Eval
         if (!awarded) {
             let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
-            let origNewVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
             p.moved = true;
@@ -255,13 +237,11 @@ function runBidEngine(data, deltaMap) {
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
             p.awardedReason = p.wasSelfDisplaced ? 
-                `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}). Increase ${p.orig} vacancy ${origOldVac} → ${origNewVac}.` : 
-                `Displaced: System-wide Reduction. Increase ${p.orig} vacancy ${origOldVac} → ${origNewVac}.`;
-            
+                `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}). Increase ${p.orig} vacancy ${origOldVac} → ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.` : 
+                `Displaced: System-wide Reduction. Increase ${p.orig} vacancy ${origOldVac} → ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
             p.bidLog.push(`<div class="log-fail">Final Action: Displaced to Pool</div>`);
         }
     });
-
     return { roster: bidders, targetMap };
 }
 
@@ -279,10 +259,16 @@ function exportToCSV(filename, rows) {
 window.onload = async () => {
     try {
         const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
+        for (const file of files) {
+            const r = await fetch(file);
+            if (!r.ok) throw new Error(`File Not Found: ${file}`);
+            const text = await r.text();
+            try { JSON.parse(text); } catch(e) { throw new Error(`File Corrupted (Not JSON): ${file}`); }
+        }
         const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
         store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
         renderCapacities();
-    } catch (e) { document.body.innerHTML = `<div style="padding:40px; color:red">🚨 ERROR: ${e.message}</div>`; }
+    } catch (e) { document.getElementById('capGrid').innerHTML = `<div style="padding:10px; color:var(--red); font-weight:bold;">🚨 DATA LOADING ERROR: ${e.message}</div>`; }
 };
 
 function renderCapacities() {
@@ -324,21 +310,9 @@ function renderTable(roster, targetMap) {
         if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
         else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
         else if (p.moved) tags += '<span class="tag tag-yellow">MOVER</span>';
-        
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        
-        return `<tr>
-            <td>${p.sen}</td>
-            <td><strong>${p.name}</strong><br>${tags}</td>
-            <td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td>
-            <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td>
-            <td>
-                <strong>${p.awardedReason}</strong>
-                <div class="bid-log">${p.bidLog.join('')}</div>
-            </td>
-            <td>${p.orig.replace('-',' ')}</td>
-        </tr>`;
+        return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong><br>${tags}</td><td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td><td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td><td><strong>${p.awardedReason}</strong><div class="bid-log">${p.bidLog.join('')}</div></td><td>${p.orig.replace('-',' ')}</td></tr>`;
     }).join('');
 }
 
