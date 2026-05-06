@@ -88,27 +88,21 @@ let lastTargetMap = {};
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-    
-    // STRICT FILTERING: Create Sets of seniority numbers to exclude.
-    // This ensures that retired and non-bidding pilots "don't exist" in the math.
     const retiredSens = new Set(data.retired.map(p => p.seniority || p.sen));
     const noBidSens = new Set(data.noBid.map(p => p.sen || p.seniority));
 
-    // Filter roster for active 737 pilots only, excluding retired and no-bids.
     const activeBidders = data.roster.filter(p => 
         is737(p.current.seat) && 
         !retiredSens.has(p.sen) && 
         !noBidSens.has(p.sen)
     );
 
-    // 1. Calculate LIVE headcount (Excludes Retired/No-Bid)
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
-    // 2. Align Target Map strictly to Live Headcount + Delta
     let targetMap = {};
     Object.keys(liveHeadcount).forEach(key => {
         const delta = deltaMap[key] || 0;
@@ -122,7 +116,6 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    // 3. Initialize counts
     let currentCounts = { ...liveHeadcount };
 
     const bidders = activeBidders.map(p => {
@@ -158,14 +151,14 @@ function runBidEngine(data, deltaMap) {
             let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
 
             if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
-                let targetOldVac = cap - (currentCounts[pr.targetKey] || 0);
-                let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
                 if (p.orig !== pr.targetKey) {
+                    let oldTargetVac = cap - (currentCounts[pr.targetKey] || 0);
+                    let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+
                     currentCounts[p.orig]--;
                     currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
                     p.moved = true;
-                    p.awardedReason = targetOldVac > 0 ? `Awarded Pref #${pr.order} via Vacancy.` : `Awarded Pref #${pr.order} (Displaced Junior Pilot).`;
+                    p.awardedReason = `Awarded Pref #${pr.order}. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${pr.targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
                 } else {
                     p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
                     p.moved = false;
@@ -201,10 +194,13 @@ function runBidEngine(data, deltaMap) {
                 let seniorCount = bidders.filter(other => other.sen < p.sen && other.currentKey === targetKey).length;
 
                 if (seniorCount < cap) {
+                    let oldTargetVac = cap - (currentCounts[targetKey] || 0);
+                    let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+
                     currentCounts[p.orig]--;
                     currentCounts[targetKey]++;
                     p.currentKey = targetKey;
-                    p.awardedReason = `Section 24: Awarded ${targetKey} (Vacancy).`;
+                    p.awardedReason = `Section 24: Awarded ${targetKey}. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
                     p.moved = true;
                     awarded = true;
                     break;
@@ -214,6 +210,7 @@ function runBidEngine(data, deltaMap) {
 
         // Step D: Pool
         if (!awarded) {
+            let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
@@ -222,7 +219,7 @@ function runBidEngine(data, deltaMap) {
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
-            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
+            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}). Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}.` : `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}.`;
         }
     });
 
