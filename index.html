@@ -32,6 +32,7 @@
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
         .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
+        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -91,13 +92,11 @@
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
 let lastResults = [];
-let lastAuditTrail = [];
 
 function runBidEngine(data, deltaMap) {
-    const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
 
-    // 1. Initialize Targets: Starting Pilots + Deltas
+    // 1. Initialize Dynamic Targets
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
@@ -107,7 +106,6 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // 2. Cascade State: Process from Pilot #1 downwards
     let currentCounts = {};
     Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
 
@@ -139,38 +137,48 @@ function runBidEngine(data, deltaMap) {
                 })).sort((a, b) => a.order - b.order)
             };
         })
-        .sort((a, b) => a.sen - b.sen); // Strict Cascade Order
+        .sort((a, b) => a.sen - b.sen);
 
     bidders.forEach(p => {
         let awarded = false;
 
-        // Step A: Preferences in Order
+        // Step A: Bid Preferences
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
-            let rankInBase = currentCounts[pr.targetKey] + 1;
+            let currentOcc = currentCounts[pr.targetKey];
             let cap = targetMap[pr.targetKey] || 0;
 
-            if (rankInBase <= cap && rankInBase <= pr.bpl) {
+            if (currentOcc < cap && (currentOcc + 1) <= pr.bpl) {
+                const oldVac = cap - currentOcc;
                 p.currentKey = pr.targetKey;
                 currentCounts[pr.targetKey]++;
+                const newVac = cap - currentCounts[pr.targetKey];
+                
                 p.awardedPrefNum = pr.order;
-                p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Awarded Vacancy";
+                p.awardedReason = (p.orig === pr.targetKey) ? 
+                    "Remain in current position." : 
+                    `Open position available. Reduce vacancy in ${pr.targetKey} from ${oldVac} to ${newVac}.`;
+                
                 p.moved = (pr.targetKey !== p.orig);
                 awarded = true;
-                auditTrail.push({ sen: p.sen, name: p.name, to: pr.targetKey, type: "Award" });
                 break;
             }
         }
 
-        // Step B: Seniority Hold (if no bid awarded and seat is still available)
+        // Step B: Net Zero Seniority Hold
         if (!awarded) {
             const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
             const bplFail = selfBidOnOwnSeat && (currentCounts[p.orig] + 1 > selfBidOnOwnSeat.bpl);
+            let currentOcc = currentCounts[p.orig];
+            let cap = targetMap[p.orig] || 0;
 
-            if (currentCounts[p.orig] < targetMap[p.orig] && !bplFail) {
+            if (currentOcc < cap && !bplFail) {
+                const oldVac = cap - currentOcc;
                 p.currentKey = p.orig;
                 currentCounts[p.orig]++;
-                p.awardedReason = "Held Position (Seniority)";
+                const newVac = cap - currentCounts[p.orig];
+                
+                p.awardedReason = `Held Position (Seniority). Vacancy reduced from ${oldVac} to ${newVac}.`;
                 awarded = true;
                 p.moved = false;
             }
@@ -183,13 +191,21 @@ function runBidEngine(data, deltaMap) {
             p.moved = true;
             const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = !!(selfBidOnOwnSeat && (currentCounts[p.orig] + 1 > selfBidOnOwnSeat.bpl));
-            p.awardedReason = p.wasSelfDisplaced ? "BPL Rank Constraint Failed" : "Juniority Displacement";
+            p.awardedReason = p.wasSelfDisplaced ? "BPL Rank Constraint Failed" : `Displaced: No vacancy available in ${p.orig}.`;
             p.awardedPrefNum = "Pool";
-            auditTrail.push({ sen: p.sen, name: p.name, to: "POOL", type: p.wasSelfDisplaced ? "Self-Displacement" : "Displacement" });
         }
     });
 
-    return { roster: bidders, auditTrail, targetMap };
+    console.group("Debug: Net Zero Results");
+    console.table(Object.keys(targetMap).map(key => ({
+        Position: key,
+        Target: targetMap[key],
+        FinalCount: currentCounts[key],
+        RemainingVacancy: targetMap[key] - currentCounts[key]
+    })));
+    console.groupEnd();
+
+    return { roster: bidders, targetMap };
 }
 
 window.onload = async () => {
@@ -214,7 +230,6 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    lastAuditTrail = result.auditTrail;
     renderTable(lastResults, result.targetMap);
     renderDashboards(lastResults);
 };
@@ -254,7 +269,7 @@ function renderTable(roster, targetMap) {
                 <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
                 <td>
                     <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
-                    <span class="award-reason">via ${p.awardedReason}</span>
+                    <span class="award-reason">${p.awardedReason}</span>
                 </td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
