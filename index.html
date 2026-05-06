@@ -151,16 +151,16 @@ function runBidEngine(data, deltaMap) {
             let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
 
             if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
-                if (p.orig !== pr.targetKey) {
-                    let oldTargetVac = cap - (currentCounts[pr.targetKey] || 0);
-                    let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+                let oldTargetVac = cap - (currentCounts[pr.targetKey] || 0);
+                let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
 
+                if (p.orig !== pr.targetKey) {
                     currentCounts[p.orig]--;
                     currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
                     p.moved = true;
                     p.awardedReason = `Awarded Pref #${pr.order}. Increase ${p.orig} vacancy from ${oldOrigVac} to ${oldOrigVac + 1}. Decrease ${pr.targetKey} vacancy from ${oldTargetVac} to ${oldTargetVac - 1}.`;
                 } else {
-                    p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
+                    p.awardedReason = `Awarded Preference #${pr.order}. Held current position; vacancy remains at ${oldTargetVac}.`;
                     p.moved = false;
                 }
                 
@@ -178,8 +178,9 @@ function runBidEngine(data, deltaMap) {
             let bplLimit = selfBid ? selfBid.bpl : 9999;
 
             if (seniorsInMyBase < (targetMap[p.orig] || 0) && (seniorsInMyBase + 1) <= bplLimit) {
+                let currentVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
                 p.currentKey = p.orig;
-                p.awardedReason = `Held Position (Seniority).`;
+                p.awardedReason = `Held Position (Seniority). Vacancy remains at ${currentVac}.`;
                 p.moved = false;
                 awarded = true;
             }
