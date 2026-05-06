@@ -63,7 +63,7 @@
     </div>
 
     <div class="toolbar">
-        <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
+        <button id="runBtn" class="btn">RUN POSITION BID</button>
         <button id="expBase" class="btn btn-export" style="margin-left:10px;">CSV: BASE LIST</button>
         <button id="expMaster" class="btn btn-export">CSV: MASTER AWARDS</button>
         <button id="expLog" class="btn btn-export">CSV: TRANSITION LOG</button>
@@ -235,7 +235,7 @@ function renderDashboards(roster) {
 
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
-        const awardedPos = p.currentKey.replace('-', ' ');F
+        const awardedPos = p.currentKey.replace('-', ' ');
         
         // Logic for tags
         let tags = '';
@@ -263,4 +263,4 @@ function renderTable(roster, targetMap) {
 }
 </script>
 </body>
-</html>F
+</html>
