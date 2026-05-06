@@ -18,7 +18,6 @@
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
@@ -52,7 +51,7 @@
             <div id="unassignedList">Ready...</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4>
+            <h4 class="dash-title" style="color:var(--red)">🛑 BPL Failures</h4>
             <div id="selfDispList">Ready...</div>
         </div>
     </div>
@@ -93,18 +92,30 @@ function runBidEngine(data, deltaMap) {
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
     const activeBidders = data.roster.filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
-    let currentCounts = {};
+    // 1. Calculate LIVE headcount
+    let liveHeadcount = {};
     activeBidders.forEach(p => {
-        const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-        currentCounts[pilotOrig] = (currentCounts[pilotOrig] || 0) + 1;
+        const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
+    // 2. Align Target Map strictly to Live Headcount + Delta
+    // This ensures that typing "-33" displacement results in EXACTLY -33 starting vacancy.
     let targetMap = {};
+    Object.keys(liveHeadcount).forEach(key => {
+        const delta = deltaMap[key] || 0;
+        targetMap[key] = liveHeadcount[key] + delta;
+    });
+    // Fill in bases that might have 0 pilots but have a target in caps
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
-        const delta = deltaMap[key] || 0;
-        targetMap[key] = (delta >= 0) ? (currentCounts[key] || 0) + delta : c.startCapacity + delta;
+        if (targetMap[key] === undefined) {
+            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+        }
     });
+
+    // 3. Initialize "Desks Full" counts
+    let currentCounts = { ...liveHeadcount };
 
     const bidders = activeBidders.map(p => {
         const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
@@ -122,8 +133,7 @@ function runBidEngine(data, deltaMap) {
             ...p, orig: pilotOrig, currentKey: pilotOrig, moved: false, isUnassigned: false, awardedPrefNum: "N/A", awardedReason: "", wasSelfDisplaced: false,
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
-                // Fix: 0 BPL means No Limit (9999)
-                if (isNaN(limit) || limit === 0) limit = 9999;
+                if (isNaN(limit) || limit === 0) limit = 9999; // BPL 0 = No Limit
                 return { ...pr, targetKey: getTargetKey(pr.bid), bpl: limit };
             }).sort((a, b) => a.order - b.order)
         };
@@ -133,15 +143,16 @@ function runBidEngine(data, deltaMap) {
         let awarded = false;
         const [origBase, origStatus] = p.orig.split('-');
 
-        // Step A: Primary Preference Bids (Strict Top-Down seniority check)
+        // Step A: Primary Preference Bids
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
             let cap = targetMap[pr.targetKey] || 0;
             
-            // Relative Seniority Check: Only count seniors who have already taken a seat in this base
-            let seniorCountInBase = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
+            // RELATIVE SENIORITY CHECK: Only count pilots senior to me who have already taken a seat here.
+            // This prevents junior pilots who haven't moved yet from "blocking" a senior pilot's fallback.
+            let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
 
-            if (seniorCountInBase < cap && (seniorCountInBase + 1) <= pr.bpl) {
+            if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
                 let targetOldVac = cap - (currentCounts[pr.targetKey] || 0);
                 let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
 
@@ -154,6 +165,7 @@ function runBidEngine(data, deltaMap) {
                     p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
                     p.moved = false;
                 }
+                
                 p.currentKey = pr.targetKey;
                 p.awardedPrefNum = pr.order;
                 awarded = true;
@@ -161,7 +173,7 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step B: Seniority Hold (Stay if seniority allows and no self-displacement)
+        // Step B: Seniority Hold
         if (!awarded) {
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
@@ -175,7 +187,7 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step C: Section 24 Automated Cascade
+        // Step C: Section 24 Secondary Displacement
         if (!awarded) {
             const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
             for (const targetKey of cascadeOptions) {
@@ -187,7 +199,7 @@ function runBidEngine(data, deltaMap) {
                     currentCounts[p.orig]--;
                     currentCounts[targetKey]++;
                     p.currentKey = targetKey;
-                    p.awardedReason = `Section 24 Displacement: Awarded ${targetKey}. Increase ${p.orig} vacancy.`;
+                    p.awardedReason = `Section 24: Awarded ${targetKey} (Vacancy).`;
                     p.moved = true;
                     awarded = true;
                     break;
@@ -197,6 +209,7 @@ function runBidEngine(data, deltaMap) {
 
         // Step D: Pool
         if (!awarded) {
+            let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
@@ -205,17 +218,20 @@ function runBidEngine(data, deltaMap) {
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
-            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
+            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
         }
     });
+
     return { roster: bidders, targetMap };
 }
 
+// Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
     const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    link.setAttribute("href", URL.createObjectURL(blob));
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
@@ -264,6 +280,7 @@ function renderTable(roster, targetMap) {
         let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
         if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
         else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
+        
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
         return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong><br>${tags}</td><td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td><td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td><td>${p.awardedReason}</td><td>${p.orig.replace('-',' ')}</td></tr>`;
