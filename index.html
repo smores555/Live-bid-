@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Strict Cap & BPL Mode</title>
+    <title>737 Master Bid - Strict BPL & Self-Displacement Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -18,7 +18,7 @@
         .audit-step { display: block; font-size: 0.75rem; margin-bottom: 4px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
         .denied-text { color: var(--red); font-weight: 500; }
         .awarded-text { color: var(--green); font-weight: bold; }
-        .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; display: block; margin-top: 5px; }
+        .bpl-text { color: var(--purple); font-weight: bold; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -37,7 +37,7 @@
     </div>
 
     <div class="dash-container">
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL Fail)</h4><div id="selfDispList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool (Reductions)</h4><div id="unassignedList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
@@ -57,7 +57,7 @@
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
                 <th>Standing</th>
-                <th>Audit Path (With BPL Check)</th>
+                <th>Audit Path (Including BPL Limits)</th>
                 <th>Original Position</th>
             </tr>
         </thead>
@@ -77,7 +77,7 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = {};
     let targetMap = {};
 
-    // 1. Establish the REAL baseline headcount
+    // 1. Precise Starting Headcount
     data.roster.forEach(p => {
         if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
             const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -85,13 +85,14 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    // 2. Set strict targets based on inputs
+    // 2. Set Absolute Hard Caps
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         const start = currentCounts[key] || 0;
         targetMap[key] = start + (deltaMap[`${c.base}-${c.seat}`] || 0);
     });
 
+    // --- KEYWORD SCANNER (Processes "73G PDX FO") ---
     const getTargetKey = (rawString) => {
         if (!rawString || String(rawString).trim() === "") return null;
         const parts = String(rawString).trim().toUpperCase().split(/\s+/);
@@ -107,24 +108,25 @@ function runBidEngine(data, deltaMap) {
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            
             let prefData = [];
             let found = data.prefs['pil' + p.sen] || data.prefs[p.id] || data.prefs[p.sen];
             if (found) prefData = found.preferences || found.bids || [];
 
             const cleanPrefs = prefData.map(pr => ({
                 targetKey: getTargetKey(pr.bid || pr.position),
-                bpl: parseInt(pr.bpl || pr.bpl_min) || 0,
+                bpl: parseInt(pr.bpl || pr.bpl_min) || 0, // Seth's BPL of 2 goes here
                 order: pr.order
             })).filter(pr => pr.targetKey);
 
             return {
                 ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
-                finalReason: "Held Incumbent Seat", moved: false, isDisplaced: false,
+                finalReason: "Held Incumbent Seat", moved: false, isSelfDisp: false, isDisplaced: false,
                 prefs: cleanPrefs
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 4. The Cascade Loop
+    // 4. THE CASCADE ENGINE (With Strict BPL Enforcement)
     let cascade = true;
     let loops = 0;
     while (cascade && loops < 1000) {
@@ -132,11 +134,29 @@ function runBidEngine(data, deltaMap) {
         loops++;
 
         for (let p of bidders) {
-            p.awardAudit = []; // Refresh audit each pass
+            p.awardAudit = [];
 
+            // --- THE SETH FIX: Check if current seat is still valid ---
+            if (p.currentKey !== "UNASSIGNED") {
+                let currentRank = 1;
+                for (let other of bidders) {
+                    if (other.sen < p.sen && other.currentKey === p.currentKey) currentRank++;
+                }
+                let ownSeatPref = p.prefs.find(pr => pr.targetKey === p.currentKey);
+                let currentBplLimit = (ownSeatPref && ownSeatPref.bpl > 0) ? ownSeatPref.bpl : 9999;
+                
+                // If they are pushed out of their BPL or the Hard Cap, they MUST stand up
+                if (currentRank > currentBplLimit || currentRank > (targetMap[p.currentKey] || 0)) {
+                    currentCounts[p.currentKey]--;
+                    p.currentKey = "UNASSIGNED";
+                    cascade = true; 
+                    // Don't 'continue' here, let them try their other bids now that they are standing up.
+                }
+            }
+
+            // --- EVALUATE ALL BIDS ---
             for (const pr of p.prefs) {
-                // Skip if already in this seat
-                if (pr.targetKey === p.currentKey) break;
+                if (pr.targetKey === p.currentKey) break; // Already awarded this or better
 
                 let rank = 1;
                 for (let other of bidders) {
@@ -145,23 +165,20 @@ function runBidEngine(data, deltaMap) {
 
                 const limit = targetMap[pr.targetKey] || 0;
                 const bplLimit = pr.bpl > 0 ? pr.bpl : 9999;
-                const bplText = pr.bpl > 0 ? `BPL ${pr.bpl}` : `No Limit`;
+                const bplLog = pr.bpl > 0 ? `BPL ${pr.bpl}` : `No Limit`;
 
-                // STRICT HARD CAP & BPL ENFORCEMENT
                 if (rank > bplLimit) {
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">Denied</span> (Rank ${rank} > ${bplText})`);
+                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">Denied</span> (Rank ${rank} > ${bplLog})`);
                     continue;
                 }
 
                 if (currentCounts[pr.targetKey] < limit) {
-                    const oldKey = p.currentKey;
-                    if (oldKey !== "UNASSIGNED") currentCounts[oldKey]--;
-                    
+                    if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
                     p.currentKey = pr.targetKey;
                     currentCounts[pr.targetKey]++;
-                    p.moved = true;
+                    p.moved = (p.currentKey !== p.orig);
                     p.finalReason = `Awarded Vacancy`;
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="awarded-text">Awarded</span> (Rank ${rank} | ${bplText})`);
+                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="awarded-text">Awarded</span> (Rank ${rank} | ${bplLog})`);
                     cascade = true;
                     break;
                 } else {
@@ -172,18 +189,16 @@ function runBidEngine(data, deltaMap) {
         }
     }
 
-    // 5. Final Eviction Sweep (Only if Delta is negative)
-    Object.keys(targetMap).forEach(base => {
-        let overage = currentCounts[base] - targetMap[base];
-        if (overage > 0) {
-            let basePilots = bidders.filter(p => p.currentKey === base).sort((a, b) => b.sen - a.sen);
-            for (let i = 0; i < overage; i++) {
-                if (basePilots[i]) {
-                    basePilots[i].currentKey = "UNASSIGNED";
-                    basePilots[i].isDisplaced = true;
-                    basePilots[i].finalReason = "Evicted (Reduction)";
-                    currentCounts[base]--;
-                }
+    // 5. Cleanup Displacement Reasons
+    bidders.forEach(p => {
+        if (p.currentKey === "UNASSIGNED") {
+            p.isDisplaced = true;
+            let ownSeatPref = p.prefs.find(pr => pr.targetKey === p.orig);
+            if (ownSeatPref && ownSeatPref.bpl > 0) {
+                p.isSelfDisp = true;
+                p.finalReason = "Self-Displaced (BPL Fail)";
+            } else {
+                p.finalReason = "Juniority Displacement";
             }
         }
     });
@@ -210,7 +225,7 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('statusBox').innerHTML = `Cycles: ${result.loops}<br>Processed: ${lastResults.length}`;
+    document.getElementById('statusBox').innerHTML = `Cycles: ${result.loops}<br>Pilots: ${lastResults.length}`;
     renderTable(lastResults, result.targetMap);
     renderDashboards(lastResults);
 };
@@ -218,8 +233,9 @@ document.getElementById('runBtn').onclick = () => {
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         let tags = '';
+        if (p.isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
+        else if (p.isDisplaced) tags += '<span class="tag tag-red">EVICTED</span>';
         if (p.moved) tags += '<span class="tag tag-yellow">MOVER</span>';
-        if (p.isDisplaced) tags += '<span class="tag tag-red">EVICTED</span>';
 
         let finalRank = 1;
         roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
@@ -233,7 +249,7 @@ function renderTable(roster, targetMap) {
                 <td><span class="rank-badge">${p.currentKey === 'UNASSIGNED' ? '-' : finalRank + ' / ' + limit}</span></td>
                 <td>
                     ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
-                    <span class="via-text">via ${p.finalReason}</span>
+                    <span style="font-size:0.7rem; color:var(--accent);">via ${p.finalReason}</span>
                 </td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
@@ -241,12 +257,14 @@ function renderTable(roster, targetMap) {
 }
 
 function renderDashboards(roster) {
-    let unHtml = ''; let mHtml = '';
+    let unHtml = ''; let mHtml = ''; let sHtml = '';
     roster.forEach(p => {
         const item = `<div>#${p.sen} ${p.name}</div>`;
-        if (p.isDisplaced) unHtml += item;
+        if (p.isSelfDisp) sHtml += item;
+        else if (p.isDisplaced) unHtml += item;
         if (p.moved) mHtml += item;
     });
+    document.getElementById('selfDispList').innerHTML = sHtml || "None.";
     document.getElementById('moversList').innerHTML = mHtml || "None.";
     document.getElementById('unassignedList').innerHTML = unHtml || "None.";
 }
