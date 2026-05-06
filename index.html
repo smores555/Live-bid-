@@ -96,31 +96,30 @@ let lastResults = [];
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
 
-    // 1. Establish Targets (The Caps)
-    let targetMap = {};
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
-    });
-
+    // 1. Identify all eligible pilots to get an accurate starting headcount baseline
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // 2. Initialize "Desks Full" model
-    let currentCounts = {};
-    Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
+    const activeBidders = data.roster
+        .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
-    const bidders = data.roster
-        .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
-        .map(p => {
+    // 2. Initialize "Desks Full" model based on actual live headcount
+    let currentCounts = {};
+    activeBidders.forEach(p => {
+        const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        currentCounts[pilotOrig] = (currentCounts[pilotOrig] || 0) + 1;
+    });
+
+    // 3. Establish Targets (Cap = Starting Live Headcount + Delta)
+    let targetMap = {};
+    for (let baseKey in currentCounts) {
+        targetMap[baseKey] = currentCounts[baseKey] + (deltaMap[baseKey] || 0);
+    }
+
+    const bidders = activeBidders.map(p => {
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             
-            // Physically place them in the base to start
-            if (currentCounts[pilotOrig] !== undefined) {
-                currentCounts[pilotOrig]++;
-            }
-
             const getTargetKey = (bidStr) => {
                 const parts = bidStr.trim().toUpperCase().split(/\s+/);
                 const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
@@ -153,7 +152,6 @@ function runBidEngine(data, deltaMap) {
             if (!pr.targetKey) continue;
             
             if (p.orig === pr.targetKey) {
-                // Determine their active rank if they stay
                 let rankInBase = 0;
                 bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
                 
@@ -167,19 +165,19 @@ function runBidEngine(data, deltaMap) {
                     break;
                 }
             } else {
-                let currentOcc = currentCounts[pr.targetKey];
+                let currentOcc = currentCounts[pr.targetKey] || 0;
                 let cap = targetMap[pr.targetKey] || 0;
 
                 if (currentOcc < cap && (currentOcc + 1) <= pr.bpl) {
-                    let oldTargetVac = cap - currentCounts[pr.targetKey];
-                    let oldOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+                    let oldTargetVac = cap - currentOcc;
+                    let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
                     
                     // SWAP: Vacate old desk, occupy new desk
                     currentCounts[p.orig]--;
-                    currentCounts[pr.targetKey]++;
+                    currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
                     
                     let newTargetVac = cap - currentCounts[pr.targetKey];
-                    let newOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+                    let newOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
                     
                     p.currentKey = pr.targetKey;
                     p.awardedPrefNum = pr.order;
@@ -199,9 +197,9 @@ function runBidEngine(data, deltaMap) {
             const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
             const bplFail = selfBidOnOwnSeat && (rankInBase > selfBidOnOwnSeat.bpl);
 
-            if (rankInBase <= targetMap[p.orig] && !bplFail) {
+            if (rankInBase <= (targetMap[p.orig] || 0) && !bplFail) {
                 p.currentKey = p.orig;
-                let vac = targetMap[p.orig] - currentCounts[p.orig];
+                let vac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
                 p.awardedReason = `Held Position (Seniority). Vacancy remains at ${vac}.`;
                 p.moved = false;
                 awarded = true;
@@ -210,11 +208,9 @@ function runBidEngine(data, deltaMap) {
 
         // Step C: Pool / Displacement
         if (!awarded) {
-            let oldOrigVac = targetMap[p.orig] - currentCounts[p.orig];
-            
-            // They are forced out of their seat!
+            let oldOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
-            let newOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+            let newOrigVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
 
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
@@ -232,7 +228,7 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    console.group("Debug: Net Zero True Count Results");
+    console.group("Debug: Net Zero Results");
     console.table(Object.keys(targetMap).map(key => ({
         Position: key,
         TargetCap: targetMap[key],
@@ -257,13 +253,13 @@ function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `
         <div class="cap-cell">
             <label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label>
-            <input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}">
+            <input type="number" id="delta-${c.base}-${c.seat}" value="0">
         </div>`).join('');
 }
 
 document.getElementById('runBtn').onclick = () => {
     const deltas = {};
-    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
+    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
     renderTable(lastResults, result.targetMap);
@@ -302,10 +298,10 @@ function renderTable(roster, targetMap) {
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
                 <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
-                <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
+                <td><span class="rank-badge">${p.currentKey === \"UNASSIGNED\" ? \"-\" : finalRank + \" / \" + limit}</span></td>
                 <td>
-                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
-                    <span class="award-reason">${p.awardedReason}</span>
+                    <span class=\"award-detail\">${p.awardedPrefNum === \"N/A\" ? \"Original\" : \"Pref #\" + p.awardedPrefNum}</span>
+                    <span class=\"award-reason\">${p.awardedReason}</span>
                 </td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
