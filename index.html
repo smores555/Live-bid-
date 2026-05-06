@@ -121,7 +121,7 @@ function runBidEngine(data, deltaMap) {
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. Cascade Loop
+    // 3. Cascade Loop (The Net-Zero Headcount Fix)
     let cascade = true;
     let loops = 0;
     while (cascade && loops < 1000) {
@@ -159,6 +159,7 @@ function runBidEngine(data, deltaMap) {
                     break;
                 }
 
+                // Mathematical Seat Exchange
                 const oldKey = p.currentKey;
                 currentCounts[oldKey]--;
                 currentCounts[pr.targetKey]++;
@@ -187,14 +188,21 @@ function runBidEngine(data, deltaMap) {
                     p.awardAudit.push(`<span class="awarded-text">Seniority Hold ${p.orig} (${rank})</span>`);
                     foundAward = true;
                     p.moved = false;
+                    p.isDisplaced = false; // Safe!
                     p.finalReason = "Seniority Hold";
                 }
             }
 
             if (!foundAward) {
+                if (p.currentKey !== "UNASSIGNED") {
+                    currentCounts[p.currentKey]--; // Vacate chair if displaced
+                    p.currentKey = "UNASSIGNED";
+                    cascade = true;
+                }
                 p.isDisplaced = true;
                 p.isSelfDisp = p.bplOnOwn;
                 p.finalReason = p.isSelfDisp ? "Self-Displaced" : "Reduction Displaced";
+                p.awardAudit.push(`<span class="denied-text">POOL / DISPLACED</span>`);
             }
             if (cascade) break;
         }
@@ -213,7 +221,14 @@ window.onload = async () => {
 
 function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>`).join('');
+        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`).join('');
+}
+
+function downloadCSV(filename, rows) {
+    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
 }
 
 document.getElementById('runBtn').onclick = () => {
@@ -224,6 +239,16 @@ document.getElementById('runBtn').onclick = () => {
     document.getElementById('statusBox').innerHTML = `Cycles: ${result.loops}<br>Processed: ${lastResults.length} Pilots`;
     renderTable(lastResults, result.targetMap);
     renderDashboards(lastResults);
+};
+
+document.getElementById('expBase').onclick = () => {
+    const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
+    downloadCSV("737_Base_List.csv", rows);
+};
+
+document.getElementById('expMaster').onclick = () => {
+    const rows = [["Sen #", "Name", "Awarded Position", "Original Position"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' ')])];
+    downloadCSV("737_Master_Awards.csv", rows);
 };
 
 function renderTable(roster, targetMap) {
@@ -242,7 +267,7 @@ function renderTable(roster, targetMap) {
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
                 <td style="color:${p.moved?'#3fb950':''}">${p.currentKey.replace('-', ' ')}</td>
-                <td><span class="rank-badge">${finalRank} / ${limit}</span></td>
+                <td><span class="rank-badge">${p.currentKey === 'UNASSIGNED' ? '-' : finalRank + ' / ' + limit}</span></td>
                 <td>
                     ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
                     <span class="via-text">via ${p.finalReason}</span>
@@ -268,8 +293,22 @@ function renderDashboards(roster) {
 document.getElementById('lookupBtn').onclick = () => {
     const sen = document.getElementById('lookupInput').value;
     if (sen && lastResults.length) {
+        // Need targetMap for the lookup table render
+        const deltas = {};
+        store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
+        let targetMap = {};
+        let currentCounts = {};
+        store.roster.forEach(p => {
+            const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            currentCounts[orig] = (currentCounts[orig] || 0) + 1;
+        });
+        store.caps.forEach(c => {
+            const key = `${c.base}-${c.seat}`.toUpperCase();
+            targetMap[key] = (currentCounts[key] || 0) + (deltas[key] || 0);
+        });
+
         const filtered = lastResults.filter(p => p.sen.toString() === sen);
-        renderTable(filtered, {});
+        renderTable(filtered, targetMap);
     }
 };
 </script>
