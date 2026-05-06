@@ -15,7 +15,6 @@
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
         .btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
         
-        /* Updated to 4 columns for the new box */
         .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
@@ -98,6 +97,7 @@ function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
 
+    // 1. Initialize Targets: Starting Pilots + Deltas
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
@@ -107,6 +107,7 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
+    // 2. Cascade State: Process from Pilot #1 downwards
     let currentCounts = {};
     Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
 
@@ -125,15 +126,12 @@ function runBidEngine(data, deltaMap) {
                 return (b && s) ? `${b}-${s}` : null;
             };
 
-            const selfBid = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig);
-
             return {
                 ...p,
                 orig: pilotOrig,
                 currentKey: "UNASSIGNED",
                 moved: false, wasSelfDisplaced: false, isUnassigned: false,
                 awardedPrefNum: "N/A", awardedReason: "",
-                bplRestrictionOnOwnSeat: selfBid ? true : false,
                 prefs: (prefData.preferences || []).map(pr => ({
                     ...pr, 
                     targetKey: getTargetKey(pr.bid),
@@ -141,11 +139,12 @@ function runBidEngine(data, deltaMap) {
                 })).sort((a, b) => a.order - b.order)
             };
         })
-        .sort((a, b) => a.sen - b.sen);
+        .sort((a, b) => a.sen - b.sen); // Strict Cascade Order
 
     bidders.forEach(p => {
         let awarded = false;
 
+        // Step A: Preferences in Order
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
             let rankInBase = currentCounts[pr.targetKey] + 1;
@@ -155,7 +154,7 @@ function runBidEngine(data, deltaMap) {
                 p.currentKey = pr.targetKey;
                 currentCounts[pr.targetKey]++;
                 p.awardedPrefNum = pr.order;
-                p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Bid Awarded";
+                p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Awarded Vacancy";
                 p.moved = (pr.targetKey !== p.orig);
                 awarded = true;
                 auditTrail.push({ sen: p.sen, name: p.name, to: pr.targetKey, type: "Award" });
@@ -163,22 +162,27 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        if (!awarded && !p.bplRestrictionOnOwnSeat) {
-            const targetKey = p.orig;
-            if (currentCounts[targetKey] < (targetMap[targetKey] || 0)) {
-                p.currentKey = targetKey;
-                currentCounts[targetKey]++;
+        // Step B: Seniority Hold (if no bid awarded and seat is still available)
+        if (!awarded) {
+            const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
+            const bplFail = selfBidOnOwnSeat && (currentCounts[p.orig] + 1 > selfBidOnOwnSeat.bpl);
+
+            if (currentCounts[p.orig] < targetMap[p.orig] && !bplFail) {
+                p.currentKey = p.orig;
+                currentCounts[p.orig]++;
                 p.awardedReason = "Held Position (Seniority)";
                 awarded = true;
-                p.moved = false; // Seniority hold means NOT displaced
+                p.moved = false;
             }
         }
 
+        // Step C: Pool / Displacement
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
-            p.moved = true; // Any move to pool is a displacement
-            p.wasSelfDisplaced = p.bplRestrictionOnOwnSeat;
+            p.moved = true;
+            const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
+            p.wasSelfDisplaced = !!(selfBidOnOwnSeat && (currentCounts[p.orig] + 1 > selfBidOnOwnSeat.bpl));
             p.awardedReason = p.wasSelfDisplaced ? "BPL Rank Constraint Failed" : "Juniority Displacement";
             p.awardedPrefNum = "Pool";
             auditTrail.push({ sen: p.sen, name: p.name, to: "POOL", type: p.wasSelfDisplaced ? "Self-Displacement" : "Displacement" });
@@ -219,14 +223,9 @@ function renderDashboards(roster) {
     let unassignedHtml = ''; let selfDispHtml = ''; let allDispHtml = '';
     roster.forEach(p => {
         const item = `<div class="${p.wasSelfDisplaced ? 'self-disp-item' : (p.isUnassigned ? 'unassigned-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
-        
         if (p.wasSelfDisplaced) selfDispHtml += item;
         if (p.isUnassigned) unassignedHtml += item;
-        
-        // Populate the General Displaced list
-        if (p.moved) {
-            allDispHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
-        }
+        if (p.moved) allDispHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
     });
     document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
     document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
@@ -236,15 +235,15 @@ function renderDashboards(roster) {
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awardedPos = p.currentKey.replace('-', ' ');
-        
-        // Logic for tags
         let tags = '';
         if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
         if (p.moved) tags += '<span class="tag tag-yellow">DISPLACED</span>';
         if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
 
-        let finalRank = 1;
-        roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
+        let finalRank = 0;
+        if (p.currentKey !== "UNASSIGNED") {
+            roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
+        }
         const limit = targetMap[p.currentKey] || 0;
 
         return `
