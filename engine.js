@@ -1,6 +1,6 @@
 /**
- * THE 737 ADMIN ENGINE - BPL RANK CONSTRAINT VERSION
- * Strictly honors BPL constraints and flags self-displacement.
+ * THE 737 ADMIN ENGINE - VACANCY-AWARE BPL VERSION
+ * Robustly handles seniority holds and backfill vacancies.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -9,67 +9,83 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // Initialize Hard Capacities from capacities.json
+    // 1. Initialize Hard Capacities
     let targetMap = {};
     data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`;
-        targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
     });
 
     let currentCounts = {};
     Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
 
+    // Helper to extract Base-Seat key from various bid formats
+    const getTargetKey = (bidStr) => {
+        if (!bidStr || bidStr === "0") return null;
+        const parts = bidStr.trim().toUpperCase().split(/\s+/);
+        const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
+        const seats = ['CA', 'FO'];
+        let b = parts.find(x => bases.includes(x));
+        let s = parts.find(x => seats.includes(x));
+        return (b && s) ? `${b}-${s}` : null;
+    };
+
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+            const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            
+            // Check if user specifically put a BPL on their current position
+            const bplOnOwn = (prefData.preferences || []).some(pr => 
+                getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min)
+            );
+
             return {
                 ...p,
-                orig: `${p.current.base}-${p.current.seat}`,
+                orig: pilotOrig,
                 currentKey: "UNASSIGNED",
                 moved: false, wasSelfDisplaced: false, isUnassigned: false,
                 awardedPrefNum: "N/A", awardedReason: "",
-                // Parse BPL strings as integers
+                bplOnOwn: bplOnOwn,
                 prefs: (prefData.preferences || []).map(pr => ({
-                    ...pr, bpl: parseInt(pr.bpl) || 9999
+                    ...pr, 
+                    targetKey: getTargetKey(pr.bid),
+                    bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
                 })).sort((a, b) => a.order - b.order)
             };
         })
-        .sort((a, b) => a.sen - b.sen); // Fill by Seniority
+        .sort((a, b) => a.sen - b.sen);
 
     bidders.forEach(p => {
         let awarded = false;
-        // Check if they bid for their own current seat with a BPL constraint
-        let ownSeatPref = p.prefs.find(pr => {
-            const parts = pr.bid.trim().split(/\s+/);
-            const tKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
-            return tKey === p.orig;
-        });
 
-        // STEP A: EVALUATE BIDS (Strict BPL enforcement)
+        // STEP A: EVALUATE BIDS (Seniority Displacement/Movement)
         for (const pr of p.prefs) {
-            if (!pr.bid || pr.bid === "0") continue;
-            const parts = pr.bid.trim().split(/\s+/);
-            let targetKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
-            let rankInTarget = currentCounts[targetKey] + 1;
+            if (!pr.targetKey) continue;
+            let rankInTarget = currentCounts[pr.targetKey] + 1;
+            let cap = targetMap[pr.targetKey] || 0;
 
-            // Must fit under hard cap AND meet BPL rank
-            if (currentCounts[targetKey] < targetMap[targetKey] && rankInTarget <= pr.bpl) {
-                p.currentKey = targetKey;
-                currentCounts[targetKey]++;
+            if (rankInTarget <= cap && rankInTarget <= pr.bpl) {
+                p.currentKey = pr.targetKey;
+                currentCounts[pr.targetKey]++;
                 p.awardedPrefNum = pr.order;
-                p.awardedReason = (targetKey === p.orig) ? "Held Position" : "Bid Awarded";
-                p.moved = (targetKey !== p.orig);
+                p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Bid Awarded";
+                p.moved = (pr.targetKey !== p.orig);
                 awarded = true;
-                auditTrail.push({ sen: p.sen, name: p.name, to: targetKey, type: "Award" });
+                auditTrail.push({ sen: p.sen, name: p.name, to: pr.targetKey, type: "Award" });
                 break;
             }
         }
 
-        // STEP B: AUTOMATIC HOLD (Only if they didn't put a BPL restriction on their own seat)
-        if (!awarded && !ownSeatPref) {
+        // STEP B: SENIORITY HOLD (Backfill Logic)
+        // If they didn't award a bid and didn't use BPL to force themselves out
+        if (!awarded && !p.bplOnOwn) {
             const targetKey = p.orig;
-            if (currentCounts[targetKey] < targetMap[targetKey]) {
+            let cap = targetMap[targetKey] || 0;
+            let rank = currentCounts[targetKey] + 1;
+
+            if (rank <= cap) {
                 p.currentKey = targetKey;
                 currentCounts[targetKey]++;
                 p.awardedReason = "Held Position (Seniority)";
@@ -77,54 +93,20 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // STEP C: DISPLACEMENT LOGIC (Flagging BPL failures)
+        // STEP C: DISPLACEMENT
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
-            
-            // If they bid for their own seat but failed BPL, flag as Self-Displaced
-            if (ownSeatPref) {
+            if (p.bplOnOwn) {
                 p.wasSelfDisplaced = true;
-                p.awardedReason = `Self-Displaced (BPL ${ownSeatPref.bpl} Failed)`;
+                p.awardedReason = "Self-Displaced (BPL)";
             } else {
-                p.awardedReason = "Displaced (Over Capacity)";
+                p.awardedReason = "Displaced (Juniority)";
             }
-            
             p.awardedPrefNum = "Pool";
             auditTrail.push({ sen: p.sen, name: p.name, to: "POOL", type: p.wasSelfDisplaced ? "Self-Displacement" : "Eviction" });
         }
     });
 
     return { roster: bidders, auditTrail, targetMap };
-}
-
-/**
- * UPDATED TABLE RENDERING
- * Adds specific visual flags for Self-Displaced pilots.
- */
-function renderTable(roster, targetMap) {
-    document.getElementById('tableBody').innerHTML = roster.map(p => {
-        const awardedPos = p.currentKey.replace('-', ' ');
-        let tag = '';
-        if (p.wasSelfDisplaced) tag = '<span class="tag" style="background:var(--red); color:white;">BPL SELF-DISPLACED</span>';
-        else if (p.isUnassigned) tag = '<span class="tag unassigned-tag">AT MERCY</span>';
-        else if (p.moved) tag = '<span class="tag displaced-tag">AWARDED</span>';
-        
-        let finalRank = 1;
-        roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
-        const limit = targetMap[p.currentKey] || 0;
-
-        return `
-            <tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong><br>${tag}</td>
-                <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
-                <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
-                <td>
-                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
-                    <span class="award-reason">via ${p.awardedReason}</span>
-                </td>
-                <td>${p.orig.replace('-',' ')}</td>
-            </tr>`;
-    }).join('');
 }
