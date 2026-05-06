@@ -128,8 +128,17 @@ function runBidEngine(data, deltaMap) {
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
-                if (parts.length < 3) continue;
-                const targetKey = `${parts[1]}-${parts[2]}`;
+                
+                let targetKey = "";
+                
+                // NEW LOGIC: Support both "CA SEA" and "73G SEA CA" formats
+                if (parts.length === 2) {
+                    targetKey = `${parts[1]}-${parts[0]}`; // e.g., CA SEA -> SEA-CA
+                } else if (parts.length >= 3) {
+                    targetKey = `${parts[1]}-${parts[2]}`; // e.g., 73G SEA CA -> SEA-CA
+                } else {
+                    continue; // Ignore malformed bids
+                }
                 
                 let rank = 1;
                 for (const other of bidders) {
@@ -219,7 +228,6 @@ window.onload = async () => {
             const r = await fetch(f); 
             if (!r.ok) throw new Error(`Could not find the file: ${f}`);
             
-            // Try to parse the JSON. If it fails, catch it and flag the specific file!
             try {
                 return await r.json();
             } catch (jsonErr) {
@@ -238,7 +246,6 @@ window.onload = async () => {
         renderCapacities();
     } catch (e) { 
         console.error("Boot Error:", e);
-        // Made the error box a little more prominent so it's easy to read
         document.getElementById('capGrid').innerHTML = `
             <div style="color: #f85149; background: #2a1215; padding: 15px; border-left: 5px solid #f85149; border-radius: 4px; font-size: 14px; grid-column: 1 / -1; line-height: 1.6;">
                 🚨 <b>SYSTEM HALTED</b><br><br>
@@ -265,7 +272,6 @@ function renderDashboards(roster) {
     let dispHtml = ''; let missHtml = ''; let missCount = 0;
     roster.forEach(p => {
         const awarded = p.currentKey.replace('-', ' ');
-        // Kept logic safe if answerKey is empty
         const company = (answerKey[p.sen.toString()] || "No Key").trim();
         const companyClean = company.replace(/^(737|73G|320|321)\s+/, '');
         
