@@ -97,16 +97,11 @@ function runBidEngine(data, deltaMap) {
         !noBidSens.has(p.sen)
     );
 
-    // FIX: Hard Capacity Logic. targetMap must be the actual legal limit.
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
     });
-
-    // Initialize headcount at 0
-    let currentCounts = {};
-    Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
 
     const bidders = activeBidders.map(p => {
         const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
@@ -121,7 +116,7 @@ function runBidEngine(data, deltaMap) {
         };
 
         return {
-            ...p, orig: pilotOrig, currentKey: "UNASSIGNED", moved: false, isUnassigned: true, 
+            ...p, orig: pilotOrig, currentKey: pilotOrig, moved: false, isUnassigned: false, 
             awardedPrefNum: "N/A", awardedReason: "Evaluating...", wasSelfDisplaced: false, isForciblyDisplaced: false,
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
@@ -131,6 +126,14 @@ function runBidEngine(data, deltaMap) {
         };
     }).sort((a, b) => a.sen - b.sen);
 
+    let currentCounts = {};
+    const updateHeadcounts = () => {
+        Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
+        bidders.forEach(p => { if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]++; });
+    };
+
+    updateHeadcounts();
+
     // --- CONTINUOUS EVALUATION LOOP ---
     let hasMoved = true;
     let safetyCounter = 0; 
@@ -139,22 +142,31 @@ function runBidEngine(data, deltaMap) {
         hasMoved = false;
         safetyCounter++;
 
+        // PRE-CALCULATE JUNIOR-MOST PILOT PER BASE TO AVOID N^2 FILTERING
+        let juniorMap = {};
+        bidders.forEach(p => {
+            if (p.currentKey !== "UNASSIGNED") {
+                if (!juniorMap[p.currentKey] || p.sen > juniorMap[p.currentKey].sen) juniorMap[p.currentKey] = p;
+            }
+        });
+
+        // We also need a count of seniors ALREADY evaluating into their spots THIS pass
+        let runningSeniorCounts = {};
+        Object.keys(targetMap).forEach(k => runningSeniorCounts[k] = 0);
+
         for (let i = 0; i < bidders.length; i++) {
             let p = bidders[i];
             const initialKey = p.currentKey;
-            const [origBase, origStatus] = p.orig.split('-');
             let awarded = false;
 
             // Phase 1: Try to Hold Original Seat (Hard Cap check)
             const baseCap = targetMap[p.orig] || 0;
-            const seniorsHoldingOriginal = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             const bplLimit = selfBid ? selfBid.bpl : 9999;
 
-            if (seniorsHoldingOriginal < baseCap && (seniorsHoldingOriginal + 1) <= bplLimit) {
+            // In a top-down bid, you only compete with those more senior than you
+            if (runningSeniorCounts[p.orig] < baseCap && (runningSeniorCounts[p.orig] + 1) <= bplLimit) {
                 if (initialKey !== p.orig) {
-                    if (initialKey !== "UNASSIGNED") currentCounts[initialKey]--;
-                    currentCounts[p.orig]++;
                     p.currentKey = p.orig;
                     p.isUnassigned = false;
                     p.moved = false;
@@ -162,9 +174,9 @@ function runBidEngine(data, deltaMap) {
                     p.awardedReason = `Holding Position (Seniority within Hard Cap).`;
                     hasMoved = true;
                 }
+                runningSeniorCounts[p.orig]++;
                 awarded = true;
             } else {
-                // If they can't hold their original seat, they are officially FORCIBLY DISPLACED
                 p.isForciblyDisplaced = true;
             }
 
@@ -176,12 +188,9 @@ function runBidEngine(data, deltaMap) {
                     if (!pr.targetKey) continue;
                     const targetCap = targetMap[pr.targetKey] || 0;
                     const currentPop = currentCounts[pr.targetKey] || 0;
-                    const seniorsInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
                     
-                    if (currentPop < targetCap && (seniorsInTarget + 1) <= pr.bpl) {
+                    if (currentPop < targetCap && (runningSeniorCounts[pr.targetKey] + 1) <= pr.bpl) {
                         if (initialKey !== pr.targetKey) {
-                            if (initialKey !== "UNASSIGNED") currentCounts[initialKey]--;
-                            currentCounts[pr.targetKey]++;
                             p.currentKey = pr.targetKey;
                             p.moved = (p.currentKey !== p.orig);
                             p.isUnassigned = false;
@@ -189,6 +198,7 @@ function runBidEngine(data, deltaMap) {
                             p.awardedReason = `Voluntary Award: Pref #${pr.order} via open vacancy.`;
                             hasMoved = true;
                         }
+                        runningSeniorCounts[pr.targetKey]++;
                         awarded = true;
                         break;
                     }
@@ -200,29 +210,22 @@ function runBidEngine(data, deltaMap) {
             if (!awarded && p.isForciblyDisplaced) {
                 for (const pr of p.prefs) {
                     if (!pr.targetKey) continue;
-                    
-                    const targetCap = targetMap[pr.targetKey] || 0;
-                    const seniorsInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
-                    
-                    // Find the absolute most junior pilot currently holding a spot in that base
-                    const pilotsInTarget = bidders.filter(other => other.currentKey === pr.targetKey).sort((a,b) => b.sen - a.sen);
-                    const mostJunior = pilotsInTarget[0];
+                    const mostJunior = juniorMap[pr.targetKey];
 
-                    if (mostJunior && p.sen < mostJunior.sen && (seniorsInTarget + 1) <= pr.bpl) {
+                    if (mostJunior && p.sen < mostJunior.sen && (runningSeniorCounts[pr.targetKey] + 1) <= pr.bpl) {
                         // Force the junior pilot out
                         mostJunior.currentKey = "UNASSIGNED";
                         mostJunior.isUnassigned = true;
                         mostJunior.moved = true;
                         mostJunior.awardedReason = `Displaced: Bumped by Senior Pilot #${p.sen}.`;
                         
-                        // We don't need to adjust currentCounts[pr.targetKey] because the senior pilot just takes the spot
-                        if (initialKey !== "UNASSIGNED") currentCounts[initialKey]--;
                         p.currentKey = pr.targetKey;
                         p.moved = (p.currentKey !== p.orig);
                         p.isUnassigned = false;
                         p.awardedPrefNum = pr.order;
                         p.awardedReason = `Bumped Junior Pilot #${mostJunior.sen} at ${pr.targetKey} (Awarded Pref #${pr.order}).`;
-                        hasMoved = true; // Restart to re-evaluate the bumped junior pilot
+                        
+                        hasMoved = true; 
                         break;
                     }
                 }
@@ -231,18 +234,18 @@ function runBidEngine(data, deltaMap) {
 
             // Phase 4: Fallback (Unassigned)
             if (!awarded && initialKey !== "UNASSIGNED") {
-                currentCounts[initialKey]--;
                 p.currentKey = "UNASSIGNED";
                 p.isUnassigned = true;
                 p.moved = true;
-                p.awardedReason = p.isForciblyDisplaced ? `Forcibly Displaced: No Vacancies or Bumpable Juniors found.` : `Unassigned.`;
+                p.awardedReason = `Forcibly Displaced: No Vacancies or Bumpable Juniors found.`;
                 hasMoved = true;
                 break;
             }
         }
+        if (hasMoved) updateHeadcounts();
     }
 
-    if (safetyCounter >= 10000) console.warn("Bid engine reached maximum iterations. Check for circular seniority logic.");
+    if (safetyCounter >= 10000) console.warn("Safety Counter reached. Engine stopped to prevent freeze.");
 
     return { roster: bidders, targetMap };
 }
@@ -283,7 +286,7 @@ document.getElementById('runBtn').onclick = () => {
 };
 
 function renderDashboards(roster) {
-    let unassignedHtml = '', moverHtml = '', selfDispHtml = '';
+    let unassignedHtml = '', moverHtml = '';
     roster.forEach(p => {
         const item = `<div class="${p.isUnassigned ? 'unassigned-item' : 'disp-item'}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
         if (p.isUnassigned) unassignedHtml += item;
