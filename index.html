@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - BPL Strict</title>
+    <title>737 Master Bid Control - BPL Strict Detail</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -27,7 +27,7 @@
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
         .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
-        .audit-step { display: block; font-size: 0.7rem; margin-bottom: 2px; }
+        .audit-step { display: block; font-size: 0.7rem; margin-bottom: 2px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
         .denied { color: #f85149; }
         .awarded { color: #3fb950; font-weight: bold; }
     </style>
@@ -61,7 +61,7 @@
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
                 <th>Final Standing (Rank / Limit)</th>
-                <th>Award Path / Audit Trail</th>
+                <th>Award Path & Detail Audit</th>
                 <th>Original Position</th>
             </tr>
         </thead>
@@ -104,7 +104,7 @@ function runBidEngine(data, deltaMap) {
                 ...p,
                 orig: pilotOrig,
                 currentKey: "UNASSIGNED",
-                awardAudit: [], // NEW: Track the history
+                awardAudit: [],
                 wantsToStay: (prefData.preferences.length === 0) || (getTargetKey(prefData.preferences[0].bid) === pilotOrig && !selfBidWithBpl),
                 bplRestrictionOnOwnSeat: !!selfBidWithBpl,
                 prefs: (prefData.preferences || []).map(pr => ({
@@ -122,13 +122,13 @@ function runBidEngine(data, deltaMap) {
             let cap = targetMap[pr.targetKey] || 0;
 
             if (rankInBase > cap) {
-                p.awardAudit.push({ status: 'denied', msg: `Pref #${pr.order}: Base Full` });
+                p.awardAudit.push({ status: 'denied', msg: `Pref #${pr.order} (${pr.targetKey}): Base Full (Rank ${rankInBase} > Cap ${cap})` });
             } else if (rankInBase > pr.bpl) {
-                p.awardAudit.push({ status: 'denied', msg: `Pref #${pr.order}: BPL Limit (${rankInBase} > ${pr.bpl})` });
+                p.awardAudit.push({ status: 'denied', msg: `Pref #${pr.order} (${pr.targetKey}): BPL Fail (Rank ${rankInBase} > BPL ${pr.bpl})` });
             } else {
                 p.currentKey = pr.targetKey;
                 currentCounts[pr.targetKey]++;
-                p.awardAudit.push({ status: 'awarded', msg: `Pref #${pr.order}: Awarded (Pass ${rankInBase})` });
+                p.awardAudit.push({ status: 'awarded', msg: `Pref #${pr.order} (${pr.targetKey}): Awarded (Pass ${rankInBase} / ${cap})` });
                 awarded = true;
                 break;
             }
@@ -136,13 +136,15 @@ function runBidEngine(data, deltaMap) {
 
         if (!awarded && !p.bplRestrictionOnOwnSeat) {
             const targetKey = p.orig;
-            if (currentCounts[targetKey] < (targetMap[targetKey] || 0)) {
-                p.currentKey = targetKey;
+            let cap = targetMap[targetKey] || 0;
+            if (currentCounts[targetKey] < cap) {
                 currentCounts[targetKey]++;
-                p.awardAudit.push({ status: 'awarded', msg: `Seniority Hold: Pass ${currentCounts[targetKey]}` });
+                let rank = currentCounts[targetKey];
+                p.currentKey = targetKey;
+                p.awardAudit.push({ status: 'awarded', msg: `Seniority Hold (${targetKey}): Success (Pass ${rank} / ${cap})` });
                 awarded = true;
             } else {
-                p.awardAudit.push({ status: 'denied', msg: `Seniority Hold: Base Full` });
+                p.awardAudit.push({ status: 'denied', msg: `Seniority Hold (${targetKey}): Denied (Base Full)` });
             }
         }
 
@@ -151,7 +153,7 @@ function runBidEngine(data, deltaMap) {
             p.isUnassigned = true;
             p.wasSelfDisplaced = p.bplRestrictionOnOwnSeat;
             p.isDisplaced = p.wantsToStay && !p.wasSelfDisplaced;
-            p.awardAudit.push({ status: 'denied', msg: `POOL: ${p.wasSelfDisplaced ? 'Self-Displaced' : 'Displaced'}` });
+            p.awardAudit.push({ status: 'denied', msg: `POOL: ${p.wasSelfDisplaced ? 'Self-Displaced via BPL' : 'Juniority Displacement'}` });
         }
     });
     return { roster: bidders, targetMap };
@@ -210,7 +212,7 @@ function renderTable(roster, targetMap) {
                 <td><strong>${p.name}</strong><br>${tags}</td>
                 <td>${p.currentKey.replace('-', ' ')}</td>
                 <td><span class="rank-badge">${p.isUnassigned ? "-" : finalRank + " / " + limit}</span></td>
-                <td>${auditHtml}</td>
+                <td style="min-width:300px;">${auditHtml}</td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
     }).join('');
