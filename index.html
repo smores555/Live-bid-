@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Section 24 & CSV Export</title>
+    <title>737 Master Bid Control - Hard Cap & Robust Filtering</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -18,8 +18,8 @@
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -27,7 +27,6 @@
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
         .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
-        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -40,11 +39,11 @@
 
     <div class="dash-container">
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL Fail)</h4>
-            <div id="selfDispList">Ready...</div>
+            <h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4>
+            <div id="statusBox" style="font-size: 0.75rem;">Idle.</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--yellow)">⚠️ All MOVER Pilots</h4>
+            <h4 class="dash-title" style="color:var(--yellow)">⚠️ MOVER Pilots</h4>
             <div id="displacedList">Ready...</div>
         </div>
         <div class="dash-box">
@@ -52,8 +51,8 @@
             <div id="unassignedList">Ready...</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4>
-            <div id="statusBox" style="font-size: 0.75rem;">Idle.</div>
+            <h4 class="dash-title" style="color:var(--red)">🛑 BPL Failures</h4>
+            <div id="selfDispList">Ready...</div>
         </div>
     </div>
 
@@ -89,136 +88,178 @@ let lastTargetMap = {};
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
+    
+    // Fix: Use String normalization and check both common keys (sen and seniority)
+    const retiredSens = new Set(data.retired.map(p => String(p.seniority || p.sen || "")));
+    const noBidSens = new Set(data.noBid.map(p => String(p.sen || p.seniority || "")));
 
-    const activeBidders = data.roster
-        .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
+    const activeBidders = data.roster.filter(p => 
+        is737(p.current.seat) && 
+        !retiredSens.has(String(p.sen)) && 
+        !noBidSens.has(String(p.sen))
+    );
 
-    let currentCounts = {};
-    activeBidders.forEach(p => {
-        const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-        currentCounts[pilotOrig] = (currentCounts[pilotOrig] || 0) + 1;
-    });
-
+    // Fix: Target Map is now strictly Hard Cap (Start Capacity + User Delta)
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         const delta = deltaMap[key] || 0;
-        if (delta >= 0) {
-            targetMap[key] = (currentCounts[key] || 0) + delta;
-        } else {
-            targetMap[key] = c.startCapacity + delta;
-        }
+        targetMap[key] = c.startCapacity + delta;
+    });
+
+    // Track current population during iterations
+    let currentCounts = {};
+    activeBidders.forEach(p => {
+        const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        currentCounts[key] = (currentCounts[key] || 0) + 1;
     });
 
     const bidders = activeBidders.map(p => {
-            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-            const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            
-            const getTargetKey = (bidStr) => {
-                const parts = bidStr.trim().toUpperCase().split(/\s+/);
-                const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'];
-                const seats = ['CA', 'FO'];
-                let b = parts.find(x => bases.includes(x));
-                let s = parts.find(x => seats.includes(x));
-                return (b && s) ? `${b}-${s}` : null;
-            };
+        const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+        const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        const getTargetKey = (bidStr) => {
+            const parts = bidStr.trim().toUpperCase().split(/\s+/);
+            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'];
+            const seats = ['CA', 'FO'];
+            let b = parts.find(x => bases.includes(x));
+            let s = parts.find(x => seats.includes(x));
+            return (b && s) ? `${b}-${s}` : null;
+        };
 
-            return {
-                ...p,
-                orig: pilotOrig,
-                currentKey: pilotOrig, 
-                moved: false, wasSelfDisplaced: false, isUnassigned: false,
-                awardedPrefNum: "N/A", awardedReason: "",
-                prefs: (prefData.preferences || []).map(pr => ({
-                    ...pr, 
-                    targetKey: getTargetKey(pr.bid),
-                    bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
-                })).sort((a, b) => a.order - b.order)
-            };
-        })
-        .sort((a, b) => a.sen - b.sen);
+        return {
+            ...p, orig: pilotOrig, currentKey: pilotOrig, moved: false, isUnassigned: false, awardedPrefNum: "N/A", awardedReason: "", wasSelfDisplaced: false,
+            prefs: (prefData.preferences || []).map(pr => {
+                let limit = parseInt(pr.bpl || pr.bpl_min);
+                if (isNaN(limit) || limit === 0) limit = 9999;
+                return { ...pr, targetKey: getTargetKey(pr.bid), bpl: limit };
+            }).sort((a, b) => a.order - b.order)
+        };
+    }).sort((a, b) => a.sen - b.sen);
 
-    bidders.forEach(p => {
-        let awarded = false;
-        const [origBase, origStatus] = p.orig.split('-');
+    let hasMoved = true;
+    let safetyCounter = 0; 
 
-        for (const pr of p.prefs) {
-            if (!pr.targetKey) continue;
-            let currentOcc = currentCounts[pr.targetKey] || 0;
-            let cap = targetMap[pr.targetKey] || 0;
+    while (hasMoved && safetyCounter < 10000) {
+        hasMoved = false;
+        safetyCounter++;
 
-            if (currentOcc < cap && (currentOcc + 1) <= pr.bpl) {
-                let targetOldVac = cap - currentOcc;
-                let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-                currentCounts[p.orig]--;
-                currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
-                p.currentKey = pr.targetKey;
-                p.awardedPrefNum = pr.order;
-                if(p.orig === pr.targetKey) {
-                    p.awardedReason = `Remain in position via Pref #${pr.order}. Vacancy remains at ${targetOldVac}.`;
-                } else {
-                    p.awardedReason = `Awarded Pref #${pr.order} via Vacancy. Reduce ${pr.targetKey} vacancy from ${targetOldVac} to ${cap - currentCounts[pr.targetKey]}. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
-                }
-                p.moved = (pr.targetKey !== p.orig);
-                awarded = true;
-                break;
-            }
-        }
+        for (let i = 0; i < bidders.length; i++) {
+            let p = bidders[i];
+            const initialKey = p.currentKey;
+            const [origBase, origStatus] = p.orig.split('-');
+            let awarded = false;
 
-        if (!awarded) {
-            let rankInBase = 0;
-            bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
-            const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
-            const bplFail = selfBid && (rankInBase > selfBid.bpl);
-            if (rankInBase <= (targetMap[p.orig] || 0) && !bplFail) {
-                p.currentKey = p.orig;
-                let vac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-                p.awardedReason = `Held Position (Seniority). Vacancy remains at ${vac}.`;
-                p.moved = false;
-                awarded = true;
-            }
-        }
+            // Step A: Primary Preference Bids (Strict Hard Cap Vacancy)
+            for (const pr of p.prefs) {
+                if (!pr.targetKey) continue;
+                
+                const targetCap = targetMap[pr.targetKey] || 0;
+                const currentPop = currentCounts[pr.targetKey] || 0;
+                const hasVacancy = currentPop < targetCap;
+                const isAlreadyThere = (initialKey === pr.targetKey);
+                
+                const seniorsInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
+                const meetsBPL = (seniorsInTarget + 1) <= pr.bpl;
 
-        if (!awarded) {
-            const cascadeOptions = [
-                ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
-                `${origBase}-FO`,
-                ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)
-            ];
-            for (const targetKey of cascadeOptions) {
-                if (targetMap[targetKey] === undefined) continue;
-                let currentOcc = currentCounts[targetKey] || 0;
-                let cap = targetMap[targetKey] || 0;
-                if (currentOcc < cap) {
-                    let targetOldVac = cap - currentOcc;
-                    let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-                    currentCounts[p.orig]--;
-                    currentCounts[targetKey]++;
-                    p.currentKey = targetKey;
-                    p.awardedReason = `Section 24 Displacement: Awarded ${targetKey}. Reduce vacancy from ${targetOldVac} to ${cap - currentCounts[targetKey]}. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
-                    p.moved = true;
+                if ((hasVacancy || isAlreadyThere) && meetsBPL) {
+                    if (initialKey !== pr.targetKey) {
+                        if (initialKey !== "UNASSIGNED") currentCounts[initialKey]--;
+                        currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
+                        
+                        p.currentKey = pr.targetKey;
+                        p.moved = (p.currentKey !== p.orig);
+                        p.isUnassigned = false;
+                        p.awardedPrefNum = pr.order;
+                        p.awardedReason = `Awarded Pref #${pr.order}. Vacancy entry.`;
+                        hasMoved = true;
+                    } else {
+                        p.awardedReason = `Awarded Preference #${pr.order}. Held current position.`;
+                        p.isUnassigned = false;
+                    }
                     awarded = true;
                     break;
                 }
             }
-        }
+            if (hasMoved) break;
 
-        if (!awarded) {
-            let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-            currentCounts[p.orig]--; 
-            p.currentKey = "UNASSIGNED";
-            p.isUnassigned = true;
-            p.moved = true;
-            p.awardedReason = `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
-            let rankInBase = 0;
-            bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
-            const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
-            p.wasSelfDisplaced = selfBid && (rankInBase > selfBid.bpl);
+            // Step B: Seniority Hold (Protects current position up to Hard Cap)
+            if (!awarded) {
+                const targetCap = targetMap[p.orig] || 0;
+                const seniorsInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                const bplLimit = selfBid ? selfBid.bpl : 9999;
+
+                if (seniorsInTarget < targetCap && (seniorsInTarget + 1) <= bplLimit) {
+                    if (initialKey !== p.orig) {
+                        if (initialKey !== "UNASSIGNED") currentCounts[initialKey]--;
+                        currentCounts[p.orig] = (currentCounts[p.orig] || 0) + 1;
+
+                        p.currentKey = p.orig;
+                        p.moved = false;
+                        p.isUnassigned = false;
+                        p.awardedReason = `Held Position (Seniority).`;
+                        hasMoved = true;
+                    } else {
+                        p.awardedReason = `Held Position (Seniority). Vacancy: ${targetCap - currentCounts[p.orig]}.`;
+                        p.isUnassigned = false;
+                    }
+                    awarded = true;
+                }
+            }
+            if (hasMoved) break;
+
+            // Step C: Section 24 Displacement (Cascade)
+            if (!awarded) {
+                const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
+                for (const targetKey of cascadeOptions) {
+                    const targetCap = targetMap[targetKey] || 0;
+                    const currentPop = currentCounts[targetKey] || 0;
+                    
+                    if (currentPop < targetCap) {
+                        if (initialKey !== "UNASSIGNED") currentCounts[initialKey]--;
+                        currentCounts[targetKey] = (currentCounts[targetKey] || 0) + 1;
+
+                        p.currentKey = targetKey;
+                        p.moved = true;
+                        p.isUnassigned = false;
+                        p.awardedReason = `Section 24: Awarded ${targetKey}.`;
+                        hasMoved = true;
+                        awarded = true;
+                        break;
+                    }
+                }
+            }
+            if (hasMoved) break;
+
+            // Step D: Unassigned Pool (Displacement via Reduction)
+            if (!awarded && initialKey !== "UNASSIGNED") {
+                currentCounts[initialKey]--;
+                p.currentKey = "UNASSIGNED";
+                p.isUnassigned = true;
+                p.moved = true;
+                
+                const seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
+                p.awardedReason = p.wasSelfDisplaced ? `BPL Failure.` : `Displaced: Cap Reduction.`;
+                hasMoved = true;
+                break;
+            }
         }
-    });
+    }
     return { roster: bidders, targetMap };
+}
+
+function exportToCSV(filename, rows) {
+    const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 window.onload = async () => {
@@ -231,19 +272,12 @@ window.onload = async () => {
 };
 
 function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-        <div class="cap-cell">
-            <label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label>
-            <input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}">
-        </div>`).join('');
+    document.getElementById('capGrid').innerHTML = store.caps.map(c => `<div class="cap-cell"><label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`).join('');
 }
 
 document.getElementById('runBtn').onclick = () => {
     const deltas = {};
-    store.caps.forEach(c => {
-        const el = document.getElementById(`delta-${c.base}-${c.seat}`);
-        if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0;
-    });
+    store.caps.forEach(c => { const el = document.getElementById(`delta-${c.base}-${c.seat}`); if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0; });
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
     lastTargetMap = result.targetMap;
@@ -252,83 +286,56 @@ document.getElementById('runBtn').onclick = () => {
 };
 
 function renderDashboards(roster) {
-    let unassignedHtml = ''; let selfDispHtml = ''; let allMoverHtml = '';
+    let unassignedHtml = '', moverHtml = '', selfDispHtml = '';
     roster.forEach(p => {
         const item = `<div class="${p.isUnassigned ? 'unassigned-item' : (p.wasSelfDisplaced ? 'self-disp-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
         if (p.isUnassigned) unassignedHtml += item;
         if (p.wasSelfDisplaced) selfDispHtml += item;
-        if (p.moved && !p.isUnassigned) allMoverHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
+        if (p.moved && !p.isUnassigned) moverHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
     });
     document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
     document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
-    document.getElementById('displacedList').innerHTML = allMoverHtml || "None.";
+    document.getElementById('displacedList').innerHTML = moverHtml || "None.";
 }
 
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awardedPos = p.currentKey.replace('-', ' ');
         let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
-        if (p.isUnassigned) tags = '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
+        if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
+        else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
+        
         let finalRank = 0;
-        if (p.currentKey !== "UNASSIGNED") {
-            roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        }
-        return `
-            <tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td>
-                <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td>
-                <td>${p.awardedReason}</td>
-                <td>${p.orig.replace('-',' ')}</td>
-            </tr>`;
+        if (p.currentKey !== "UNASSIGNED") roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
+        return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong><br>${tags}</td><td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td><td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td><td>${p.awardedReason}</td><td>${p.orig.replace('-',' ')}</td></tr>`;
     }).join('');
 }
 
-function exportToCSV(filename, rows) {
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
 document.getElementById('expMaster').onclick = () => {
-    if (lastResults.length === 0) return alert("Run engine first.");
     const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
     const rows = lastResults.map(p => {
         let finalRank = 0;
-        if (p.currentKey !== "UNASSIGNED") {
-            lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        }
-        return [p.sen, p.name, p.currentKey, finalRank, p.awardedReason.replace(/,/g, ""), p.orig];
+        if (p.currentKey !== "UNASSIGNED") lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
+        return [p.sen, p.name, p.currentKey, finalRank, p.awardedReason, p.orig];
     });
     exportToCSV("master_awards.csv", [headers, ...rows]);
 };
 
 document.getElementById('expBase').onclick = () => {
-    if (lastResults.length === 0) return alert("Run engine first.");
-    const headers = ["Position", "Seniority", "Name", "Rank", "Status"];
+    const headers = ["Position", "Seniority", "Name", "Rank"];
     const rows = [];
     Object.keys(lastTargetMap).forEach(key => {
-        const basePilots = lastResults.filter(p => p.currentKey === key).sort((a, b) => a.sen - b.sen);
-        basePilots.forEach((p, index) => {
-            rows.push([key, p.sen, p.name, index + 1, p.moved ? "MOVER" : "HELD"]);
-        });
+        const basePilots = lastResults.filter(p => p.currentKey === key).sort((a,b) => a.sen - b.sen);
+        basePilots.forEach((p, idx) => rows.push([key, p.sen, p.name, idx + 1]));
     });
     exportToCSV("base_lists.csv", [headers, ...rows]);
 };
 
 document.getElementById('expLog').onclick = () => {
-    if (lastResults.length === 0) return alert("Run engine first.");
     const headers = ["Seniority", "Name", "From", "To", "Transition Note"];
-    const rows = lastResults.filter(p => p.moved).map(p => [p.sen, p.name, p.orig, p.currentKey, p.awardedReason.replace(/,/g, "")]);
+    const rows = lastResults.filter(p => p.moved).map(p => [p.sen, p.name, p.orig, p.currentKey, p.awardedReason]);
     exportToCSV("transition_log.csv", [headers, ...rows]);
 };
-
 </script>
 </body>
 </html>
