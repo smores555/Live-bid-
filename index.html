@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Hard Cap Master Build</title>
+    <title>737 Master Bid Control - Hard Cap & Retiree Fix</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -100,11 +100,15 @@ const HARD_CAPS = {
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
+    
+    // BUG FIX: The retired_pilots.json uses "sen", not "seniority". We check for both to be perfectly safe.
+    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.sen || p.seniority));
+    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen || p.seniority));
+    
+    // Exclude retired and no-bid pilots from the active bidding roster entirely
     const activeBidders = data.roster.filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
-    // Initialize headcount for vacancy ledger
+    // Initialize headcount for vacancy ledger based ONLY on active bidders
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
