@@ -207,7 +207,6 @@ let store = {}; let answerKey = {}; let lastResults = [];
 
 window.onload = async () => {
     try {
-        // Files array no longer includes answer_key.csv
         const files = [
             'roster.json', 
             'preferences.json', 
@@ -218,8 +217,14 @@ window.onload = async () => {
         
         const results = await Promise.all(files.map(async f => { 
             const r = await fetch(f); 
-            if (!r.ok) throw new Error(`Could not find ${f}`);
-            return r.json();
+            if (!r.ok) throw new Error(`Could not find the file: ${f}`);
+            
+            // Try to parse the JSON. If it fails, catch it and flag the specific file!
+            try {
+                return await r.json();
+            } catch (jsonErr) {
+                throw new Error(`Syntax error inside <strong>${f}</strong>!<br><br>Technical Details: ${jsonErr.message}`);
+            }
         }));
         
         store = { 
@@ -233,8 +238,12 @@ window.onload = async () => {
         renderCapacities();
     } catch (e) { 
         console.error("Boot Error:", e);
-        // Show the error directly on the screen so you know which file is failing
-        document.getElementById('capGrid').innerHTML = `<div style="color: #f85149; font-weight: bold; font-size: 14px; padding: 10px;">🚨 Load Error: ${e.message}.<br><br>Check your local folder and make sure the file exists and is named exactly as shown above!</div>`;
+        // Made the error box a little more prominent so it's easy to read
+        document.getElementById('capGrid').innerHTML = `
+            <div style="color: #f85149; background: #2a1215; padding: 15px; border-left: 5px solid #f85149; border-radius: 4px; font-size: 14px; grid-column: 1 / -1; line-height: 1.6;">
+                🚨 <b>SYSTEM HALTED</b><br><br>
+                ${e.message}
+            </div>`;
     }
 };
 
