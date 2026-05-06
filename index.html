@@ -61,7 +61,8 @@
                 <th>Awarded Position</th>
                 <th>Standing</th>
                 <th>Notes / Mathematical Audit Path</th>
-                <th>Vacancy Source Tracker</th> <th>Original Position</th>
+                <th>Vacancy Source Tracker</th>
+                <th>Original Position</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -75,15 +76,25 @@ let lastResults = [];
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
+    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
+    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
+
     let targetMap = {};
-    
+    let initialOccupancy = {};
+
+    // 1. Setup Capacities and Track Current Bodies in Seats
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
+        initialOccupancy[key] = 0;
     });
 
-    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
+    data.roster.forEach(p => {
+        if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
+            const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            initialOccupancy[key] = (initialOccupancy[key] || 0) + 1;
+        }
+    });
 
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
@@ -116,45 +127,56 @@ function runBidEngine(data, deltaMap) {
     let iterationCount = 0;
     let wasChanged = true;
 
-    // --- PHASE 1: THE RIPPLE LOOP ---
+    // --- PHASE 1: THE RIPPLE LOOP WITH VACANCY-LOCK ---
     while (wasChanged && iterationCount < 100) {
         wasChanged = false;
         iterationCount++;
-        fillers = {}; 
+        
+        let currentOccupancy = { ...initialOccupancy };
+        let awardedInThisPass = {}; 
 
         for (let p of bidders) {
             let previousKey = p.currentKey;
             let awarded = false;
-            p.awardAudit = []; 
+            p.awardAudit = [];
+
+            // THE FIX: Subtract the pilot from their base before trying bids
+            currentOccupancy[p.orig]--; 
 
             // 1. Preference Bids
             for (const pr of p.prefs) {
-                let rank = (fillers[pr.targetKey] || 0) + 1;
                 let cap = targetMap[pr.targetKey] || 0;
+                let juniorOccupantsStillInSeats = currentOccupancy[pr.targetKey] || 0;
+                let alreadyAwardedByEngine = awardedInThisPass[pr.targetKey] || 0;
+                
+                // Only award if (Capacity - Occupants - Current Awards) > 0
+                let netVacancy = cap - juniorOccupantsStillInSeats - alreadyAwardedByEngine;
+                let rank = alreadyAwardedByEngine + 1;
 
-                if (rank <= cap && rank <= pr.bpl) {
+                if (netVacancy > 0 && rank <= pr.bpl) {
                     p.currentKey = pr.targetKey;
-                    fillers[pr.targetKey] = rank;
+                    awardedInThisPass[pr.targetKey] = rank;
                     awarded = true;
                     p.finalReason = "Bid Award";
-                    p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}</span> (Rank ${rank}/${cap})`);
+                    p.awardAudit.push(`<span class="awarded-text">Awarded ${pr.targetKey}</span> (Net Vacancy)`);
                     break;
+                } else if (netVacancy <= 0) {
+                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">No Vacancy</span>`);
                 } else {
-                    let reason = rank > cap ? `Full (${rank}>${cap})` : `BPL Fail (${rank}>${pr.bpl})`;
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">${reason}</span>`);
+                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: <span class="denied-text">BPL Fail</span>`);
                 }
             }
 
             // 2. Seniority Hold
             if (!awarded && !p.bplOnOwn) {
-                let rank = (fillers[p.orig] || 0) + 1;
+                let rank = (awardedInThisPass[p.orig] || 0) + 1;
                 let cap = targetMap[p.orig] || 0;
                 if (rank <= cap) {
                     p.currentKey = p.orig;
-                    fillers[p.orig] = rank;
+                    awardedInThisPass[p.orig] = rank;
                     awarded = true;
                     p.finalReason = "Seniority Hold";
-                    p.awardAudit.push(`<span class="awarded-text">Held ${p.orig.replace('-',' ')}</span> (Pass ${rank}/${cap})`);
+                    p.awardAudit.push(`<span class="awarded-text">Held ${p.orig}</span> (Pass ${rank}/${cap})`);
                 }
             }
 
@@ -162,8 +184,13 @@ function runBidEngine(data, deltaMap) {
             if (!awarded) {
                 p.currentKey = "UNASSIGNED";
                 p.isSelfDisp = p.bplOnOwn;
-                p.finalReason = p.isSelfDisp ? "Self-Displacement via BPL" : "Juniority Displacement";
+                p.finalReason = p.isSelfDisp ? "Self-Displacement (BPL)" : "Juniority Displacement";
                 p.awardAudit.push(`<span class="denied-text">POOL</span>`);
+            }
+
+            // Update occupancy based on result
+            if (p.currentKey !== "UNASSIGNED") {
+                currentOccupancy[p.currentKey]++;
             }
 
             if (p.currentKey !== previousKey) wasChanged = true;
@@ -171,15 +198,10 @@ function runBidEngine(data, deltaMap) {
         }
     }
 
-    // --- PHASE 2: VACANCY SOURCE TRACKER (NEW) ---
-    // Post-processes the settled board to map incoming pilots to outgoing pilots
+    // --- PHASE 2: VACANCY SOURCE TRACKER ---
     let baseData = {};
     Object.keys(targetMap).forEach(key => {
-        let deltaVal = 0;
-        for (const [dKey, dVal] of Object.entries(deltaMap)) {
-            if (dKey.toUpperCase() === key) deltaVal = dVal;
-        }
-
+        let deltaVal = deltaMap[key] || 0;
         baseData[key] = {
             delta: deltaVal,
             vacators: bidders.filter(p => p.orig === key && p.currentKey !== key).sort((a,b) => a.sen - b.sen),
@@ -189,28 +211,16 @@ function runBidEngine(data, deltaMap) {
 
     Object.keys(baseData).forEach(key => {
         let { delta, vacators, fillers } = baseData[key];
-        
-        // Handle negative delta (base reduction)
-        // A shrinking base "absorbs" the vacancies left by people bidding out
         if (delta < 0) {
             let shrink = Math.abs(delta);
-            while (shrink > 0 && vacators.length > 0) {
-                vacators.pop(); // Remove bottom vacators from fillable slots
-                shrink--;
-            }
+            while (shrink > 0 && vacators.length > 0) { vacators.pop(); shrink--; }
         }
-
-        // Pair the Fillers with their Vacancy Source
         fillers.forEach(filler => {
-            if (delta > 0) {
-                filler.vacancySource = `<span class="tag tag-blue">NEW SLOT</span> Base Expansion (+${delta})`;
-                delta--;
-            } else if (vacators.length > 0) {
-                let v = vacators.shift(); // The most senior vacator gives their spot to the most senior filler
-                filler.vacancySource = `<span style="color:#a5d6ff;">Vacated by #${v.sen} ${v.name}</span>`;
-            } else {
-                filler.vacancySource = `<span style="color:#8b949e;">System / Attrition Vacancy</span>`;
-            }
+            if (delta > 0) { filler.vacancySource = `<span class="tag tag-blue">NEW SLOT</span>`; delta--; }
+            else if (vacators.length > 0) { 
+                let v = vacators.shift(); 
+                filler.vacancySource = `<span style="color:#a5d6ff;">Vacated by #${v.sen} ${v.name}</span>`; 
+            } else { filler.vacancySource = `<span style="color:#8b949e;">System Vacancy</span>`; }
         });
     });
 
@@ -241,7 +251,7 @@ function downloadCSV(filename, rows) {
 
 document.getElementById('runBtn').onclick = () => {
     const deltas = {};
-    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
+    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
     renderTable(result.roster, result.targetMap);
@@ -257,7 +267,7 @@ document.getElementById('expMaster').onclick = () => {
     downloadCSV("737_Master_Awards.csv", rows);
 };
 document.getElementById('expLog').onclick = () => {
-    const rows = [["Sen #", "Name", "Audit Trail Summary", "Vacancy Source"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | "), p.vacancySource.replace(/<[^>]*>?/gm, '')])];
+    const rows = [["Sen #", "Name", "Audit Trail Summary", "Vacancy Source"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | "), (p.vacancySource || '').replace(/<[^>]*>?/gm, '')])];
     downloadCSV("737_Bid_Log.csv", rows);
 };
 
