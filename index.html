@@ -44,11 +44,11 @@
             <div id="selfDispList">Ready...</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--yellow)">⚠️ All Displaced Pilots</h4>
+            <h4 class="dash-title" style="color:var(--yellow)">⚠️ All MOVER Pilots</h4>
             <div id="displacedList">Ready...</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--purple)">🆘 Pool: At Mercy</h4>
+            <h4 class="dash-title" style="color:var(--purple)">🆘 DISPLACED</h4>
             <div id="unassignedList">Ready...</div>
         </div>
         <div class="dash-box">
@@ -263,8 +263,8 @@ function renderDashboards(roster) {
 function renderTable(roster, targetMap) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awardedPos = p.currentKey.replace('-', ' ');
-        let tags = p.moved ? '<span class="tag tag-yellow">DISPLACED</span>' : '';
-        if (p.isUnassigned) tags = '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
+        let tags = p.moved ? '<span class="tag tag-yellow">MOVER</span>' : '';
+        if (p.isUnassigned) tags = '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") {
             roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
