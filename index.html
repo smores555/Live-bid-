@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Incumbent Protection Mode</title>
+    <title>737 Master Bid Control - Keyword & Cascade Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -33,14 +33,14 @@
     </div>
 
     <div class="dash-container">
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL)</h4><div id="selfDispList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Base Reduction Evictions</h4><div id="unassignedList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Evicted (Reductions)</h4><div id="unassignedList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
     </div>
 
     <div class="toolbar" style="margin-bottom:20px;">
-        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN INCUMBENT BID</button>
+        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN BID</button>
         <button id="expBase" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: BASE</button>
         <button id="expMaster" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: MASTER</button>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px; margin-left:20px;" placeholder="Sen #">
@@ -74,7 +74,7 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = {};
     let targetMap = {};
 
-    // 1. Calculate actual starting headcount & Target Limits
+    // 1. Establish precise starting counts based on the roster
     data.roster.forEach(p => {
         if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
             const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -82,30 +82,34 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
+    // 2. Set strict targets based on inputs
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         const start = currentCounts[key] || 0;
         targetMap[key] = start + (deltaMap[`${c.base}-${c.seat}`] || 0);
     });
 
-    // Robust Bid Parser (Handles any JSON structure)
+    // --- THE BULLETPROOF KEYWORD PARSER ---
     const getTargetKey = (rawString) => {
-        if (!rawString || String(rawString) === "0") return null;
+        if (!rawString || String(rawString).trim() === "" || String(rawString) === "0") return null;
+        
         const parts = String(rawString).trim().toUpperCase().split(/\s+/);
         const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
         const seats = ['CA', 'FO'];
+        
         let b = parts.find(x => bases.includes(x));
         let s = parts.find(x => seats.includes(x));
+        
+        // Only returns a valid target if it finds BOTH a base and a seat
         return (b && s) ? `${b}-${s}` : null;
     };
 
-    // 2. Initialize Bidders (Everyone starts in their Incumbent Seat)
+    // 3. Initialize Bidders
     let bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             
-            // Find preferences regardless of JSON structure
             let prefData = [];
             if (Array.isArray(data.prefs)) {
                 let found = data.prefs.find(item => item.id == p.sen || item.pilId == 'pil'+p.sen || item.sen == p.sen);
@@ -118,59 +122,33 @@ function runBidEngine(data, deltaMap) {
             const cleanPrefs = prefData.map(pr => ({
                 targetKey: getTargetKey(pr.bid || pr.position || pr.target || pr.request),
                 bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
-            })).filter(pr => pr.targetKey);
+            })).filter(pr => pr.targetKey !== null); // Deletes the empty bids instantly
 
             const bplOnOwn = cleanPrefs.some(pr => pr.targetKey === pilotOrig && pr.bpl < 9999);
 
             return {
-                ...p, orig: pilotOrig, currentKey: pilotOrig, // Starts in own seat
+                ...p, orig: pilotOrig, currentKey: pilotOrig, 
                 finalReason: "Held Incumbent Seat", moved: false, isSelfDisp: false, isDisplaced: false,
                 bplOnOwn: bplOnOwn, prefs: cleanPrefs
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // ==========================================
-    // PHASE 1: BASE REDUCTION EVICTIONS
-    // Only happens if Delta is negative. Protects junior pilots otherwise.
-    // ==========================================
-    Object.keys(targetMap).forEach(base => {
-        let overage = currentCounts[base] - targetMap[base];
-        if (overage > 0) {
-            // Sort pilots currently in this base by JUNIORITY (Highest Sen # first)
-            let basePilots = bidders.filter(p => p.currentKey === base).sort((a, b) => b.sen - a.sen);
-            for (let i = 0; i < overage; i++) {
-                if (basePilots[i]) {
-                    basePilots[i].currentKey = "UNASSIGNED";
-                    basePilots[i].isDisplaced = true;
-                    basePilots[i].finalReason = "Evicted (Base Reduction)";
-                    currentCounts[base]--;
-                }
-            }
-        }
-    });
-
-    // ==========================================
-    // PHASE 2: VOLUNTARY BPL SELF-DISPLACEMENT
-    // ==========================================
+    // 4. BPL Self-Displacement
     bidders.forEach(p => {
         if (p.currentKey !== "UNASSIGNED" && p.bplOnOwn) {
             let rank = 1;
             bidders.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) rank++; });
-            
             let ownPref = p.prefs.find(pr => pr.targetKey === p.orig);
             if (ownPref && rank > ownPref.bpl) {
                 p.currentKey = "UNASSIGNED";
                 p.isSelfDisp = true;
                 p.finalReason = "Self-Displaced (BPL Fail)";
-                currentCounts[p.orig]--;
+                currentCounts[p.orig]--; // -1 Applied
             }
         }
     });
 
-    // ==========================================
-    // PHASE 3: THE VACANCY CASCADE
-    // Junior pilots are now safely fenced in. Senior pilots trade open chairs.
-    // ==========================================
+    // 5. The Cascade Loop (Trading Seats)
     let cascade = true;
     let loops = 0;
     while (cascade && loops < 1000) {
@@ -179,30 +157,48 @@ function runBidEngine(data, deltaMap) {
 
         for (let p of bidders) {
             for (const pr of p.prefs) {
-                // If this is the seat they currently sit in, stop looking.
                 if (pr.targetKey === p.currentKey) break;
 
                 let rank = 1;
                 bidders.forEach(other => { if (other.sen < p.sen && other.currentKey === pr.targetKey) rank++; });
                 
-                if (rank > pr.bpl) continue; // Fails quality of life constraint
+                if (rank > pr.bpl) continue; 
 
-                // Is there an empty chair?
+                // Is there space?
                 if (currentCounts[pr.targetKey] < targetMap[pr.targetKey]) {
                     if (p.currentKey !== "UNASSIGNED") {
-                        currentCounts[p.currentKey]--; // Stand up from old chair
+                        currentCounts[p.currentKey]--; // The -1 happens here!
                     }
-                    p.currentKey = pr.targetKey; // Sit in new chair
-                    currentCounts[pr.targetKey]++;
+                    p.currentKey = pr.targetKey; 
+                    currentCounts[pr.targetKey]++; // The +1 happens here!
                     p.moved = true;
                     p.finalReason = `Awarded Vacancy (${pr.targetKey})`;
                     
-                    cascade = true; // Tell the engine a chair just opened up!
+                    cascade = true; // Tell the engine to loop back because a seat just opened
                     break;
                 }
             }
         }
     }
+
+    // 6. Final Cleanup: Evicting ONLY if base is still over capacity (Delta was negative)
+    Object.keys(targetMap).forEach(base => {
+        let overage = currentCounts[base] - targetMap[base];
+        if (overage > 0) {
+            // Sort remaining pilots in this base by highest seniority number (most junior)
+            let basePilots = bidders.filter(p => p.currentKey === base).sort((a, b) => b.sen - a.sen);
+            for (let i = 0; i < overage; i++) {
+                if (basePilots[i]) {
+                    basePilots[i].currentKey = "UNASSIGNED";
+                    basePilots[i].isDisplaced = true;
+                    basePilots[i].moved = false;
+                    basePilots[i].finalReason = "Evicted (Reduction)";
+                    currentCounts[base]--;
+                }
+            }
+        }
+    });
+
     return { roster: bidders, loops, targetMap };
 }
 
