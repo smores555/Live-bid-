@@ -3,251 +3,288 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - BPL Audit Mode</title>
+    <title>Bid Visibility Tool | 737 Analysis</title>
     <style>
-        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
-        .container { max-width: 1600px; margin: 0 auto; }
-        .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
-        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
-        .dash-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
-        .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        .audit-step { display: block; font-size: 0.75rem; margin-bottom: 4px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
-        .denied-text { color: var(--red); font-weight: 500; }
-        .awarded-text { color: var(--green); font-weight: bold; }
-        .via-text { color: var(--accent); font-size: 0.7rem; font-style: italic; display: block; margin-top: 5px; }
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
-        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
-        .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
-        .tag-red { background: var(--red); color: white; }
-        .tag-yellow { background: var(--yellow); color: #000; }
-        .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; }
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --blue: #58a6ff;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+            background: var(--card);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+            color: #8b949e;
+        }
+
+        input {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        button {
+            background: var(--green);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.9; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            background: #21262d;
+            text-align: left;
+            padding: 12px;
+            font-size: 0.85rem;
+            color: #8b949e;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+            vertical-align: top;
+        }
+
+        .displaced-badge {
+            background: rgba(210, 153, 34, 0.2);
+            color: var(--yellow);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .mover-trail {
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(88, 166, 255, 0.05);
+            border-left: 3px solid var(--blue);
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .mover-header {
+            font-weight: bold;
+            color: var(--blue);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .audit-entry { margin-bottom: 4px; }
+        .success { color: var(--green); }
+        .fail { color: var(--red); font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="card">
-        <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading...</div>
-    </div>
+    <header>
+        <h1>Bid Visibility Tool <small style="font-size: 0.5em; vertical-align: middle;">v2.0 (Chain Tracker)</small></h1>
+        <button onclick="executeBid()">RUN POSITION BID</button>
+    </header>
 
-    <div class="dash-container">
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced</h4><div id="selfDispList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool</h4><div id="unassignedList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
-    </div>
-
-    <div class="toolbar" style="margin-bottom:20px;">
-        <button id="runBtn" class="btn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN POSITION BID</button>
-        <button id="expBase" class="btn" style="padding:10px; margin-left:10px;">CSV: BASE</button>
-        <button id="expMaster" class="btn" style="padding:10px; margin-left:10px;">CSV: MASTER</button>
-        <button id="expLog" class="btn" style="padding:10px; margin-left:10px;">CSV: LOG</button>
-        <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px; margin-left:20px;" placeholder="Sen #">
-        <button id="lookupBtn" style="padding:10px; border-radius:6px; background:var(--accent); color:white; border:none; cursor:pointer;">LOOKUP</button>
-    </div>
+    <div class="controls" id="cap-inputs">
+        </div>
 
     <table>
         <thead>
             <tr>
-                <th>Sen #</th>
-                <th>Pilot Name</th>
-                <th>Awarded Position</th>
-                <th>Standing</th>
-                <th>Notes / Mathematical Audit Path</th>
-                <th>Original Position</th>
+                <th width="80">SEN</th>
+                <th width="200">NAME</th>
+                <th width="120">ORIGINAL</th>
+                <th width="150">STATUS</th>
+                <th width="120">AWARDED</th>
+                <th>MATHEMATICAL AUDIT PATH (WHY)</th>
             </tr>
         </thead>
-        <tbody id="tableBody"></tbody>
+        <tbody id="results-body">
+            <tr><td colspan="6" style="text-align:center; padding: 40px;">Load data and click Run Position Bid to view results.</td></tr>
+        </tbody>
     </table>
 </div>
 
 <script>
-let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
-let fillers = {};
-let lastResults = [];
-
-function runBidEngine(data, deltaMap) {
-    const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-    let targetMap = {};
-    fillers = {};
+    // Configuration & Simulated Data
+    const bases = ['SEA', 'PDX', 'ANC', 'LAX', 'SFO'];
+    const seats = ['CA', 'FO'];
     
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
-        fillers[key] = 0;
+    // Create capacity inputs
+    const capContainer = document.getElementById('cap-inputs');
+    bases.forEach(b => {
+        seats.forEach(s => {
+            const key = `${b}-${s}`;
+            capContainer.innerHTML += `
+                <div class="control-group">
+                    <label>${key} Capacity</label>
+                    <input type="number" id="cap-${key}" value="20">
+                </div>
+            `;
+        });
     });
 
-    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
+    // Dummy Roster Data (Structure similar to your engine.js)
+    const mockRoster = [
+        { sen: 101, name: "JENKINS, DAYNE V", current: { base: "ANC", seat: "FO" }, prefs: [] },
+        { sen: 102, name: "SENIOR MOVER, J", current: { base: "LAX", seat: "CA" }, prefs: [{ bid: "SEA CA", bpl: 9999 }] },
+        { sen: 762, name: "TEEMS, PATRICK", current: { base: "SEA", seat: "CA" }, prefs: [] },
+        { sen: 763, name: "KOCH, BRADLEY D", current: { base: "SEA", seat: "FO" }, prefs: [] }
+    ];
 
-    const bidders = data.roster
-        .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
-        .map(p => {
-            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-            const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            const getTargetKey = (bidStr) => {
-                const parts = bidStr.trim().toUpperCase().split(/\s+/);
-                const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
-                const seats = ['CA', 'FO'];
-                let b = parts.find(x => bases.includes(x));
-                let s = parts.find(x => seats.includes(x));
-                return (b && s) ? `${b}-${s}` : null;
-            };
+    function executeBid() {
+        const caps = {};
+        bases.forEach(b => seats.forEach(s => {
+            caps[`${b}-${s}`] = parseInt(document.getElementById(`cap-${b}-${s}`).value) || 0;
+        }));
 
-            const selfBidWithBpl = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
-            return {
-                ...p, orig: pilotOrig, currentKey: "UNASSIGNED", awardAudit: [],
-                finalReason: "", isMover: false, isSelfDisp: false,
-                bplOnOwn: !!selfBidWithBpl,
-                prefs: (prefData.preferences || []).map(pr => ({
-                    ...pr, targetKey: getTargetKey(pr.bid),
-                    bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
-                })).sort((a, b) => a.order - b.order)
-            };
-        }).sort((a, b) => a.sen - b.sen);
+        // Reset fillers and Mover Registry
+        const fillers = {};
+        const moverRegistry = {};
+        Object.keys(caps).forEach(k => {
+            fillers[k] = 0;
+            moverRegistry[k] = [];
+        });
 
-    bidders.forEach(p => {
-        let awarded = false;
-        for (const pr of p.prefs) {
-            if (!pr.targetKey) continue;
-            let rank = fillers[pr.targetKey] + 1;
-            let cap = targetMap[pr.targetKey] || 0;
+        const results = mockRoster.sort((a, b) => a.sen - b.sen).map(p => {
+            let awarded = false;
+            let audit = [];
+            let finalAward = "UNASSIGNED";
+            let statusHtml = "ACTIVE";
+            const homeKey = `${p.current.base}-${p.current.seat}`;
 
-            if (rank > cap) {
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied</span> Rank ${rank} > ${cap}`);
-            } else if (rank > pr.bpl) {
-                p.awardAudit.push(`${pr.order}) ${pr.targetKey.replace('-',' ')}: <span class="denied-text">Denied BPL Fail</span> Rank ${rank} > ${pr.bpl}`);
-            } else {
-                p.currentKey = pr.targetKey;
-                fillers[pr.targetKey]++;
-                let msg = `<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}`;
-                if (pr.bpl < 9999) {
-                    msg += ` | BPL ${pr.bpl} | ${rank} < ${pr.bpl}</span>`;
+            // 1. Process Preferences
+            for (let i = 0; i < p.prefs.length; i++) {
+                const target = p.prefs[i].bid;
+                const bpl = p.prefs[i].bpl;
+                const rank = fillers[target] + 1;
+                const limit = caps[target];
+
+                if (rank <= limit && rank <= bpl) {
+                    fillers[target]++;
+                    finalAward = target;
+                    awarded = true;
+                    statusHtml = target === homeKey ? "HELD" : "AWARDED";
+                    
+                    // NEW: Register if they are an in-bound mover
+                    if (target !== homeKey) {
+                        moverRegistry[target].push({
+                            sen: p.sen,
+                            name: p.name,
+                            from: homeKey
+                        });
+                        audit.push(`<span class="success">Awarded Preference: ${target}</span>`);
+                    }
+                    break;
                 } else {
-                    msg += ` | Pass ${rank} / ${cap}</span>`;
+                    audit.push(`Skipped ${target}: Rank ${rank} > ${limit}`);
                 }
-                p.awardAudit.push(msg);
-                awarded = true;
-                p.finalReason = "Bid Award";
-                p.isMover = (p.currentKey !== p.orig);
-                break;
             }
-        }
 
-        if (!awarded && !p.bplOnOwn) {
-            const targetKey = p.orig;
-            let cap = targetMap[targetKey] || 0;
-            let rank = fillers[targetKey] + 1;
-            if (rank <= cap) {
-                fillers[targetKey]++;
-                p.currentKey = targetKey;
-                p.awardAudit.push(`<span class="awarded-text">Awarded ${targetKey.replace('-',' ')} (Hold Pass ${rank} / ${cap})</span>`);
-                awarded = true;
-                p.finalReason = "Seniority Hold";
-                p.isMover = false;
-            } else {
-                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Denied Base Full</span> Rank ${rank} > ${cap}`);
+            // 2. Process Seniority Hold
+            if (!awarded) {
+                const rank = fillers[homeKey] + 1;
+                const limit = caps[homeKey];
+
+                if (rank <= limit) {
+                    fillers[homeKey]++;
+                    finalAward = homeKey;
+                    statusHtml = "HELD";
+                    audit.push(`<span class="success">Held Original Seat (Pass ${rank}/${limit})</span>`);
+                } else {
+                    // DISPLACEMENT CHAIN LOGIC
+                    statusHtml = '<span class="displaced-badge">Displaced</span>';
+                    audit.push(`<span class="fail">${homeKey} DENIED: Base Full</span>`);
+                    audit.push(`Threshold reached: ${rank} > ${limit}`);
+                    
+                    // Pull the names of movers who occupied the slots
+                    const movers = moverRegistry[homeKey] || [];
+                    if (movers.length > 0) {
+                        let moverHtml = `<div class="mover-trail">
+                            <span class="mover-header">Senior In-Bound Movers (Pushed You Out):</span>`;
+                        movers.forEach(m => {
+                            moverHtml += `• #${m.sen} ${m.name} (from ${m.from})<br>`;
+                        });
+                        moverHtml += `</div>`;
+                        audit.push(moverHtml);
+                    }
+                }
             }
-        }
 
-        if (!awarded) {
-            p.currentKey = "UNASSIGNED";
-            p.isSelfDisp = p.bplOnOwn;
-            p.finalReason = p.isSelfDisp ? "Self-Displacement via BPL" : "Juniority Displacement";
-            p.awardAudit.push(`<span class="denied-text">POOL</span>`);
-        }
-    });
-    return { roster: bidders, targetMap };
-}
+            return { ...p, finalAward, statusHtml, audit: audit.join('<br>') };
+        });
 
-window.onload = async () => {
-    try {
-        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
-        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
-        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-        renderCapacities();
-    } catch (e) { console.error(e); }
-};
+        render(results);
+    }
 
-function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>`).join('');
-}
-
-function downloadCSV(filename, rows) {
-    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
-}
-
-document.getElementById('runBtn').onclick = () => {
-    const deltas = {};
-    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
-    const result = runBidEngine(store, deltas);
-    lastResults = result.roster;
-    renderTable(result.roster, result.targetMap);
-    renderDashboards(result.roster);
-};
-
-// CSV Event Listeners
-document.getElementById('expBase').onclick = () => {
-    const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
-    downloadCSV("737_Base_List.csv", rows);
-};
-document.getElementById('expMaster').onclick = () => {
-    const rows = [["Sen #", "Name", "Awarded Position", "Original Position"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' ')])];
-    downloadCSV("737_Master_Awards.csv", rows);
-};
-document.getElementById('expLog').onclick = () => {
-    const rows = [["Sen #", "Name", "Audit Trail Summary"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | ")])];
-    downloadCSV("737_Bid_Log.csv", rows);
-};
-
-function renderTable(roster, targetMap) {
-    document.getElementById('tableBody').innerHTML = roster.map(p => {
-        let tags = '';
-        if (p.isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        if (p.isMover) tags += '<span class="tag tag-yellow">MOVER</span>';
-        if (p.currentKey === "UNASSIGNED" && !p.isSelfDisp) tags += '<span class="tag tag-yellow">DISPLACED</span>';
-
-        let finalRank = 1;
-        roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
-        const limit = targetMap[p.currentKey] || 0;
-
-        return `
+    function render(data) {
+        const body = document.getElementById('results-body');
+        body.innerHTML = data.map(p => `
             <tr>
                 <td>${p.sen}</td>
-                <td><strong>${p.name}</strong><br>${tags}</td>
-                <td>${p.currentKey.replace('-', ' ')}</td>
-                <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
-                <td>
-                    ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
-                    <span class="via-text">via ${p.finalReason}</span>
-                </td>
-                <td>${p.orig.replace('-',' ')}</td>
-            </tr>`;
-    }).join('');
-}
-
-function renderDashboards(roster) {
-    let unHtml = ''; let sDHtml = ''; let mHtml = '';
-    roster.forEach(p => {
-        const item = `<div>#${p.sen} ${p.name}</div>`;
-        if (p.isSelfDisp) sDHtml += `<div class="self-disp-item">${item}</div>`;
-        else if (p.currentKey === "UNASSIGNED") unHtml += `<div class="unassigned-item">${item}</div>`;
-        if (p.isMover) mHtml += `<div class="mover-item">${item}</div>`;
-    });
-    document.getElementById('selfDispList').innerHTML = sDHtml || "None.";
-    document.getElementById('moversList').innerHTML = mHtml || "None.";
-    document.getElementById('unassignedList').innerHTML = unHtml || "None.";
-}
+                <td><strong>${p.name}</strong></td>
+                <td>${p.current.base} ${p.current.seat}</td>
+                <td>${p.statusHtml}</td>
+                <td>${p.finalAward}</td>
+                <td>${p.audit}</td>
+            </tr>
+        `).join('');
+    }
 </script>
+
 </body>
 </html>
