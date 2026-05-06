@@ -90,12 +90,9 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // Target Capacities
-    let targetMap = {};
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`;
-        targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
-    });
+    // 1. Calculate Initial Occupants physically in the seats
+    let currentCounts = {};
+    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
 
     const rosterMap = new Map();
     data.roster.forEach(p => { if (!rosterMap.has(p.sen) && is737(p.current.seat)) rosterMap.set(p.sen, p); });
@@ -104,6 +101,7 @@ function runBidEngine(data, deltaMap) {
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
+            currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
                 ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, isSwept: false,
@@ -112,6 +110,12 @@ function runBidEngine(data, deltaMap) {
             };
         }).sort((a, b) => a.sen - b.sen);
 
+    // 2. Set Final Targets = Initial Occupants + Deltas
+    let targetMap = {};
+    for (let key in currentCounts) { 
+        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0); 
+    }
+
     let cascade = true;
     let loops = 0;
 
@@ -119,25 +123,21 @@ function runBidEngine(data, deltaMap) {
     while (cascade) {
         cascade = false;
         loops++;
-        if (loops > 2000) break; // Safety stop
+        if (loops > 2000) break; 
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
             let foundAward = false;
 
-            // 1. Am I currently displaced? 
-            // Count how many people senior to me are in my current seat. If it's greater than the limit, I am displaced.
+            // Is pilot displaced from their CURRENT seat?
             let rankInCurrent = 1;
             for (const other of bidders) {
                 if (other.sen >= p.sen) break;
                 if (other.currentKey === p.currentKey) rankInCurrent++;
             }
             const currentLimit = targetMap[p.currentKey] || 0;
-            if (rankInCurrent > currentLimit) {
-                p.wasDisplaced = true;
-            }
+            p.wasDisplaced = (rankInCurrent > currentLimit);
 
-            // 2. Evaluate Preferences
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
@@ -147,79 +147,72 @@ function runBidEngine(data, deltaMap) {
                 else if (parts.length >= 3) targetKey = `${parts[1]}-${parts[2]}`; 
                 else continue; 
                 
-                // Calculate Rank and total Occupants for the target seat
-                let rank = 1;
                 let targetOcc = 0;
+                let rank = 1;
+                let juniorSenInTarget = 0; // Tracks who the bottom person is
+                
                 for (const other of bidders) {
-                    if (other.currentKey === targetKey) targetOcc++;
-                    if (other.sen < p.sen && other.currentKey === targetKey) rank++;
+                    if (other.currentKey === targetKey) {
+                        targetOcc++;
+                        if (other.sen > juniorSenInTarget) juniorSenInTarget = other.sen;
+                    }
+                    if (other.sen < p.sen && other.currentKey === targetKey) {
+                        rank++;
+                    }
                 }
 
                 const limit = targetMap[targetKey] || 0;
                 const reqBPL = parseInt(pr.bpl_min) || 0;
 
-                // Rule Check: Base limits and BPL requests
                 if (reqBPL > 0 && rank > reqBPL) {
                     p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail (Rank ${rank} > Req ${reqBPL})` };
                     continue; 
                 }
 
-                if (rank > limit) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Rank ${rank} exceeds capacity limit of ${limit}.` };
-                    continue; 
-                }
-
-                // If I'm already holding it, lock it in.
                 if (targetKey === p.currentKey) {
                     p.prefHistory[pr.order] = { status: "Awarded", reason: `Holding position. Rank: ${rank}/${limit}.` };
                     foundAward = true; break;
                 }
 
-                // THE CRITICAL DECISION: Can I take this seat?
+                // Can I take this seat?
                 if (targetOcc < limit) {
-                    // YES - There is a raw vacancy (like the 43 spots in SAN FO). No kicking needed.
+                    // YES: Vacancy exists
                     const oldKey = p.currentKey;
                     p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy! Rank: ${rank}/${limit}.` };
                     auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Vacancy Award" });
-                    p.currentKey = targetKey; 
-                    p.moved = true; 
-                    cascade = true; // Restart from Pilot #1
-                    foundAward = true; break; 
+                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true; break; 
                 } 
-                else if (p.wasDisplaced) {
-                    // YES - The base is full, BUT I was kicked out of my base, so I get to bump a junior pilot.
+                else if (p.wasDisplaced && rank <= limit) {
+                    // YES: Base full, but I am displaced so I bump the junior pilot
                     const oldKey = p.currentKey;
                     p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Seniority Bump! Rank: ${rank}/${limit}.` };
                     auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Seniority Bump" });
-                    p.currentKey = targetKey; 
-                    p.moved = true; 
-                    cascade = true; // Restart from Pilot #1 to process the bumped pilot
-                    foundAward = true; break; 
+                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true; break; 
                 } 
                 else {
-                    // NO - Base is full and I am not displaced. I cannot kick someone just because I want to move.
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Base full (${targetOcc}/${limit}). Voluntary bumps not allowed.` };
+                    // NO: Base is full. Print exactly who beat them out!
+                    p.prefHistory[pr.order] = { 
+                        status: "Denied", 
+                        reason: `Base full (${targetOcc}/${limit}). Seat held by senior pilots (Junior-most holding: #${juniorSenInTarget}).` 
+                    };
                     continue;
                 }
             }
 
-            // --- VACANCY SWEEP (For Displaced Pilots completely out of bids) ---
+            // VACANCY SWEEP
             if (!foundAward && p.wasDisplaced) {
                 for (let key in targetMap) {
                     let sweepOcc = bidders.filter(b => b.currentKey === key).length;
                     if (sweepOcc < targetMap[key]) {
                         const oldKey = p.currentKey;
-                        p.currentKey = key;
-                        p.isSwept = true;
-                        p.moved = true;
+                        p.currentKey = key; p.isSwept = true; p.moved = true;
                         p.prefHistory["SWEEP"] = { status: "Awarded", reason: `Forced into open vacancy in ${key}.` };
                         auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: key, type: "Forced Sweep" });
                         cascade = true; foundAward = true; break;
                     }
                 }
             }
-
-            if (cascade) break; // Exits the pilot loop, restarts the while loop from #1
+            if (cascade) break; 
         }
     }
     return { roster: bidders, loops, auditTrail };
