@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Section 24 & Vacancy Ledger</title>
+    <title>737 Master Bid Control - Section 24 & CSV Export</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -59,9 +59,9 @@
 
     <div class="toolbar">
         <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
-        <button id="expBase" class="btn btn-export" style="margin-left:10px;">CSV: BASE LIST</button>
-        <button id="expMaster" class="btn btn-export">CSV: MASTER AWARDS</button>
-        <button id="expLog" class="btn btn-export">CSV: TRANSITION LOG</button>
+        <button id="expBase" class="btn">CSV: BASE LIST</button>
+        <button id="expMaster" class="btn">CSV: MASTER AWARDS</button>
+        <button id="expLog" class="btn">CSV: TRANSITION LOG</button>
         <div style="flex-grow:1"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn">LOOKUP</button>
@@ -85,6 +85,7 @@
 <script>
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
 let lastResults = [];
+let lastTargetMap = {};
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
@@ -143,7 +144,6 @@ function runBidEngine(data, deltaMap) {
         let awarded = false;
         const [origBase, origStatus] = p.orig.split('-');
 
-        // Step A: Primary Preference Bids
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
             let currentOcc = currentCounts[pr.targetKey] || 0;
@@ -152,32 +152,26 @@ function runBidEngine(data, deltaMap) {
             if (currentOcc < cap && (currentOcc + 1) <= pr.bpl) {
                 let targetOldVac = cap - currentOcc;
                 let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
                 currentCounts[p.orig]--;
                 currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
-                
                 p.currentKey = pr.targetKey;
                 p.awardedPrefNum = pr.order;
-                
                 if(p.orig === pr.targetKey) {
                     p.awardedReason = `Remain in position via Pref #${pr.order}. Vacancy remains at ${targetOldVac}.`;
                 } else {
                     p.awardedReason = `Awarded Pref #${pr.order} via Vacancy. Reduce ${pr.targetKey} vacancy from ${targetOldVac} to ${cap - currentCounts[pr.targetKey]}. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
                 }
-                
                 p.moved = (pr.targetKey !== p.orig);
                 awarded = true;
                 break;
             }
         }
 
-        // Step B: Seniority Hold
         if (!awarded) {
             let rankInBase = 0;
             bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             const bplFail = selfBid && (rankInBase > selfBid.bpl);
-
             if (rankInBase <= (targetMap[p.orig] || 0) && !bplFail) {
                 p.currentKey = p.orig;
                 let vac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
@@ -187,23 +181,19 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step C: Section 24 Secondary Displacement Cascade
         if (!awarded) {
             const cascadeOptions = [
                 ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
                 `${origBase}-FO`,
                 ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)
             ];
-
             for (const targetKey of cascadeOptions) {
                 if (targetMap[targetKey] === undefined) continue;
                 let currentOcc = currentCounts[targetKey] || 0;
                 let cap = targetMap[targetKey] || 0;
-
                 if (currentOcc < cap) {
                     let targetOldVac = cap - currentOcc;
                     let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-                    
                     currentCounts[p.orig]--;
                     currentCounts[targetKey]++;
                     p.currentKey = targetKey;
@@ -215,7 +205,6 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        // Step D: Displaced Pool
         if (!awarded) {
             let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
@@ -223,14 +212,12 @@ function runBidEngine(data, deltaMap) {
             p.isUnassigned = true;
             p.moved = true;
             p.awardedReason = `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
-            
             let rankInBase = 0;
             bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = selfBid && (rankInBase > selfBid.bpl);
         }
     });
-
     return { roster: bidders, targetMap };
 }
 
@@ -259,7 +246,8 @@ document.getElementById('runBtn').onclick = () => {
     });
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    renderTable(lastResults, result.targetMap);
+    lastTargetMap = result.targetMap;
+    renderTable(lastResults, lastTargetMap);
     renderDashboards(lastResults);
 };
 
@@ -281,7 +269,6 @@ function renderTable(roster, targetMap) {
         const awardedPos = p.currentKey.replace('-', ' ');
         let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
         if (p.isUnassigned) tags = '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
-        
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") {
             roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
@@ -297,6 +284,51 @@ function renderTable(roster, targetMap) {
             </tr>`;
     }).join('');
 }
+
+function exportToCSV(filename, rows) {
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+document.getElementById('expMaster').onclick = () => {
+    if (lastResults.length === 0) return alert("Run engine first.");
+    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
+    const rows = lastResults.map(p => {
+        let finalRank = 0;
+        if (p.currentKey !== "UNASSIGNED") {
+            lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
+        }
+        return [p.sen, p.name, p.currentKey, finalRank, p.awardedReason.replace(/,/g, ""), p.orig];
+    });
+    exportToCSV("master_awards.csv", [headers, ...rows]);
+};
+
+document.getElementById('expBase').onclick = () => {
+    if (lastResults.length === 0) return alert("Run engine first.");
+    const headers = ["Position", "Seniority", "Name", "Rank", "Status"];
+    const rows = [];
+    Object.keys(lastTargetMap).forEach(key => {
+        const basePilots = lastResults.filter(p => p.currentKey === key).sort((a, b) => a.sen - b.sen);
+        basePilots.forEach((p, index) => {
+            rows.push([key, p.sen, p.name, index + 1, p.moved ? "MOVER" : "HELD"]);
+        });
+    });
+    exportToCSV("base_lists.csv", [headers, ...rows]);
+};
+
+document.getElementById('expLog').onclick = () => {
+    if (lastResults.length === 0) return alert("Run engine first.");
+    const headers = ["Seniority", "Name", "From", "To", "Transition Note"];
+    const rows = lastResults.filter(p => p.moved).map(p => [p.sen, p.name, p.orig, p.currentKey, p.awardedReason.replace(/,/g, "")]);
+    exportToCSV("transition_log.csv", [headers, ...rows]);
+};
+
 </script>
 </body>
 </html>
