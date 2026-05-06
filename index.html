@@ -77,6 +77,7 @@ function runBidEngine(data, deltaMap) {
     let targetMap = {};
     fillers = {};
     
+    // Set absolute capacity for the bid engine to respect
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
@@ -114,6 +115,8 @@ function runBidEngine(data, deltaMap) {
 
     bidders.forEach(p => {
         let awarded = false;
+        
+        // Step 1: Check actual bid preferences first
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
             let rank = fillers[pr.targetKey] + 1;
@@ -127,11 +130,7 @@ function runBidEngine(data, deltaMap) {
                 p.currentKey = pr.targetKey;
                 fillers[pr.targetKey]++;
                 let msg = `<span class="awarded-text">Awarded ${pr.targetKey.replace('-',' ')}`;
-                if (pr.bpl < 9999) {
-                    msg += ` | BPL ${pr.bpl} | ${rank} < ${pr.bpl}</span>`;
-                } else {
-                    msg += ` | Pass ${rank} / ${cap}</span>`;
-                }
+                msg += pr.bpl < 9999 ? ` | BPL ${pr.bpl} | ${rank} < ${pr.bpl}</span>` : ` | Pass ${rank} / ${cap}</span>`;
                 p.awardAudit.push(msg);
                 awarded = true;
                 p.finalReason = "Bid Award";
@@ -140,26 +139,29 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
+        // Step 2: Seniority Hold Logic
+        // Only run if they didn't get a bid and DID NOT use BPL to displace themselves
         if (!awarded && !p.bplOnOwn) {
             const targetKey = p.orig;
             let cap = targetMap[targetKey] || 0;
             let rank = fillers[targetKey] + 1;
+            
             if (rank <= cap) {
                 fillers[targetKey]++;
                 p.currentKey = targetKey;
-                p.awardAudit.push(`<span class="awarded-text">Awarded ${targetKey.replace('-',' ')} (Hold Pass ${rank} / ${cap})</span>`);
+                p.awardAudit.push(`<span class="awarded-text">Awarded ${targetKey.replace('-',' ')} (Seniority Hold ${rank} / ${cap})</span>`);
                 awarded = true;
                 p.finalReason = "Seniority Hold";
                 p.isMover = false;
             } else {
-                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Denied Base Full</span> Rank ${rank} > ${cap}`);
+                p.awardAudit.push(`${p.orig.replace('-',' ')} Hold: <span class="denied-text">Displaced</span> Rank ${rank} > ${cap}`);
             }
         }
 
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
             p.isSelfDisp = p.bplOnOwn;
-            p.finalReason = p.isSelfDisp ? "Self-Displacement via BPL" : "Juniority Displacement";
+            p.finalReason = p.isSelfDisp ? "Self-Displacement (BPL)" : "Juniority Displacement";
             p.awardAudit.push(`<span class="denied-text">POOL</span>`);
         }
     });
@@ -196,7 +198,6 @@ document.getElementById('runBtn').onclick = () => {
     renderDashboards(result.roster);
 };
 
-// CSV Event Listeners
 document.getElementById('expBase').onclick = () => {
     const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
     downloadCSV("737_Base_List.csv", rows);
