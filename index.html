@@ -88,11 +88,20 @@ let lastTargetMap = {};
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-    const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
-    const activeBidders = data.roster.filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
+    
+    // STRICT FILTERING: Create Sets of seniority numbers to exclude.
+    // This ensures that retired and non-bidding pilots "don't exist" in the math.
+    const retiredSens = new Set(data.retired.map(p => p.seniority || p.sen));
+    const noBidSens = new Set(data.noBid.map(p => p.sen || p.seniority));
 
-    // 1. Calculate LIVE headcount
+    // Filter roster for active 737 pilots only, excluding retired and no-bids.
+    const activeBidders = data.roster.filter(p => 
+        is737(p.current.seat) && 
+        !retiredSens.has(p.sen) && 
+        !noBidSens.has(p.sen)
+    );
+
+    // 1. Calculate LIVE headcount (Excludes Retired/No-Bid)
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -100,13 +109,12 @@ function runBidEngine(data, deltaMap) {
     });
 
     // 2. Align Target Map strictly to Live Headcount + Delta
-    // This ensures that typing "-33" displacement results in EXACTLY -33 starting vacancy.
     let targetMap = {};
     Object.keys(liveHeadcount).forEach(key => {
         const delta = deltaMap[key] || 0;
         targetMap[key] = liveHeadcount[key] + delta;
     });
-    // Fill in bases that might have 0 pilots but have a target in caps
+
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         if (targetMap[key] === undefined) {
@@ -114,7 +122,7 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    // 3. Initialize "Desks Full" counts
+    // 3. Initialize counts
     let currentCounts = { ...liveHeadcount };
 
     const bidders = activeBidders.map(p => {
@@ -133,7 +141,7 @@ function runBidEngine(data, deltaMap) {
             ...p, orig: pilotOrig, currentKey: pilotOrig, moved: false, isUnassigned: false, awardedPrefNum: "N/A", awardedReason: "", wasSelfDisplaced: false,
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
-                if (isNaN(limit) || limit === 0) limit = 9999; // BPL 0 = No Limit
+                if (isNaN(limit) || limit === 0) limit = 9999;
                 return { ...pr, targetKey: getTargetKey(pr.bid), bpl: limit };
             }).sort((a, b) => a.order - b.order)
         };
@@ -147,9 +155,6 @@ function runBidEngine(data, deltaMap) {
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
             let cap = targetMap[pr.targetKey] || 0;
-            
-            // RELATIVE SENIORITY CHECK: Only count pilots senior to me who have already taken a seat here.
-            // This prevents junior pilots who haven't moved yet from "blocking" a senior pilot's fallback.
             let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
 
             if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
@@ -160,7 +165,7 @@ function runBidEngine(data, deltaMap) {
                     currentCounts[p.orig]--;
                     currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
                     p.moved = true;
-                    p.awardedReason = targetOldVac > 0 ? `Awarded Pref #${pr.order} via Vacancy. Reduce ${pr.targetKey} vacancy from ${targetOldVac} to ${cap - currentCounts[pr.targetKey]}. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.` : `Awarded Pref #${pr.order} (Displaced Junior Pilot). Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
+                    p.awardedReason = targetOldVac > 0 ? `Awarded Pref #${pr.order} via Vacancy.` : `Awarded Pref #${pr.order} (Displaced Junior Pilot).`;
                 } else {
                     p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
                     p.moved = false;
@@ -181,7 +186,7 @@ function runBidEngine(data, deltaMap) {
 
             if (seniorsInMyBase < (targetMap[p.orig] || 0) && (seniorsInMyBase + 1) <= bplLimit) {
                 p.currentKey = p.orig;
-                p.awardedReason = `Held Position (Seniority). Vacancy remains at ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
+                p.awardedReason = `Held Position (Seniority).`;
                 p.moved = false;
                 awarded = true;
             }
@@ -209,7 +214,6 @@ function runBidEngine(data, deltaMap) {
 
         // Step D: Pool
         if (!awarded) {
-            let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
@@ -218,14 +222,13 @@ function runBidEngine(data, deltaMap) {
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
-            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
+            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
         }
     });
 
     return { roster: bidders, targetMap };
 }
 
-// Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
     const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
