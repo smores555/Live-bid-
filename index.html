@@ -2,66 +2,72 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Airline Position Bid Engine</title>
     <style>
         :root { --primary: #005eb8; --bg: #f8fafc; --border: #e2e8f0; }
         body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #1e293b; }
-        .container { max-width: 1200px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid var(--border); margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-        th { background: #f1f5f9; font-weight: 600; }
-        .cap-input { width: 70px; padding: 6px; border: 1px solid var(--border); border-radius: 4px; text-align: center; }
-        .btn-run { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; }
+        .container { max-width: 1300px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
+        th { background: #f1f5f9; position: sticky; top: 0; }
+        .cap-input { width: 60px; padding: 4px; border: 1px solid var(--border); border-radius: 4px; text-align: center; font-weight: bold; }
+        .btn-run { background: var(--primary); color: white; border: none; padding: 12px 30px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 1.1rem; width: 100%; margin-top: 15px; }
         .btn-run:hover { background: #004a94; }
-        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .status { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
         .moved { background: #dcfce7; color: #166534; }
         .displaced { background: #fee2e2; color: #991b1b; }
+        .held { background: #f1f5f9; color: #475569; }
+        .scroll-area { max-height: 700px; overflow-y: auto; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Airline Position Bid Engine</h1>
-            <button class="btn-run" onclick="runBid()">🚀 Run Bid</button>
+            <h1>Position Bid Engine <span style="font-weight: normal; font-size: 0.5em; opacity: 0.7;">v2.0</span></h1>
+            <div id="load-status" style="font-size: 0.9rem; font-weight: bold;">Initializing...</div>
         </div>
 
-        <div class="card">
-            <h2>Base Capacities</h2>
-            <table id="cap-table">
-                <thead>
-                    <tr>
-                        <th>Position</th>
-                        <th>Current</th>
-                        <th>Retiring</th>
-                        <th>Target Capacity</th>
-                        <th>Delta</th>
-                    </tr>
-                </thead>
-                <tbody id="cap-body">
-                    <tr><td colspan="5">Fetching data from GitHub...</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <div class="grid">
+            <div class="card">
+                <h2>Capacities</h2>
+                <p style="font-size: 0.8rem; color: #64748b;">Adjust target levels. Displacements occur if target < current headcount.</p>
+                <div class="scroll-area">
+                    <table>
+                        <thead>
+                            <tr><th>Base/Seat</th><th>Current</th><th>Target</th></tr>
+                        </thead>
+                        <tbody id="cap-body"></tbody>
+                    </table>
+                </div>
+                <button class="btn-run" onclick="runBid()">RUN BID</button>
+            </div>
 
-        <div id="results-area" class="card" style="display:none;">
-            <h2>Award Results</h2>
-            <table id="results-table">
-                <thead>
-                    <tr>
-                        <th>Sen</th>
-                        <th>Name</th>
-                        <th>Original Position</th>
-                        <th>Awarded Position</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="results-body"></tbody>
-            </table>
+            <div class="card">
+                <h2>Award Results</h2>
+                <div class="scroll-area">
+                    <table id="results-table">
+                        <thead>
+                            <tr>
+                                <th>Sen</th>
+                                <th>Name</th>
+                                <th>Original</th>
+                                <th>Awarded</th>
+                                <th>BPL Rank</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body">
+                            <tr><td colspan="6" style="text-align:center; padding: 40px;">Adjust capacities and hit Run Bid to see results.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
-
     <script src="engine.js"></script>
 </body>
 </html>
