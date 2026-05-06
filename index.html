@@ -81,7 +81,7 @@
 
 <script>
 /**
- * THE 737 ADMIN ENGINE
+ * THE 737 ADMIN ENGINE - STRICT VACANCY & DISPLACEMENT LOGIC
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -90,8 +90,12 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    let currentCounts = {};
-    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`] = 0);
+    // Target Capacities
+    let targetMap = {};
+    data.caps.forEach(c => {
+        const key = `${c.base}-${c.seat}`;
+        targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+    });
 
     const rosterMap = new Map();
     data.roster.forEach(p => { if (!rosterMap.has(p.sen) && is737(p.current.seat)) rosterMap.set(p.sen, p); });
@@ -100,7 +104,6 @@ function runBidEngine(data, deltaMap) {
         .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
-            currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             return {
                 ...p, currentKey: key, orig: key, moved: false, wasDisplaced: false, isSwept: false,
@@ -109,9 +112,6 @@ function runBidEngine(data, deltaMap) {
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    let targetMap = {};
-    for (let key in currentCounts) { targetMap[key] = currentCounts[key] + (deltaMap[key] || 0); }
-
     let cascade = true;
     let loops = 0;
 
@@ -119,88 +119,114 @@ function runBidEngine(data, deltaMap) {
     while (cascade) {
         cascade = false;
         loops++;
-        if (loops > 2000) break;
+        if (loops > 2000) break; // Safety stop
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
             let foundAward = false;
 
+            // 1. Am I currently displaced? 
+            // Count how many people senior to me are in my current seat. If it's greater than the limit, I am displaced.
+            let rankInCurrent = 1;
+            for (const other of bidders) {
+                if (other.sen >= p.sen) break;
+                if (other.currentKey === p.currentKey) rankInCurrent++;
+            }
+            const currentLimit = targetMap[p.currentKey] || 0;
+            if (rankInCurrent > currentLimit) {
+                p.wasDisplaced = true;
+            }
+
+            // 2. Evaluate Preferences
             for (const pr of p.prefs) {
                 if (!pr.bid) continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 
                 let targetKey = "";
+                if (parts.length === 2) targetKey = `${parts[1]}-${parts[0]}`; 
+                else if (parts.length >= 3) targetKey = `${parts[1]}-${parts[2]}`; 
+                else continue; 
                 
-                // NEW LOGIC: Support both "CA SEA" and "73G SEA CA" formats
-                if (parts.length === 2) {
-                    targetKey = `${parts[1]}-${parts[0]}`; // e.g., CA SEA -> SEA-CA
-                } else if (parts.length >= 3) {
-                    targetKey = `${parts[1]}-${parts[2]}`; // e.g., 73G SEA CA -> SEA-CA
-                } else {
-                    continue; // Ignore malformed bids
-                }
-                
+                // Calculate Rank and total Occupants for the target seat
                 let rank = 1;
+                let targetOcc = 0;
                 for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === targetKey) rank++;
+                    if (other.currentKey === targetKey) targetOcc++;
+                    if (other.sen < p.sen && other.currentKey === targetKey) rank++;
                 }
 
                 const limit = targetMap[targetKey] || 0;
                 const reqBPL = parseInt(pr.bpl_min) || 0;
 
+                // Rule Check: Base limits and BPL requests
                 if (reqBPL > 0 && rank > reqBPL) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail (Rank ${rank} > Limit ${reqBPL})` };
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `BPL Fail (Rank ${rank} > Req ${reqBPL})` };
                     continue; 
                 }
 
                 if (rank > limit) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Displaced: Rank ${rank} exceeds capacity ${limit}.` };
-                    if (targetKey === p.orig) p.wasDisplaced = true; 
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `Rank ${rank} exceeds capacity limit of ${limit}.` };
                     continue; 
                 }
 
+                // If I'm already holding it, lock it in.
                 if (targetKey === p.currentKey) {
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Remain in position. Rank: ${rank}.` };
+                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Holding position. Rank: ${rank}/${limit}.` };
                     foundAward = true; break;
                 }
 
-                const occ = currentCounts[targetKey] || 0;
-                if (occ < limit) {
+                // THE CRITICAL DECISION: Can I take this seat?
+                if (targetOcc < limit) {
+                    // YES - There is a raw vacancy (like the 43 spots in SAN FO). No kicking needed.
                     const oldKey = p.currentKey;
-                    currentCounts[oldKey]--; 
-                    currentCounts[targetKey]++;
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy! Rank: ${rank}.` };
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Preference" });
-                    p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true; break; 
+                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Vacancy! Rank: ${rank}/${limit}.` };
+                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Vacancy Award" });
+                    p.currentKey = targetKey; 
+                    p.moved = true; 
+                    cascade = true; // Restart from Pilot #1
+                    foundAward = true; break; 
+                } 
+                else if (p.wasDisplaced) {
+                    // YES - The base is full, BUT I was kicked out of my base, so I get to bump a junior pilot.
+                    const oldKey = p.currentKey;
+                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded via Seniority Bump! Rank: ${rank}/${limit}.` };
+                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Seniority Bump" });
+                    p.currentKey = targetKey; 
+                    p.moved = true; 
+                    cascade = true; // Restart from Pilot #1 to process the bumped pilot
+                    foundAward = true; break; 
+                } 
+                else {
+                    // NO - Base is full and I am not displaced. I cannot kick someone just because I want to move.
+                    p.prefHistory[pr.order] = { status: "Denied", reason: `Base full (${targetOcc}/${limit}). Voluntary bumps not allowed.` };
+                    continue;
                 }
             }
 
-            // --- VACANCY SWEEP (If displaced and out of bids) ---
+            // --- VACANCY SWEEP (For Displaced Pilots completely out of bids) ---
             if (!foundAward && p.wasDisplaced) {
                 for (let key in targetMap) {
-                    if (currentCounts[key] < targetMap[key]) {
+                    let sweepOcc = bidders.filter(b => b.currentKey === key).length;
+                    if (sweepOcc < targetMap[key]) {
                         const oldKey = p.currentKey;
-                        currentCounts[oldKey]--;
-                        currentCounts[key]++;
                         p.currentKey = key;
                         p.isSwept = true;
                         p.moved = true;
-                        p.prefHistory["SWEEP"] = { status: "Awarded", reason: `Involuntary Sweep into open vacancy in ${key}.` };
+                        p.prefHistory["SWEEP"] = { status: "Awarded", reason: `Forced into open vacancy in ${key}.` };
                         auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: key, type: "Forced Sweep" });
                         cascade = true; foundAward = true; break;
                     }
                 }
             }
 
-            if (cascade) break; 
+            if (cascade) break; // Exits the pilot loop, restarts the while loop from #1
         }
     }
     return { roster: bidders, loops, auditTrail };
 }
 
 /**
- * EXPORT LOGIC
+ * EXPORT LOGIC & UI
  */
 function downloadCSV(filename, rows) {
     const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
@@ -211,46 +237,21 @@ function downloadCSV(filename, rows) {
     link.click();
 }
 
-/** UI DATA MGMT **/
 let store = {}; let answerKey = {}; let lastResults = [];
 
 window.onload = async () => {
     try {
-        const files = [
-            'roster.json', 
-            'preferences.json', 
-            'capacities.json', 
-            'retired_pilots.json', 
-            'nobidpilots.json'
-        ];
-        
+        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
         const results = await Promise.all(files.map(async f => { 
             const r = await fetch(f); 
             if (!r.ok) throw new Error(`Could not find the file: ${f}`);
-            
-            try {
-                return await r.json();
-            } catch (jsonErr) {
-                throw new Error(`Syntax error inside <strong>${f}</strong>!<br><br>Technical Details: ${jsonErr.message}`);
-            }
+            try { return await r.json(); } 
+            catch (jsonErr) { throw new Error(`Syntax error inside <strong>${f}</strong>!<br><br>Technical Details: ${jsonErr.message}`); }
         }));
-        
-        store = { 
-            roster: results[0], 
-            prefs: results[1], 
-            caps: results[2], 
-            retired: results[3], 
-            noBid: results[4] 
-        };
-        
+        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
         renderCapacities();
     } catch (e) { 
-        console.error("Boot Error:", e);
-        document.getElementById('capGrid').innerHTML = `
-            <div style="color: #f85149; background: #2a1215; padding: 15px; border-left: 5px solid #f85149; border-radius: 4px; font-size: 14px; grid-column: 1 / -1; line-height: 1.6;">
-                🚨 <b>SYSTEM HALTED</b><br><br>
-                ${e.message}
-            </div>`;
+        document.getElementById('capGrid').innerHTML = `<div style="color: #f85149; background: #2a1215; padding: 15px; border-left: 5px solid #f85149; border-radius: 4px; font-size: 14px; grid-column: 1 / -1;">🚨 <b>SYSTEM HALTED</b><br><br>${e.message}</div>`;
     }
 };
 
@@ -287,34 +288,24 @@ function renderDashboards(roster) {
     document.getElementById('mismatchList').innerHTML = missHtml || "Answer key ignored or missing. (Matches omitted)";
 }
 
-// EXPORT 1: Base Position List
 document.getElementById('expBase').onclick = () => {
     const rows = [["Base/Seat", "Seniority", "Pilot Name", "Original Seat"]];
     const bases = [...new Set(lastResults.map(p => p.currentKey))].sort();
-    bases.forEach(b => {
-        lastResults.filter(p => p.currentKey === b).sort((a,b) => a.sen - b.sen).forEach(p => {
-            rows.push([b.replace('-', ' '), p.sen, p.name, p.orig.replace('-', ' ')]);
-        });
-    });
+    bases.forEach(b => { lastResults.filter(p => p.currentKey === b).sort((a,b) => a.sen - b.sen).forEach(p => { rows.push([b.replace('-', ' '), p.sen, p.name, p.orig.replace('-', ' ')]); }); });
     downloadCSV("Base_Position_List.csv", rows);
 };
 
-// EXPORT 2: Transaction Log
 document.getElementById('expTrans').onclick = () => {
     const rows = [["Pass #", "Seniority", "Name", "From", "To", "Type"]];
-    const deltas = {};
-    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
+    const deltas = {}; store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     result.auditTrail.forEach(a => rows.push([a.loop, a.sen, a.name, a.from, a.to, a.type]));
     downloadCSV("Transaction_Log.csv", rows);
 };
 
-// EXPORT 3: Master Award List
 document.getElementById('expMaster').onclick = () => {
     const rows = [["Seniority", "Name", "New Award", "Displaced", "Forced Sweep"]];
-    lastResults.forEach(p => {
-        rows.push([p.sen, p.name, p.currentKey.replace('-', ' '), p.wasDisplaced ? "YES" : "NO", p.isSwept ? "YES" : "NO"]);
-    });
+    lastResults.forEach(p => { rows.push([p.sen, p.name, p.currentKey.replace('-', ' '), p.wasDisplaced ? "YES" : "NO", p.isSwept ? "YES" : "NO"]); });
     downloadCSV("Master_Award_List.csv", rows);
 };
 
@@ -330,9 +321,7 @@ function renderTable(roster) {
             prefHtml += `<div><strong>${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}</div>`;
         }
         prefHtml += '</div>';
-        
         const validationCell = company === "No Key" ? '<td style="color:#8b949e">N/A</td>' : `<td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td>`;
-
         return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong>${dispBadge}${prefHtml}</td><td>${p.orig.replace('-',' ')}</td><td style="color:${p.moved?'#3fb950':''}">${awarded}</td><td>${p.moved?'AWARDED':'HELD'}</td>${validationCell}</tr>`;
     }).join('');
 }
