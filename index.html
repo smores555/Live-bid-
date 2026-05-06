@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - Hard Cap & Debug Edition</title>
+    <title>737 Master Bid Control - Hard Cap Master Build</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -88,31 +88,33 @@ let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
 let lastResults = [];
 let lastTargetMap = {};
 
+// Contractual Hard Caps
+const HARD_CAPS = {
+    "ANC-CA": 151, "ANC-FO": 149,
+    "LAX-CA": 186, "LAX-FO": 176,
+    "PDX-CA": 225, "PDX-FO": 230,
+    "SAN-CA": 135, "SAN-FO": 113,
+    "SFO-CA": 153, "SFO-FO": 150,
+    "SEA-CA": 761, "SEA-FO": 684
+};
+
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
     const activeBidders = data.roster.filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
+    // Initialize headcount for vacancy ledger
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
+    // Final Targets = Hard Cap + Delta
     let targetMap = {};
-    Object.keys(liveHeadcount).forEach(key => {
-        targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
-        if (key === "LAX-CA") targetMap[key] = 189;
-        if (key === "SFO-CA") targetMap[key] = 153;
-    });
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        if (targetMap[key] === undefined) {
-            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
-            if (key === "LAX-CA") targetMap[key] = 189;
-            if (key === "SFO-CA") targetMap[key] = 153;
-        }
+    Object.keys(HARD_CAPS).forEach(key => {
+        targetMap[key] = (HARD_CAPS[key] || 0) + (deltaMap[key] || 0);
     });
 
     let currentCounts = { ...liveHeadcount };
@@ -159,7 +161,7 @@ function runBidEngine(data, deltaMap) {
             }
 
             let targetOldVac = cap - (currentCounts[pr.targetKey] || 0);
-            let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+            let origOldVac = (targetMap[p.orig] || 0) - (currentCounts[p.orig] || 0);
             
             if (p.orig !== pr.targetKey) {
                 currentCounts[p.orig]--;
@@ -263,7 +265,7 @@ window.onload = async () => {
             const r = await fetch(file);
             if (!r.ok) throw new Error(`File Not Found: ${file}`);
             const text = await r.text();
-            try { JSON.parse(text); } catch(e) { throw new Error(`File Corrupted (Not JSON): ${file}`); }
+            try { JSON.parse(text); } catch(e) { throw new Error(`File Corrupted: ${file}`); }
         }
         const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
         store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
@@ -272,17 +274,19 @@ window.onload = async () => {
 };
 
 function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => {
-        let displayCap = c.startCapacity;
-        if (c.base === "LAX" && c.seat === "CA") displayCap = 189;
-        if (c.base === "SFO" && c.seat === "CA") displayCap = 153;
-        return `<div class="cap-cell"><label>${c.base} ${c.seat} (Hard Cap: ${displayCap})</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`;
+    document.getElementById('capGrid').innerHTML = Object.keys(HARD_CAPS).map(key => {
+        const [base, seat] = key.split('-');
+        return `<div class="cap-cell"><label>${base} ${seat} (Hard Cap: ${HARD_CAPS[key]})</label><input type="number" id="delta-${base}-${seat}" value="0"></div>`;
     }).join('');
 }
 
 document.getElementById('runBtn').onclick = () => {
     const deltas = {};
-    store.caps.forEach(c => { const el = document.getElementById(`delta-${c.base}-${c.seat}`); if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0; });
+    Object.keys(HARD_CAPS).forEach(key => {
+        const [base, seat] = key.split('-');
+        const el = document.getElementById(`delta-${base}-${seat}`);
+        if (el) deltas[key] = parseInt(el.value) || 0;
+    });
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
     lastTargetMap = result.targetMap;
