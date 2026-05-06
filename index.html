@@ -109,13 +109,17 @@ function runBidEngine(data, deltaMap) {
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
-        const delta = deltaMap[key] || 0;
-        // If delta is 0 or positive, use live headcount as baseline to prevent -2 vacancy
-        // If delta is negative, use startCapacity + delta to enforce the reduction displacement
-        if (delta >= 0) {
-            targetMap[key] = (currentCounts[key] || 0) + delta;
+        // Priority: Use the delta from capacities.json first, then override with UI input if changed
+        const uiDelta = deltaMap[key] || 0;
+        const jsonDelta = parseInt(c.delta) || 0;
+        
+        // Final delta is UI input if non-zero, otherwise fallback to JSON
+        const activeDelta = (uiDelta !== 0) ? uiDelta : jsonDelta;
+
+        if (activeDelta >= 0) {
+            targetMap[key] = (currentCounts[key] || 0) + activeDelta;
         } else {
-            targetMap[key] = c.startCapacity + delta;
+            targetMap[key] = c.startCapacity + activeDelta;
         }
     });
 
@@ -242,7 +246,7 @@ function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `
         <div class="cap-cell">
             <label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label>
-            <input type="number" id="delta-${c.base}-${c.seat}" value="0">
+            <input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}">
         </div>`).join('');
 }
 
