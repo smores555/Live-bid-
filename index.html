@@ -25,6 +25,7 @@
         .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
+        .tag-blue { background: #1f6feb; color: white; }
         .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; }
     </style>
 </head>
@@ -60,7 +61,7 @@
                 <th>Awarded Position</th>
                 <th>Standing</th>
                 <th>Notes / Mathematical Audit Path</th>
-                <th>Original Position</th>
+                <th>Vacancy Source Tracker</th> <th>Original Position</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -102,7 +103,7 @@ function runBidEngine(data, deltaMap) {
             const selfBidWithBpl = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
             return {
                 ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
-                finalReason: "", isMover: false, isSelfDisp: false,
+                finalReason: "", isMover: false, isSelfDisp: false, vacancySource: "",
                 bplOnOwn: !!selfBidWithBpl,
                 ownSeatBpl: selfBidWithBpl ? (parseInt(selfBidWithBpl.bpl || selfBidWithBpl.bpl_min) || 0) : 9999,
                 prefs: (prefData.preferences || []).map(pr => ({
@@ -115,15 +116,16 @@ function runBidEngine(data, deltaMap) {
     let iterationCount = 0;
     let wasChanged = true;
 
+    // --- PHASE 1: THE RIPPLE LOOP ---
     while (wasChanged && iterationCount < 100) {
         wasChanged = false;
         iterationCount++;
-        fillers = {}; // Reset counts for this iterative pass
+        fillers = {}; 
 
         for (let p of bidders) {
             let previousKey = p.currentKey;
             let awarded = false;
-            p.awardAudit = []; // Reset audit to keep it clean for final iteration
+            p.awardAudit = []; 
 
             // 1. Preference Bids
             for (const pr of p.prefs) {
@@ -168,6 +170,50 @@ function runBidEngine(data, deltaMap) {
             p.isMover = (p.currentKey !== p.orig && p.currentKey !== "UNASSIGNED");
         }
     }
+
+    // --- PHASE 2: VACANCY SOURCE TRACKER (NEW) ---
+    // Post-processes the settled board to map incoming pilots to outgoing pilots
+    let baseData = {};
+    Object.keys(targetMap).forEach(key => {
+        let deltaVal = 0;
+        for (const [dKey, dVal] of Object.entries(deltaMap)) {
+            if (dKey.toUpperCase() === key) deltaVal = dVal;
+        }
+
+        baseData[key] = {
+            delta: deltaVal,
+            vacators: bidders.filter(p => p.orig === key && p.currentKey !== key).sort((a,b) => a.sen - b.sen),
+            fillers: bidders.filter(p => p.currentKey === key && p.orig !== key).sort((a,b) => a.sen - b.sen)
+        };
+    });
+
+    Object.keys(baseData).forEach(key => {
+        let { delta, vacators, fillers } = baseData[key];
+        
+        // Handle negative delta (base reduction)
+        // A shrinking base "absorbs" the vacancies left by people bidding out
+        if (delta < 0) {
+            let shrink = Math.abs(delta);
+            while (shrink > 0 && vacators.length > 0) {
+                vacators.pop(); // Remove bottom vacators from fillable slots
+                shrink--;
+            }
+        }
+
+        // Pair the Fillers with their Vacancy Source
+        fillers.forEach(filler => {
+            if (delta > 0) {
+                filler.vacancySource = `<span class="tag tag-blue">NEW SLOT</span> Base Expansion (+${delta})`;
+                delta--;
+            } else if (vacators.length > 0) {
+                let v = vacators.shift(); // The most senior vacator gives their spot to the most senior filler
+                filler.vacancySource = `<span style="color:#a5d6ff;">Vacated by #${v.sen} ${v.name}</span>`;
+            } else {
+                filler.vacancySource = `<span style="color:#8b949e;">System / Attrition Vacancy</span>`;
+            }
+        });
+    });
+
     document.getElementById('statusBox').innerText = `Completed in ${iterationCount} ripple passes.`;
     return { roster: bidders, targetMap };
 }
@@ -211,7 +257,7 @@ document.getElementById('expMaster').onclick = () => {
     downloadCSV("737_Master_Awards.csv", rows);
 };
 document.getElementById('expLog').onclick = () => {
-    const rows = [["Sen #", "Name", "Audit Trail Summary"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | ")])];
+    const rows = [["Sen #", "Name", "Audit Trail Summary", "Vacancy Source"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.map(a => a.replace(/<[^>]*>?/gm, '')).join(" | "), p.vacancySource.replace(/<[^>]*>?/gm, '')])];
     downloadCSV("737_Bid_Log.csv", rows);
 };
 
@@ -236,6 +282,7 @@ function renderTable(roster, targetMap) {
                     ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
                     <span class="via-text">via ${p.finalReason}</span>
                 </td>
+                <td style="font-size:0.8rem; font-weight:600;">${p.vacancySource || (p.isMover ? 'N/A' : '-')}</td>
                 <td>${p.orig.replace('-',' ')}</td>
             </tr>`;
     }).join('');
