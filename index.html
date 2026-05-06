@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - BPL_MIN Fix</title>
+    <title>737 Master Bid - Hard BPL Displacement Mode</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -38,7 +38,7 @@
     <div class="dash-container">
         <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL Fail)</h4><div id="selfDispList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool (Reduction)</h4><div id="unassignedList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool (Reductions)</h4><div id="unassignedList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
     </div>
 
@@ -78,7 +78,7 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = {};
     let targetMap = {};
 
-    // 1. Establish precise starting counts based on the roster
+    // 1. Establish the "Hard Cap" (Baseline Roster Count + UI Delta)
     data.roster.forEach(p => {
         if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
             const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -92,7 +92,6 @@ function runBidEngine(data, deltaMap) {
         targetMap[key] = start + (deltaMap[`${c.base}-${c.seat}`] || 0);
     });
 
-    // KEYWORD SCANNER (Processes "73G SAN FO")
     const getTargetKey = (rawString) => {
         if (!rawString || String(rawString).trim() === "") return null;
         const parts = String(rawString).trim().toUpperCase().split(/\s+/);
@@ -103,34 +102,33 @@ function runBidEngine(data, deltaMap) {
         return (b && s) ? `${b}-${s}` : null;
     };
 
-    // 2. Initialize Bidders
+    // 2. Initialize Bidders & Reap BPL_MIN
     let bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             
-            // REAPING LOGIC: Specifically looking for bpl_min
-            let prefData = [];
+            // Reaping preference structure specifically for bpl_min
             let found = data.prefs['pil' + p.sen] || data.prefs[p.id] || data.prefs[p.sen];
-            if (found) prefData = found.preferences || found.bids || [];
+            let prefData = found ? (found.preferences || found.bids || []) : [];
 
             const cleanPrefs = prefData.map(pr => ({
                 targetKey: getTargetKey(pr.bid || pr.position),
-                bpl_min: parseInt(pr.bpl_min || pr.bpl || 0), // Captures bpl_min correctly
+                bpl_min: parseInt(pr.bpl_min || pr.bpl || 0),
                 order: pr.order
             })).filter(pr => pr.targetKey);
 
-            // Seth's Threshold (BPL on his incumbent base)
-            const incumbentBpl = cleanPrefs.find(pr => pr.targetKey === pilotOrig)?.bpl_min || 0;
+            // Seth's Threshold (The limit he put on his own base)
+            const ownSeatBpl = cleanPrefs.find(pr => pr.targetKey === pilotOrig)?.bpl_min || 0;
 
             return {
                 ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
                 finalReason: "Held Incumbent Seat", moved: false, isSelfDisp: false, isDisplaced: false,
-                incumbentBpl: incumbentBpl, prefs: cleanPrefs
+                ownSeatBpl: ownSeatBpl, prefs: cleanPrefs
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. Cascade Engine with BPL enforcement
+    // 3. The Cascade Loop (Trading Seats & BPL Enforcement)
     let cascade = true;
     let loops = 0;
     while (cascade && loops < 1000) {
@@ -138,19 +136,17 @@ function runBidEngine(data, deltaMap) {
         loops++;
 
         for (let p of bidders) {
-            p.awardAudit = [];
-
-            // FAIL-SAFE: Check if pilot is currently violating their bpl_min
+            // THE SETH RULE: Check if current seat is still valid
             if (p.currentKey !== "UNASSIGNED") {
                 let currentRank = 1;
                 for (let other of bidders) {
                     if (other.sen < p.sen && other.currentKey === p.currentKey) currentRank++;
                 }
                 
-                let bplLimit = (p.currentKey === p.orig) ? p.incumbentBpl : (p.prefs.find(pr => pr.targetKey === p.currentKey)?.bpl_min || 0);
+                let bplLimit = (p.currentKey === p.orig) ? p.ownSeatBpl : (p.prefs.find(pr => pr.targetKey === p.currentKey)?.bpl_min || 0);
                 let hardLimit = targetMap[p.currentKey] || 0;
 
-                // Seth Fix: If Rank is 3 and BPL_MIN is 2, he MUST vacate.
+                // No safety net: If Rank > BPL or Rank > Cap, you are GONE.
                 if ((bplLimit > 0 && currentRank > bplLimit) || currentRank > hardLimit) {
                     currentCounts[p.currentKey]--;
                     p.currentKey = "UNASSIGNED";
@@ -158,8 +154,9 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
+            // EVALUATE BIDS
             for (const pr of p.prefs) {
-                if (pr.targetKey === p.currentKey) break;
+                if (pr.targetKey === p.currentKey) break; // Stop at current best award
 
                 let rank = 1;
                 for (let other of bidders) {
@@ -175,7 +172,7 @@ function runBidEngine(data, deltaMap) {
                     currentCounts[pr.targetKey]++;
                     p.moved = (p.currentKey !== p.orig);
                     p.finalReason = "Awarded Vacancy";
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: Awarded (Rank ${rank} <= BPL ${bplLimit})`);
+                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: Awarded (Rank ${rank})`);
                     cascade = true;
                     break;
                 } else if (rank > bplLimit) {
@@ -188,17 +185,19 @@ function runBidEngine(data, deltaMap) {
         }
     }
 
+    // 4. Final Reason Markup
     bidders.forEach(p => {
         if (p.currentKey === "UNASSIGNED") {
             p.isDisplaced = true;
-            p.isSelfDisp = p.incumbentBpl > 0;
-            p.finalReason = p.isSelfDisp ? "Self-Displaced (BPL_MIN)" : "Juniority Displacement";
+            p.isSelfDisp = p.ownSeatBpl > 0;
+            p.finalReason = p.isSelfDisp ? "Self-Displaced (BPL Fail)" : "Reduction Displacement";
         }
     });
 
     return { roster: bidders, loops, targetMap };
 }
 
+// DATA LOADERS & UI
 window.onload = async () => {
     try {
         const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
@@ -225,7 +224,7 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('statusBox').innerHTML = `Cycles: ${result.loops}<br>Processed: ${lastResults.length}`;
+    document.getElementById('statusBox').innerHTML = `Cycles: ${result.loops}<br>Pilots: ${lastResults.length}`;
     renderTable(lastResults, result.targetMap);
     renderDashboards(lastResults);
 };
@@ -281,6 +280,26 @@ function renderDashboards(roster) {
     document.getElementById('moversList').innerHTML = mHtml || "None.";
     document.getElementById('unassignedList').innerHTML = unHtml || "None.";
 }
+
+document.getElementById('lookupBtn').onclick = () => {
+    const sen = document.getElementById('lookupInput').value;
+    if (sen && lastResults.length) {
+        const deltas = {};
+        store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
+        let currentCounts = {};
+        store.roster.forEach(p => {
+            const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            currentCounts[orig] = (currentCounts[orig] || 0) + 1;
+        });
+        let targetMap = {};
+        store.caps.forEach(c => {
+            const key = `${c.base}-${c.seat}`.toUpperCase();
+            targetMap[key] = (currentCounts[key] || 0) + (deltas[key] || 0);
+        });
+        const filtered = lastResults.filter(p => p.sen.toString() === sen);
+        renderTable(filtered, targetMap);
+    }
+};
 </script>
 </body>
 </html>
