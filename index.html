@@ -40,7 +40,7 @@
     <div class="card">
         <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
         <div id="capGrid" class="cap-grid">Loading...</div>
-    </tr>
+    </div>
 
     <div class="dash-container">
         <div class="dash-box">
@@ -92,24 +92,32 @@ let lastResults = [];
 
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
     const activeBidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
+    // Initialize headcount baseline
     let currentCounts = {};
     activeBidders.forEach(p => {
         const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
         currentCounts[pilotOrig] = (currentCounts[pilotOrig] || 0) + 1;
     });
 
+    // Establish Target Caps
     let targetMap = {};
-    // Fix: Ensure we check against the actual deltaMap keys (Uppercase)
-    for (let baseKey in currentCounts) {
-        targetMap[baseKey] = currentCounts[baseKey] + (deltaMap[baseKey] || 0);
-    }
+    data.caps.forEach(c => {
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        const delta = deltaMap[key] || 0;
+        // If delta is 0 or positive, use live headcount as baseline to prevent -2 vacancy
+        // If delta is negative, use startCapacity + delta to enforce the reduction displacement
+        if (delta >= 0) {
+            targetMap[key] = (currentCounts[key] || 0) + delta;
+        } else {
+            targetMap[key] = c.startCapacity + delta;
+        }
+    });
 
     const bidders = activeBidders.map(p => {
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
@@ -185,7 +193,6 @@ function runBidEngine(data, deltaMap) {
         if (!awarded) {
             let rankInBase = 0;
             bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
-            
             const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
             const bplFail = selfBidOnOwnSeat && (rankInBase > selfBidOnOwnSeat.bpl);
 
@@ -232,7 +239,6 @@ window.onload = async () => {
 };
 
 function renderCapacities() {
-    // Fix the delta inputs to ensure they match the upper-case base logic
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `
         <div class="cap-cell">
             <label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label>
