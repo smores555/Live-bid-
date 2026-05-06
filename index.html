@@ -1,100 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid - Hard BPL Displacement Mode</title>
-    <style>
-        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
-        .container { max-width: 1600px; margin: 0 auto; }
-        .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
-        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
-        .dash-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
-        .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        .audit-step { display: block; font-size: 0.75rem; margin-bottom: 4px; border-bottom: 1px solid #30363d; padding-bottom: 2px; }
-        .denied-text { color: var(--red); font-weight: 500; }
-        .awarded-text { color: var(--green); font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
-        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
-        .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
-        .tag-red { background: var(--red); color: white; }
-        .tag-yellow { background: var(--yellow); color: #000; }
-        .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div class="card">
-        <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading...</div>
-    </div>
-
-    <div class="dash-container">
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL Fail)</h4><div id="selfDispList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Movers</h4><div id="moversList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool (Reductions)</h4><div id="unassignedList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
-    </div>
-
-    <div class="toolbar" style="margin-bottom:20px;">
-        <button id="runBtn" style="background:var(--green); color:white; padding:10px 20px; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">RUN BID</button>
-        <button id="expBase" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: BASE</button>
-        <button id="expMaster" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: MASTER</button>
-        <button id="expLog" style="padding:10px; margin-left:10px; cursor:pointer;">CSV: LOG</button>
-        <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px; margin-left:20px;" placeholder="Sen #">
-        <button id="lookupBtn" style="padding:10px; border-radius:6px; background:var(--accent); color:white; border:none; cursor:pointer;">LOOKUP</button>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Sen #</th>
-                <th>Pilot Name</th>
-                <th>Awarded Position</th>
-                <th>Standing</th>
-                <th>Mathematical Audit Path (BPL_MIN Check)</th>
-                <th>Original Position</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-    </table>
-</div>
-
-<script>
-let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
-let lastResults = [];
-
+/**
+ * THE 737 ADMIN ENGINE - HARD BPL FAIL-SAFE VERSION
+ * Guarantees junior pilots are never displaced without a reduction,
+ * UNLESS they fail their own BPL constraint (Self-Displacement).
+ */
 function runBidEngine(data, deltaMap) {
+    const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    let currentCounts = {};
+    let origRemaining = {};
+    let currentCounts = {}; 
     let targetMap = {};
 
-    // 1. Establish the "Hard Cap" (Baseline Roster Count + UI Delta)
+    // 1. Calculate precise starting counts from actual roster
     data.roster.forEach(p => {
         if (is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) {
-            const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            currentCounts[orig] = (currentCounts[orig] || 0) + 1;
+            const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            origRemaining[key] = (origRemaining[key] || 0) + 1;
         }
     });
 
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
-        const start = currentCounts[key] || 0;
-        targetMap[key] = start + (deltaMap[`${c.base}-${c.seat}`] || 0);
+        const actualStart = origRemaining[key] || 0;
+        targetMap[key] = actualStart + (deltaMap[`${c.base}-${c.seat}`] || 0);
+        currentCounts[key] = 0; 
     });
 
-    const getTargetKey = (rawString) => {
-        if (!rawString || String(rawString).trim() === "") return null;
-        const parts = String(rawString).trim().toUpperCase().split(/\s+/);
+    // KEYWORD SCANNER: Corrects for "73G SAN FO" or empty bids
+    const getTargetKey = (bidStr) => {
+        if (!bidStr || String(bidStr).trim() === "" || bidStr === "0") return null;
+        const parts = String(bidStr).trim().toUpperCase().split(/\s+/);
         const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
         const seats = ['CA', 'FO'];
         let b = parts.find(x => bases.includes(x));
@@ -102,204 +39,91 @@ function runBidEngine(data, deltaMap) {
         return (b && s) ? `${b}-${s}` : null;
     };
 
-    // 2. Initialize Bidders & Reap BPL_MIN
-    let bidders = data.roster
+    const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
-            const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            
-            // Reaping preference structure specifically for bpl_min
             let found = data.prefs['pil' + p.sen] || data.prefs[p.id] || data.prefs[p.sen];
             let prefData = found ? (found.preferences || found.bids || []) : [];
+            const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
 
             const cleanPrefs = prefData.map(pr => ({
+                ...pr,
                 targetKey: getTargetKey(pr.bid || pr.position),
-                bpl_min: parseInt(pr.bpl_min || pr.bpl || 0),
-                order: pr.order
+                bpl_min: parseInt(pr.bpl_min || pr.bpl || 0)
             })).filter(pr => pr.targetKey);
 
-            // Seth's Threshold (The limit he put on his own base)
+            // REAPING LOGIC: Specifically captures the BPL on the pilot's own seat
             const ownSeatBpl = cleanPrefs.find(pr => pr.targetKey === pilotOrig)?.bpl_min || 0;
 
             return {
-                ...p, orig: pilotOrig, currentKey: pilotOrig, awardAudit: [],
-                finalReason: "Held Incumbent Seat", moved: false, isSelfDisp: false, isDisplaced: false,
-                ownSeatBpl: ownSeatBpl, prefs: cleanPrefs
+                ...p, orig: pilotOrig, currentKey: "UNASSIGNED", moved: false, isSelfDisp: false, isUnassigned: false,
+                awardedPrefNum: "N/A", awardedReason: "", ownSeatBpl: ownSeatBpl,
+                prefs: cleanPrefs
             };
         }).sort((a, b) => a.sen - b.sen);
 
-    // 3. The Cascade Loop (Trading Seats & BPL Enforcement)
-    let cascade = true;
-    let loops = 0;
-    while (cascade && loops < 1000) {
-        cascade = false;
-        loops++;
-
-        for (let p of bidders) {
-            // THE SETH RULE: Check if current seat is still valid
-            if (p.currentKey !== "UNASSIGNED") {
-                let currentRank = 1;
-                for (let other of bidders) {
-                    if (other.sen < p.sen && other.currentKey === p.currentKey) currentRank++;
-                }
-                
-                let bplLimit = (p.currentKey === p.orig) ? p.ownSeatBpl : (p.prefs.find(pr => pr.targetKey === p.currentKey)?.bpl_min || 0);
-                let hardLimit = targetMap[p.currentKey] || 0;
-
-                // No safety net: If Rank > BPL or Rank > Cap, you are GONE.
-                if ((bplLimit > 0 && currentRank > bplLimit) || currentRank > hardLimit) {
-                    currentCounts[p.currentKey]--;
-                    p.currentKey = "UNASSIGNED";
-                    cascade = true;
-                }
-            }
-
-            // EVALUATE BIDS
-            for (const pr of p.prefs) {
-                if (pr.targetKey === p.currentKey) break; // Stop at current best award
-
-                let rank = 1;
-                for (let other of bidders) {
-                    if (other.sen < p.sen && other.currentKey === pr.targetKey) rank++;
-                }
-
-                const limit = targetMap[pr.targetKey] || 0;
-                const bplLimit = pr.bpl_min > 0 ? pr.bpl_min : 9999;
-
-                if (rank <= bplLimit && currentCounts[pr.targetKey] < limit) {
-                    if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
-                    p.currentKey = pr.targetKey;
-                    currentCounts[pr.targetKey]++;
-                    p.moved = (p.currentKey !== p.orig);
-                    p.finalReason = "Awarded Vacancy";
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: Awarded (Rank ${rank})`);
-                    cascade = true;
-                    break;
-                } else if (rank > bplLimit) {
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: BPL Fail (${rank} > ${bplLimit})`);
-                } else {
-                    p.awardAudit.push(`${pr.order}) ${pr.targetKey}: Full (${rank} > ${limit})`);
-                }
-            }
-            if (cascade) break;
-        }
-    }
-
-    // 4. Final Reason Markup
     bidders.forEach(p => {
-        if (p.currentKey === "UNASSIGNED") {
-            p.isDisplaced = true;
-            p.isSelfDisp = p.ownSeatBpl > 0;
-            p.finalReason = p.isSelfDisp ? "Self-Displaced (BPL Fail)" : "Reduction Displacement";
+        let awarded = false;
+        if (origRemaining[p.orig] > 0) origRemaining[p.orig]--;
+
+        // STEP A: EVALUATE BIDS (Strict Vacancy & BPL Enforcement)
+        for (const pr of p.prefs) {
+            let cap = targetMap[pr.targetKey] || 0;
+            let awardedSoFar = currentCounts[pr.targetKey] || 0;
+            let rankInTarget = awardedSoFar + 1;
+
+            // BPL Check
+            const bplLimit = pr.bpl_min > 0 ? pr.bpl_min : 9999;
+            if (rankInTarget > bplLimit) continue;
+
+            // Vacancy Check (Backfill Aware)
+            let hasVacancy = false;
+            if (pr.targetKey === p.orig) {
+                hasVacancy = awardedSoFar < cap;
+            } else {
+                let remainingOriginals = origRemaining[pr.targetKey] || 0;
+                hasVacancy = (cap - remainingOriginals - awardedSoFar) > 0;
+            }
+
+            if (hasVacancy) {
+                p.currentKey = pr.targetKey;
+                currentCounts[pr.targetKey]++;
+                p.awardedPrefNum = pr.order;
+                p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Bid Awarded";
+                p.moved = (pr.targetKey !== p.orig);
+                awarded = true;
+                break;
+            }
+        }
+
+        // STEP B: SENIORITY HOLD (The Fail-Safe Fix)
+        // If they didn't award a bid, check if they can stay WITHOUT failing their BPL
+        if (!awarded) {
+            let cap = targetMap[p.orig] || 0;
+            let awardedSoFar = currentCounts[p.orig] || 0;
+            let rank = awardedSoFar + 1;
+            
+            // THE SETH FIX: No safety net if rank > bpl_min
+            const bplLimit = p.ownSeatBpl > 0 ? p.ownSeatBpl : 9999;
+
+            if (rank <= cap && rank <= bplLimit) {
+                p.currentKey = p.orig;
+                currentCounts[p.orig]++;
+                p.awardedReason = "Held Position (Seniority)";
+                awarded = true;
+            }
+        }
+
+        // STEP C: DISPLACEMENT
+        if (!awarded) {
+            p.currentKey = "UNASSIGNED";
+            p.isUnassigned = true;
+            // If they had a BPL on their own seat, it's a Self-Displacement
+            p.wasSelfDisplaced = p.ownSeatBpl > 0;
+            p.awardedReason = p.wasSelfDisplaced ? "Self-Displaced (BPL Fail)" : "Displaced (Reduction)";
+            p.awardedPrefNum = "Pool";
         }
     });
 
-    return { roster: bidders, loops, targetMap };
+    return { roster: bidders, auditTrail, targetMap };
 }
-
-// DATA LOADERS & UI
-window.onload = async () => {
-    try {
-        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
-        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
-        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-        renderCapacities();
-    } catch (e) { console.error(e); }
-};
-
-function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => `
-        <div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`).join('');
-}
-
-function downloadCSV(filename, rows) {
-    const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
-}
-
-document.getElementById('runBtn').onclick = () => {
-    const deltas = {};
-    store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
-    const result = runBidEngine(store, deltas);
-    lastResults = result.roster;
-    document.getElementById('statusBox').innerHTML = `Cycles: ${result.loops}<br>Pilots: ${lastResults.length}`;
-    renderTable(lastResults, result.targetMap);
-    renderDashboards(lastResults);
-};
-
-document.getElementById('expBase').onclick = () => {
-    const rows = [["Sen #", "Name", "Base", "Seat"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.split('-')[0], p.currentKey.split('-')[1] || "POOL"])];
-    downloadCSV("737_Base_List.csv", rows);
-};
-document.getElementById('expMaster').onclick = () => {
-    const rows = [["Sen #", "Name", "Awarded Position", "Original Position", "Reason"], ...lastResults.map(p => [p.sen, p.name, p.currentKey.replace('-',' '), p.orig.replace('-',' '), p.finalReason])];
-    downloadCSV("737_Master_Awards.csv", rows);
-};
-document.getElementById('expLog').onclick = () => {
-    const rows = [["Sen #", "Name", "Audit Log"], ...lastResults.map(p => [p.sen, p.name, p.awardAudit.join(" | ")])];
-    downloadCSV("737_Bid_Log.csv", rows);
-};
-
-function renderTable(roster, targetMap) {
-    document.getElementById('tableBody').innerHTML = roster.map(p => {
-        let tags = '';
-        if (p.isSelfDisp) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        else if (p.isDisplaced) tags += '<span class="tag tag-red">EVICTED</span>';
-        if (p.moved) tags += '<span class="tag tag-yellow">MOVER</span>';
-
-        let finalRank = 1;
-        roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
-        const limit = targetMap[p.currentKey] || 0;
-
-        return `
-            <tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${p.moved?'#3fb950':''}">${p.currentKey.replace('-', ' ')}</td>
-                <td><span class="rank-badge">${p.currentKey === 'UNASSIGNED' ? '-' : finalRank + ' / ' + limit}</span></td>
-                <td>
-                    ${p.awardAudit.map(a => `<span class="audit-step">${a}</span>`).join('')}
-                    <span style="font-size:0.7rem; color:var(--accent);">via ${p.finalReason}</span>
-                </td>
-                <td>${p.orig.replace('-',' ')}</td>
-            </tr>`;
-    }).join('');
-}
-
-function renderDashboards(roster) {
-    let unHtml = ''; let mHtml = ''; let sHtml = '';
-    roster.forEach(p => {
-        const item = `<div>#${p.sen} ${p.name}</div>`;
-        if (p.isSelfDisp) sHtml += item;
-        else if (p.isDisplaced) unHtml += item;
-        if (p.moved) mHtml += item;
-    });
-    document.getElementById('selfDispList').innerHTML = sHtml || "None.";
-    document.getElementById('moversList').innerHTML = mHtml || "None.";
-    document.getElementById('unassignedList').innerHTML = unHtml || "None.";
-}
-
-document.getElementById('lookupBtn').onclick = () => {
-    const sen = document.getElementById('lookupInput').value;
-    if (sen && lastResults.length) {
-        const deltas = {};
-        store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
-        let currentCounts = {};
-        store.roster.forEach(p => {
-            const orig = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            currentCounts[orig] = (currentCounts[orig] || 0) + 1;
-        });
-        let targetMap = {};
-        store.caps.forEach(c => {
-            const key = `${c.base}-${c.seat}`.toUpperCase();
-            targetMap[key] = (currentCounts[key] || 0) + (deltas[key] || 0);
-        });
-        const filtered = lastResults.filter(p => p.sen.toString() === sen);
-        renderTable(filtered, targetMap);
-    }
-};
-</script>
-</body>
-</html>
