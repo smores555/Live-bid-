@@ -3,39 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control & Export</title>
+    <title>737 Master Bid Control - BPL Strict</title>
     <style>
-        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; }
+        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
-        .container { max-width: 1500px; margin: 0 auto; }
-        
+        .container { max-width: 1600px; margin: 0 auto; }
         .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { display: flex; flex-direction: column; font-size: 0.65rem; }
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
         .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
-        
         .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
-        .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
-        .btn-export { background: #30363d; border: 1px solid #444; }
-        .btn-export:hover { background: #444; }
-
-        .dash-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
-        .dash-title { margin: 0 0 10px 0; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
-        .displaced-item { background: #2a2512; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.8rem; color: #eee; }
-        .mismatch-item { background: #2a1215; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.8rem; color: #eee; }
-
-        .audit-log { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; margin-bottom: 20px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
         
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
-        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; position: sticky; top: 0; }
+        /* Updated to 4 columns for the new box */
+        .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
+        .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
+        
+        .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        
+        .audit-log { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; margin-bottom: 20px; color: #8b949e; }
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
+        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
         
-        .displaced-tag { background: var(--yellow); color: #0b0e14; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 10px; text-transform: uppercase; }
-        .pref-box { font-size: 0.75rem; margin-top: 5px; color: #8b949e; border-top: 1px dashed #333; padding-top: 5px; }
-        .status-Awarded { color: var(--green); font-weight: bold; }
-        .status-Denied { color: var(--red); font-weight: bold; }
-        .proffer-text { font-size: 0.7rem; color: #8b949e; font-style: italic; display: block; margin-top: 2px; }
+        .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
+        .tag-red { background: var(--red); color: white; }
+        .tag-yellow { background: var(--yellow); color: #000; }
+        .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
     </style>
 </head>
 <body>
@@ -43,202 +40,169 @@
 <div class="container">
     <div class="card">
         <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading Components...</div>
+        <div id="capGrid" class="cap-grid">Loading...</div>
     </div>
 
     <div class="dash-container">
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--yellow)">⚡ Displaced Pilots Dashboard</h4>
-            <div id="displacedList">Run bid to track forced moves...</div>
+            <h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL Fail)</h4>
+            <div id="selfDispList">Ready...</div>
         </div>
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--red)">⚠️ Validation Mismatches</h4>
-            <div id="mismatchList">Run bid to audit seniority...</div>
+            <h4 class="dash-title" style="color:var(--yellow)">⚠️ All Displaced Pilots</h4>
+            <div id="displacedList">Ready...</div>
+        </div>
+        <div class="dash-box">
+            <h4 class="dash-title" style="color:var(--purple)">🆘 Pool: At Mercy</h4>
+            <div id="unassignedList">Ready...</div>
+        </div>
+        <div class="dash-box">
+            <h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4>
+            <div id="statusBox" style="font-size: 0.75rem;">Idle.</div>
         </div>
     </div>
 
     <div class="toolbar">
         <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
-        <div style="width: 2px; height: 30px; background: #333; margin: 0 10px;"></div>
-        <button id="expBase" class="btn btn-export">CSV: BASE POSITION LIST</button>
-        <button id="expTrans" class="btn btn-export">CSV: TRANSACTION LOG</button>
-        <button id="expMaster" class="btn btn-export">CSV: MASTER AWARD LIST</button>
+        <button id="expBase" class="btn btn-export" style="margin-left:10px;">CSV: BASE LIST</button>
+        <button id="expMaster" class="btn btn-export">CSV: MASTER AWARDS</button>
+        <button id="expLog" class="btn btn-export">CSV: TRANSITION LOG</button>
         <div style="flex-grow:1"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
-        <button id="lookupBtn" class="btn btn-export">PILOT LOOKUP</button>
+        <button id="lookupBtn" class="btn">LOOKUP</button>
     </div>
 
-    <div id="auditLog" class="audit-log">Seniority cascade log...</div>
+    <div id="auditLog" class="audit-log">Audit trail...</div>
 
     <table>
         <thead>
-            <tr><th>Sen #</th><th>Pilot & Preference History</th><th>Original</th><th>Awarded</th><th>Status</th><th>Validation</th></tr>
+            <tr>
+                <th>Sen #</th>
+                <th>Pilot Name</th>
+                <th>Awarded Position</th>
+                <th>Final Standing (Rank / Limit)</th>
+                <th>Award Path</th>
+                <th>Original Position</th>
+            </tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
 </div>
 
 <script>
-/**
- * THE ENHANCED 737 ADMIN ENGINE
- */
+let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
+let lastResults = [];
+let lastAuditTrail = [];
+
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
+
+    let targetMap = {};
+    data.caps.forEach(c => {
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        targetMap[key] = c.startCapacity + (deltaMap[`${c.base}-${c.seat}`] || 0);
+    });
 
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
     let currentCounts = {};
-    let vacancySource = {}; // Tracks the specific pilot who created a vacancy
-    
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`;
-        currentCounts[key] = 0;
-        vacancySource[key] = "Vacancy"; // Initial vacancies are system-generated
-    });
+    Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
 
-    const rosterMap = new Map();
-    data.roster.forEach(p => { 
-        if (!rosterMap.has(p.sen) && is737(p.current.seat)) rosterMap.set(p.sen, p); 
-    });
-
-    const bidders = Array.from(rosterMap.values())
-        .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
+    const bidders = data.roster
+        .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
         .map(p => {
-            const key = `${p.current.base}-${p.current.seat}`;
-            currentCounts[key] = (currentCounts[key] || 0) + 1;
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-            return {
-                ...p, 
-                currentKey: key, 
-                orig: key, 
-                moved: false, 
-                wasDisplaced: false, 
-                isSwept: false,
-                profferInfo: "", // Stores "Vacated by..." logic
-                prefHistory: {}, 
-                prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
+            const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            
+            const getTargetKey = (bidStr) => {
+                const parts = bidStr.trim().toUpperCase().split(/\s+/);
+                const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
+                const seats = ['CA', 'FO'];
+                let b = parts.find(x => bases.includes(x));
+                let s = parts.find(x => seats.includes(x));
+                return (b && s) ? `${b}-${s}` : null;
             };
-        }).sort((a, b) => a.sen - b.sen);
 
-    let targetMap = {};
-    for (let key in currentCounts) { 
-        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0); 
-    }
+            const selfBid = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig);
 
-    let cascade = true;
-    let loops = 0;
+            return {
+                ...p,
+                orig: pilotOrig,
+                currentKey: "UNASSIGNED",
+                moved: false, wasSelfDisplaced: false, isUnassigned: false,
+                awardedPrefNum: "N/A", awardedReason: "",
+                bplRestrictionOnOwnSeat: selfBid ? true : false,
+                prefs: (prefData.preferences || []).map(pr => ({
+                    ...pr, 
+                    targetKey: getTargetKey(pr.bid),
+                    bpl: parseInt(pr.bpl || pr.bpl_min) || 9999
+                })).sort((a, b) => a.order - b.order)
+            };
+        })
+        .sort((a, b) => a.sen - b.sen);
 
-    while (cascade) {
-        cascade = false;
-        loops++;
-        if (loops > 2000) break;
+    bidders.forEach(p => {
+        let awarded = false;
 
-        for (let i = 0; i < bidders.length; i++) {
-            const p = bidders[i];
-            let foundAward = false;
+        for (const pr of p.prefs) {
+            if (!pr.targetKey) continue;
+            let rankInBase = currentCounts[pr.targetKey] + 1;
+            let cap = targetMap[pr.targetKey] || 0;
 
-            for (const pr of p.prefs) {
-                if (!pr.bid) continue;
-                const parts = pr.bid.trim().split(/\s+/);
-                if (parts.length < 3) continue;
-                const targetKey = `${parts[1]}-${parts[2]}`;
-                
-                // Calculate dynamic rank
-                let rank = 1;
-                for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === targetKey) rank++;
-                }
-
-                const limit = targetMap[targetKey] || 0;
-                if (rank > limit) {
-                    p.prefHistory[pr.order] = { status: "Denied", reason: `Displaced: Rank ${rank} > Limit ${limit}` };
-                    if (targetKey === p.orig) p.wasDisplaced = true; 
-                    continue; 
-                }
-
-                if (targetKey === p.currentKey) {
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Seniority Hold. Rank: ${rank}.` };
-                    p.profferInfo = "via Seniority Hold";
-                    foundAward = true; break;
-                }
-
-                // If moving to an open slot (growth or senior pilot moved)
-                if (currentCounts[targetKey] < limit) {
-                    const oldKey = p.currentKey;
-                    
-                    // The pilot creates a vacancy in their OLD base for juniors
-                    vacancySource[oldKey] = `#${p.sen} ${p.name}`;
-                    
-                    currentCounts[oldKey]--; 
-                    currentCounts[targetKey]++;
-                    
-                    p.profferInfo = vacancySource[targetKey] === "Vacancy" 
-                        ? "Proffered from Vacancy" 
-                        : `Vacated by ${vacancySource[targetKey]}`;
-                    
-                    p.prefHistory[pr.order] = { status: "Awarded", reason: `Awarded! Rank: ${rank}. ${p.profferInfo}` };
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Bid Award" });
-                    
-                    p.currentKey = targetKey; 
-                    p.moved = true; 
-                    cascade = true; 
-                    foundAward = true; 
-                    break; 
-                }
+            if (rankInBase <= cap && rankInBase <= pr.bpl) {
+                p.currentKey = pr.targetKey;
+                currentCounts[pr.targetKey]++;
+                p.awardedPrefNum = pr.order;
+                p.awardedReason = (pr.targetKey === p.orig) ? "Held Position (Bid)" : "Bid Awarded";
+                p.moved = (pr.targetKey !== p.orig);
+                awarded = true;
+                auditTrail.push({ sen: p.sen, name: p.name, to: pr.targetKey, type: "Award" });
+                break;
             }
-
-            if (!foundAward && p.wasDisplaced) {
-                for (let key in targetMap) {
-                    if (currentCounts[key] < targetMap[key]) {
-                        const oldKey = p.currentKey;
-                        vacancySource[oldKey] = `#${p.sen} ${p.name}`;
-                        currentCounts[oldKey]--;
-                        currentCounts[key]++;
-                        p.currentKey = key;
-                        p.isSwept = true;
-                        p.moved = true;
-                        p.profferInfo = "Involuntary Sweep";
-                        p.prefHistory["SWEEP"] = { status: "Awarded", reason: `Forced Sweep into ${key}.` };
-                        auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: key, type: "Forced Sweep" });
-                        cascade = true; foundAward = true; break;
-                    }
-                }
-            }
-            if (cascade) break; 
         }
-    }
-    return { roster: bidders, auditTrail };
-}
 
-/** DATA LOADING & UI **/
-let store = {}; let answerKey = {}; let lastResults = [];
+        if (!awarded && !p.bplRestrictionOnOwnSeat) {
+            const targetKey = p.orig;
+            if (currentCounts[targetKey] < (targetMap[targetKey] || 0)) {
+                p.currentKey = targetKey;
+                currentCounts[targetKey]++;
+                p.awardedReason = "Held Position (Seniority)";
+                awarded = true;
+                p.moved = false; // Seniority hold means NOT displaced
+            }
+        }
+
+        if (!awarded) {
+            p.currentKey = "UNASSIGNED";
+            p.isUnassigned = true;
+            p.moved = true; // Any move to pool is a displacement
+            p.wasSelfDisplaced = p.bplRestrictionOnOwnSeat;
+            p.awardedReason = p.wasSelfDisplaced ? "BPL Rank Constraint Failed" : "Juniority Displacement";
+            p.awardedPrefNum = "Pool";
+            auditTrail.push({ sen: p.sen, name: p.name, to: "POOL", type: p.wasSelfDisplaced ? "Self-Displacement" : "Displacement" });
+        }
+    });
+
+    return { roster: bidders, auditTrail, targetMap };
+}
 
 window.onload = async () => {
     try {
-        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json', 'answer_key.csv'];
-        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return f.endsWith('.csv') ? r.text() : r.json(); }));
+        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
+        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
         store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-        parseCSV(results[5]).forEach((cols, idx) => { if (idx > 0 && cols[0]) answerKey[cols[0].trim()] = cols[2]?.trim(); });
         renderCapacities();
-    } catch (e) { console.error(e); }
+    } catch (e) { document.body.innerHTML = `<div style="padding:40px; color:red">🚨 ERROR: ${e.message}</div>`; }
 };
 
-function parseCSV(text) {
-    const rows = []; let currentRow = []; let field = ''; let inQuotes = false;
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        if (inQuotes) { if (char === '"' && text[i+1] === '"') { field += '"'; i++; } else if (char === '"') inQuotes = false; else field += char; }
-        else { if (char === '"') inQuotes = true; else if (char === ',') { currentRow.push(field); field = ''; } else if (char === '\n' || char === '\r') { currentRow.push(field); if (currentRow.length > 1) rows.push(currentRow); currentRow = []; field = ''; if (char === '\r' && text[i+1] === '\n') i++; } else field += char; }
-    }
-    if (currentRow.length || field) { currentRow.push(field); rows.push(currentRow); }
-    return rows;
-}
-
 function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => `<div class="cap-cell"><label>${c.base} ${c.seat}</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}"></div>`).join('');
+    document.getElementById('capGrid').innerHTML = store.caps.map(c => `
+        <div class="cap-cell">
+            <label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label>
+            <input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta}">
+        </div>`).join('');
 }
 
 document.getElementById('runBtn').onclick = () => {
@@ -246,63 +210,57 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `<div>[Pass ${a.loop}] <strong>#${a.sen}</strong> to <strong>${a.to}</strong> (${a.type})</div>`).join('');
-    renderTable(lastResults);
+    lastAuditTrail = result.auditTrail;
+    renderTable(lastResults, result.targetMap);
     renderDashboards(lastResults);
 };
 
-function renderTable(roster) {
-    document.getElementById('tableBody').innerHTML = roster.map(p => {
-        const awarded = p.currentKey.replace('-', ' ');
-        const company = (answerKey[p.sen.toString()] || "No Key");
-        const isMatch = company.includes(awarded);
-        const dispBadge = p.wasDisplaced ? '<span class="displaced-tag">DISPLACED</span>' : '';
-        const profferDetail = p.profferInfo ? `<span class="proffer-text">${p.profferInfo}</span>` : '';
+function renderDashboards(roster) {
+    let unassignedHtml = ''; let selfDispHtml = ''; let allDispHtml = '';
+    roster.forEach(p => {
+        const item = `<div class="${p.wasSelfDisplaced ? 'self-disp-item' : (p.isUnassigned ? 'unassigned-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
         
-        let prefHtml = '<div class="pref-box">';
-        for (let order in (p.prefHistory || {})) {
-            const h = p.prefHistory[order];
-            prefHtml += `<div><strong>${order}:</strong> <span class="status-${h.status}">${h.status}</span> - ${h.reason}</div>`;
+        if (p.wasSelfDisplaced) selfDispHtml += item;
+        if (p.isUnassigned) unassignedHtml += item;
+        
+        // Populate the General Displaced list
+        if (p.moved) {
+            allDispHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
         }
-        prefHtml += '</div>';
+    });
+    document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
+    document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
+    document.getElementById('displacedList').innerHTML = allDispHtml || "None.";
+}
 
-        return `<tr>
-            <td>${p.sen}</td>
-            <td><strong>${p.name}</strong>${dispBadge}${prefHtml}</td>
-            <td>${p.orig.replace('-',' ')}</td>
-            <td style="color:${p.moved?'#3fb950':''}">${awarded}${profferDetail}</td>
-            <td>${p.moved?'AWARDED':'HELD'}</td>
-            <td style="color:${isMatch?'#3fb950':'#f85149'}">${isMatch?'✓ Match':'✗ '+company}</td>
-        </tr>`;
+function renderTable(roster, targetMap) {
+    document.getElementById('tableBody').innerHTML = roster.map(p => {
+        const awardedPos = p.currentKey.replace('-', ' ');
+        
+        // Logic for tags
+        let tags = '';
+        if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
+        if (p.moved) tags += '<span class="tag tag-yellow">DISPLACED</span>';
+        if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
+
+        let finalRank = 1;
+        roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
+        const limit = targetMap[p.currentKey] || 0;
+
+        return `
+            <tr>
+                <td>${p.sen}</td>
+                <td><strong>${p.name}</strong><br>${tags}</td>
+                <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
+                <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + limit}</span></td>
+                <td>
+                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
+                    <span class="award-reason">via ${p.awardedReason}</span>
+                </td>
+                <td>${p.orig.replace('-',' ')}</td>
+            </tr>`;
     }).join('');
 }
-
-function renderDashboards(roster) {
-    let dispHtml = ''; let missHtml = '';
-    roster.forEach(p => {
-        const awarded = p.currentKey.replace('-', ' ');
-        const company = (answerKey[p.sen.toString()] || "No Key").trim();
-        if (p.wasDisplaced) dispHtml += `<div class="displaced-item">#${p.sen} ${p.name}: → ${awarded}</div>`;
-        if (company !== "No Key" && !company.includes(awarded)) missHtml += `<div class="mismatch-item">#${p.sen}: Eng says ${awarded} | Key says ${company}</div>`;
-    });
-    document.getElementById('displacedList').innerHTML = dispHtml || "No displacements.";
-    document.getElementById('mismatchList').innerHTML = missHtml || "✓ All awards match!";
-}
-
-function downloadCSV(filename, rows) {
-    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", filename);
-    link.click();
-}
-
-document.getElementById('expMaster').onclick = () => {
-    const rows = [["Seniority", "Name", "Award", "Displaced", "Note"]];
-    lastResults.forEach(p => rows.push([p.sen, p.name, p.currentKey, p.wasDisplaced?"YES":"NO", p.profferInfo]));
-    downloadCSV("Master_Award_List.csv", rows);
-};
 </script>
 </body>
 </html>
