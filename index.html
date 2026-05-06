@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - BPL Strict</title>
+    <title>737 Master Bid Control - Desks Full Edition</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -96,7 +96,7 @@ let lastResults = [];
 function runBidEngine(data, deltaMap) {
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
 
-    // 1. Initialize Dynamic Targets
+    // 1. Establish Targets (The Caps)
     let targetMap = {};
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
@@ -106,14 +106,9 @@ function runBidEngine(data, deltaMap) {
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
 
-    // Core arrays for tracking mathematically and visually
+    // 2. Initialize "Desks Full" model
     let currentCounts = {};
-    let displayVacancies = {};
-    
-    Object.keys(targetMap).forEach(k => {
-        currentCounts[k] = 0; // Governs true capacity
-        displayVacancies[k] = targetMap[k]; // Governs the log visual
-    });
+    Object.keys(targetMap).forEach(k => currentCounts[k] = 0);
 
     const bidders = data.roster
         .filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
@@ -121,6 +116,11 @@ function runBidEngine(data, deltaMap) {
             const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
             const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
             
+            // Physically place them in the base to start
+            if (currentCounts[pilotOrig] !== undefined) {
+                currentCounts[pilotOrig]++;
+            }
+
             const getTargetKey = (bidStr) => {
                 const parts = bidStr.trim().toUpperCase().split(/\s+/);
                 const bases = ['SEA', 'PDX', 'ANC', 'SFO', 'LAX', 'SAN', 'LAS'];
@@ -133,7 +133,7 @@ function runBidEngine(data, deltaMap) {
             return {
                 ...p,
                 orig: pilotOrig,
-                currentKey: "UNASSIGNED",
+                currentKey: pilotOrig, // Everyone starts physically in their original seat
                 moved: false, wasSelfDisplaced: false, isUnassigned: false,
                 awardedPrefNum: "N/A", awardedReason: "",
                 prefs: (prefData.preferences || []).map(pr => ({
@@ -151,77 +151,93 @@ function runBidEngine(data, deltaMap) {
         // Step A: Bid Preferences
         for (const pr of p.prefs) {
             if (!pr.targetKey) continue;
-            let currentOcc = currentCounts[pr.targetKey];
-            let cap = targetMap[pr.targetKey] || 0;
-
-            if (currentOcc < cap && (currentOcc + 1) <= pr.bpl) {
-                p.currentKey = pr.targetKey;
-                currentCounts[pr.targetKey]++;
-                p.awardedPrefNum = pr.order;
+            
+            if (p.orig === pr.targetKey) {
+                // Determine their active rank if they stay
+                let rankInBase = 0;
+                bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
                 
-                if (p.orig === pr.targetKey) {
-                    let oldDisplay = displayVacancies[p.orig];
-                    displayVacancies[p.orig]--;
-                    let newDisplay = displayVacancies[p.orig];
-                    p.awardedReason = `Remain in current position. Vacancy reduced from ${oldDisplay} to ${newDisplay}.`;
-                } else {
-                    // PILOT BIDS OUT: Calculate the Net Zero Swap
-                    let oldTargetDisplay = displayVacancies[pr.targetKey];
-                    displayVacancies[pr.targetKey]--;
-                    let newTargetDisplay = displayVacancies[pr.targetKey];
-                    
-                    let oldOrigDisplay = displayVacancies[p.orig];
-                    displayVacancies[p.orig]++; // Adds the seat back to the original base pool
-                    let newOrigDisplay = displayVacancies[p.orig];
-                    
-                    p.awardedReason = `Open position available. Reduce vacancy in ${pr.targetKey} from ${oldTargetDisplay} to ${newTargetDisplay}. Increase vacancy in ${p.orig} from ${oldOrigDisplay} to ${newOrigDisplay}.`;
+                if (rankInBase <= targetMap[p.orig] && rankInBase <= pr.bpl) {
+                    p.currentKey = p.orig;
+                    p.awardedPrefNum = pr.order;
+                    let vac = targetMap[p.orig] - currentCounts[p.orig];
+                    p.awardedReason = `Remain in current position. Vacancy remains at ${vac}.`;
+                    p.moved = false;
+                    awarded = true;
+                    break;
                 }
-                
-                p.moved = (pr.targetKey !== p.orig);
-                awarded = true;
-                break;
+            } else {
+                let currentOcc = currentCounts[pr.targetKey];
+                let cap = targetMap[pr.targetKey] || 0;
+
+                if (currentOcc < cap && (currentOcc + 1) <= pr.bpl) {
+                    let oldTargetVac = cap - currentCounts[pr.targetKey];
+                    let oldOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+                    
+                    // SWAP: Vacate old desk, occupy new desk
+                    currentCounts[p.orig]--;
+                    currentCounts[pr.targetKey]++;
+                    
+                    let newTargetVac = cap - currentCounts[pr.targetKey];
+                    let newOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+                    
+                    p.currentKey = pr.targetKey;
+                    p.awardedPrefNum = pr.order;
+                    p.awardedReason = `Open position available. Reduce ${pr.targetKey} vacancy from ${oldTargetVac} to ${newTargetVac}. Increase ${p.orig} vacancy from ${oldOrigVac} to ${newOrigVac}.`;
+                    p.moved = true;
+                    awarded = true;
+                    break;
+                }
             }
         }
 
-        // Step B: Net Zero Seniority Hold
+        // Step B: Seniority Hold (Net Zero Base Retention)
         if (!awarded) {
+            let rankInBase = 0;
+            bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
+            
             const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
-            const bplFail = selfBidOnOwnSeat && (currentCounts[p.orig] + 1 > selfBidOnOwnSeat.bpl);
-            let currentOcc = currentCounts[p.orig];
-            let cap = targetMap[p.orig] || 0;
+            const bplFail = selfBidOnOwnSeat && (rankInBase > selfBidOnOwnSeat.bpl);
 
-            if (currentOcc < cap && !bplFail) {
+            if (rankInBase <= targetMap[p.orig] && !bplFail) {
                 p.currentKey = p.orig;
-                currentCounts[p.orig]++;
-                
-                let oldDisplay = displayVacancies[p.orig];
-                displayVacancies[p.orig]--;
-                let newDisplay = displayVacancies[p.orig];
-
-                p.awardedReason = `Held Position (Seniority). Vacancy reduced from ${oldDisplay} to ${newDisplay}.`;
-                awarded = true;
+                let vac = targetMap[p.orig] - currentCounts[p.orig];
+                p.awardedReason = `Held Position (Seniority). Vacancy remains at ${vac}.`;
                 p.moved = false;
+                awarded = true;
             }
         }
 
         // Step C: Pool / Displacement
         if (!awarded) {
+            let oldOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+            
+            // They are forced out of their seat!
+            currentCounts[p.orig]--; 
+            let newOrigVac = targetMap[p.orig] - currentCounts[p.orig];
+
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
             p.moved = true;
+            
+            let rankInBase = 0;
+            bidders.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.orig) rankInBase++; });
             const selfBidOnOwnSeat = p.prefs.find(pr => pr.targetKey === p.orig);
-            p.wasSelfDisplaced = !!(selfBidOnOwnSeat && (currentCounts[p.orig] + 1 > selfBidOnOwnSeat.bpl));
-            p.awardedReason = p.wasSelfDisplaced ? "BPL Rank Constraint Failed" : `Displaced: No vacancy available in ${p.orig}.`;
+            p.wasSelfDisplaced = !!(selfBidOnOwnSeat && (rankInBase > selfBidOnOwnSeat.bpl));
+
+            p.awardedReason = p.wasSelfDisplaced ? 
+                `BPL Rank Constraint Failed. Increase ${p.orig} vacancy from ${oldOrigVac} to ${newOrigVac}.` : 
+                `Displaced (Base Cap Exceeded). Increase ${p.orig} vacancy from ${oldOrigVac} to ${newOrigVac}.`;
             p.awardedPrefNum = "Pool";
         }
     });
 
-    console.group("Debug: Net Zero Results");
+    console.group("Debug: Net Zero True Count Results");
     console.table(Object.keys(targetMap).map(key => ({
         Position: key,
-        Target: targetMap[key],
-        FinalCount: currentCounts[key],
-        RemainingVacancy: targetMap[key] - currentCounts[key]
+        TargetCap: targetMap[key],
+        PhysicalHeadcount: currentCounts[key],
+        Vacancy: targetMap[key] - currentCounts[key]
     })));
     console.groupEnd();
 
