@@ -1,166 +1,260 @@
 [
   {
-    "name": "ALBRIGHT, JUSTIN",
-    "seniority": 1060
+    "sen": 3,
+    "pil": "MILLARD, DAVID W.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "21-Feb-2026"
   },
   {
-    "name": "BACHMAN, GRANT",
-    "seniority": 792
+    "sen": 5,
+    "pil": "CAGLEY, STEVEN O.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "17-Mar-2026"
   },
   {
-    "name": "BEACHLER, BRAD",
-    "seniority": 1357
+    "sen": 8,
+    "pil": "LAMMERS, MICHAEL G.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "14-Feb-2026"
   },
   {
-    "name": "BLAIR-ZINGER, CHANDLER",
-    "seniority": 2412
+    "sen": 25,
+    "pil": "DUNHAM, KENNETH G.",
+    "base": "PDX",
+    "seat": "CA",
+    "retire_date": "13-May-2026"
   },
   {
-    "name": "CAREY, CHRISTOPHER",
-    "seniority": 2576
+    "sen": 35,
+    "pil": "BOYCE, KEVIN M.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "7-Sep-2026"
   },
   {
-    "name": "CAVE, MALLORY",
-    "seniority": 2101
+    "sen": 64,
+    "pil": "KRANJCEVICH, PATRICK S.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "18-Sep-2026"
   },
   {
-    "name": "CHUNG, DARIN",
-    "seniority": 2648
+    "sen": 65,
+    "pil": "McKINNIS, DOUGLAS L.",
+    "base": "ANC",
+    "seat": "CA",
+    "retire_date": "19-Sep-2026"
   },
   {
-    "name": "COYLE, ANDREW",
-    "seniority": 1825
+    "sen": 70,
+    "pil": "BRYANT, MARK R.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "1-Aug-2026"
   },
   {
-    "name": "DAY, SCOTT B.",
-    "seniority": 86
+    "sen": 106,
+    "pil": "ROBINSON, MARK L.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "20-Feb-2026"
   },
   {
-    "name": "DOYEL, JOHN M.",
-    "seniority": 288
+    "sen": 125,
+    "pil": "HILTON, ALAN S.",
+    "base": "PDX",
+    "seat": "CA",
+    "retire_date": "3-May-2026"
   },
   {
-    "name": "EYRE, BRIAN P.",
-    "seniority": 285
+    "sen": 224,
+    "pil": "VINANT-TANG, GARY ",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "15-Jun-2026"
   },
   {
-    "name": "FARRELL, CHRISTOPHER P.",
-    "seniority": 90
+    "sen": 229,
+    "pil": "WERNER, THOMAS",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "3-Jun-2026"
   },
   {
-    "name": "FETTIG, JEFFREY R.",
-    "seniority": 961
+    "sen": 236,
+    "pil": "WIEBMER, ROBERT",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "8-Sep-2026"
   },
   {
-    "name": "FRANK, MARK J.",
-    "seniority": 184
+    "sen": 282,
+    "pil": "MAYNARD, DAVID E.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "24-Sep-2026"
   },
   {
-    "name": "GABRELCIK, KIMBERLY",
-    "seniority": 661
+    "sen": 292,
+    "pil": "DUNCAN, DELBERT",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "28-Aug-2026"
   },
   {
-    "name": "JOHNSON, KYLE",
-    "seniority": 1949
+    "sen": 312,
+    "pil": "LEE, LARRY",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "23-Mar-2026"
   },
   {
-    "name": "LIMES, RONALD L.",
-    "seniority": 273
+    "sen": 314,
+    "pil": "RENSHAW, RAYMOND",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "13-Feb-2026"
   },
   {
-    "name": "MARTIN, CHRISTOPHER M.",
-    "seniority": 106
+    "sen": 355,
+    "pil": "ALLAN, ROBERT",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "14-Sep-2026"
   },
   {
-    "name": "McQUILLEN, WILLIAM P.",
-    "seniority": 776
+    "sen": 361,
+    "pil": "WOOD, CHARLES S.",
+    "base": "SEA",
+    "seat": "FO",
+    "retire_date": "13-Jul-2026"
   },
   {
-    "name": "METS, DAVID M.",
-    "seniority": 250
+    "sen": 439,
+    "pil": "ALBER, WILLIAM",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "25-Aug-2026"
   },
   {
-    "name": "METZGAR, CHARLES J.",
-    "seniority": 940
+    "sen": 456,
+    "pil": "DOHERTY, RICHARD B.",
+    "base": "PDX",
+    "seat": "CA",
+    "retire_date": "16-Apr-2026"
   },
   {
-    "name": "NELSON, ADAM B.",
-    "seniority": 1065
+    "sen": 457,
+    "pil": "NEEDHAM, JAMES (ERIC)",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "27-Feb-2026"
   },
   {
-    "name": "NOURI, KAMYAR",
-    "seniority": 1105
+    "sen": 489,
+    "pil": "FRANCIS, ROY \"MARK\"",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "6-Mar-2026"
   },
   {
-    "name": "O'DONOGHUE, RONAN",
-    "seniority": 1190
+    "sen": 527,
+    "pil": "DORN, DARRIN D.",
+    "base": "ANC",
+    "seat": "CA",
+    "retire_date": "2-May-2026"
   },
   {
-    "name": "OZOLIN, CHELSEA",
-    "seniority": 1935
+    "sen": 579,
+    "pil": "STEEL, LISA",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "14-Jul-2026"
   },
   {
-    "name": "PEYTON, BRET A.",
-    "seniority": 362
+    "sen": 605,
+    "pil": "WARREN, STEPHEN J.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "2-Aug-2026"
   },
   {
-    "name": "PULLIS, KATHARINE",
-    "seniority": 949
+    "sen": 613,
+    "pil": "REID, STEVEN E.",
+    "base": "PDX",
+    "seat": "CA",
+    "retire_date": "8-Aug-2026"
   },
   {
-    "name": "RICHARDS, DANIEL C.",
-    "seniority": 1026
+    "sen": 652,
+    "pil": "LAFOSSE, LUIS",
+    "base": "SFO",
+    "seat": "CA",
+    "retire_date": "2-Jun-2026"
   },
   {
-    "name": "RUBIN, SCOTT D.",
-    "seniority": 155
+    "sen": 687,
+    "pil": "KIMSEY, EDGAR (SCOTT)",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "8-Mar-2026"
   },
   {
-    "name": "SEVERNS, JEFFREY M.",
-    "seniority": 200
+    "sen": 831,
+    "pil": "MACNEIL, TIMOTHY",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "21-Jul-2026"
   },
   {
-    "name": "SITES, JON",
-    "seniority": 1328
+    "sen": 898,
+    "pil": "WARD, SETH P.",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "19-Feb-2026"
   },
   {
-    "name": "STRELINGER, AUSTIN",
-    "seniority": 1183
+    "sen": 994,
+    "pil": "DONLEY, MICHAEL",
+    "base": "ANC",
+    "seat": "CA",
+    "retire_date": "14-May-2026"
   },
   {
-    "name": "STUMPH, ROBERT S.",
-    "seniority": 605
+    "sen": 1018,
+    "pil": "LAYTON, KENNETH",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "28-Sep-2026"
   },
   {
-    "name": "TENTSCHERT, GARIN P.",
-    "seniority": 305
+    "sen": 1063,
+    "pil": "KOZAK, ROLAND",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "2-Jul-2026"
   },
   {
-    "name": "THIELE, JULIE A.",
-    "seniority": 610
+    "sen": 1294,
+    "pil": "HANREITER, OLIVER",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "14-Jul-2026"
   },
   {
-    "name": "TOWNES, LEWIS D",
-    "seniority": 2164
+    "sen": 1954,
+    "pil": "NIESLEY-MEYER, MONIQUE",
+    "base": "LAX",
+    "seat": "CA",
+    "retire_date": "5-Jun-2026"
   },
   {
-    "name": "VANORNUM, ANDREW S.",
-    "seniority": 330
-  },
-  {
-    "name": "WALTERS, TERRY A.",
-    "seniority": 1023
-  },
-  {
-    "name": "WERTZ, GREGORY",
-    "seniority": 1141
-  },
-  {
-    "name": "WILHELM, DAVID",
-    "seniority": 530
-  },
-  {
-    "name": "YOUNG, ISRAEL",
-    "seniority": 1574
+    "sen": 2109,
+    "pil": "WARE, MARK",
+    "base": "SEA",
+    "seat": "CA",
+    "retire_date": "21-Jun-2026"
   }
-]
