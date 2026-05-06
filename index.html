@@ -24,8 +24,6 @@
         .displaced-item { background: #2a2512; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
 
-        .audit-log { background: #0d1117; border: 1px solid var(--accent); border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; margin-bottom: 20px; }
-        
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; position: sticky; top: 0; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -43,27 +41,28 @@
 
 <div class="container">
     <div class="card">
-        <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading Components...</div>
+        <h3 style="margin:0">Active Position Deltas (737 Fleet)</h3>
+        <p style="font-size: 11px; color: #8b949e; margin: 5px 0 0 0;">Note: Retired and No-Bid pilots are excluded from all counts.</p>
+        <div id="capGrid" class="cap-grid">Loading...</div>
     </div>
 
     <div class="dash-container">
         <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--yellow)">⚡ Displaced Pilots</h4>
-            <div id="displacedList">Ready to run...</div>
+            <h4 class="dash-title" style="color:var(--yellow)">⚡ Displaced Active Pilots</h4>
+            <div id="displacedList">Waiting...</div>
         </div>
         <div class="dash-box">
             <h4 class="dash-title" style="color:var(--purple)">🆘 At Mercy (Unassigned)</h4>
-            <div id="unassignedList">Ready to run...</div>
+            <div id="unassignedList">Waiting...</div>
         </div>
         <div class="dash-box">
             <h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4>
-            <div id="mismatchList">System Idle.</div>
+            <div id="mismatchList">Ready.</div>
         </div>
     </div>
 
     <div class="toolbar">
-        <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
+        <button id="runBtn" class="btn">RUN ACTIVE POSITION BID</button>
         <div style="width: 2px; height: 30px; background: #333; margin: 0 10px;"></div>
         <button id="expBase" class="btn btn-export">CSV: BASE LIST</button>
         <button id="expMaster" class="btn btn-export">CSV: MASTER AWARDS</button>
@@ -72,15 +71,13 @@
         <button id="lookupBtn" class="btn btn-export">LOOKUP</button>
     </div>
 
-    <div id="auditLog" class="audit-log">Audit trail will generate here...</div>
-
     <table>
         <thead>
             <tr>
                 <th>Sen #</th>
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
-                <th>Final Standing (Rank / Limit)</th>
+                <th>Active Base Standing (Rank / Limit)</th>
                 <th>Award Path</th>
                 <th>Original Position</th>
             </tr>
@@ -91,7 +88,7 @@
 
 <script>
 /**
- * THE 737 ADMIN ENGINE - EVICTION-FIRST LOGIC
+ * THE 737 ADMIN ENGINE - PURE ACTIVE BIDDER LOGIC
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -106,8 +103,9 @@ function runBidEngine(data, deltaMap) {
     const rosterMap = new Map();
     data.roster.forEach(p => { if (!rosterMap.has(p.sen) && is737(p.current.seat)) rosterMap.set(p.sen, p); });
 
+    // FILTER OUT NO-BIDS AND RETIRED COMPLETELY
     const bidders = Array.from(rosterMap.values())
-        .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
+        .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen)) 
         .map(p => {
             const key = `${p.current.base}-${p.current.seat}`;
             currentCounts[key] = (currentCounts[key] || 0) + 1;
@@ -124,118 +122,92 @@ function runBidEngine(data, deltaMap) {
 
     let cascade = true; let loops = 0;
     while (cascade) {
-        cascade = false; loops++; if (loops > 5000) break;
+        cascade = false; loops++; if (loops > 4000) break;
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
             let foundAward = false;
 
-            // STAGE 1: EVICTION CHECK
-            // If the pilot is currently in a base, check if they are senior enough to stay.
-            if (p.currentKey !== "UNASSIGNED") {
-                let rankInCurrent = 1;
-                bidders.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) rankInCurrent++; });
-                const currentLimit = targetMap[p.currentKey] || 0;
-                
-                if (rankInCurrent > currentLimit) {
-                    const oldKey = p.currentKey;
-                    currentCounts[oldKey]--;
-                    p.currentKey = "UNASSIGNED";
-                    p.wasDisplaced = true;
-                    p.awardedReason = "Forced Eviction (Over Capacity)";
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: "UNASSIGNED", type: "Eviction" });
-                    cascade = true; 
-                    // No break here, we want them to immediately try their bids/sweep below
-                }
+            // 1. DISPLACEMENT CHECK (Active Bidders Only)
+            let rankInCurrent = 1;
+            for (const other of bidders) {
+                if (other.sen < p.sen && other.currentKey === p.currentKey) rankInCurrent++;
             }
+            const currentLimit = targetMap[p.currentKey] || 0;
+            const overCapacity = (rankInCurrent > currentLimit);
 
-            // STAGE 2: PREFERENCE EVALUATION
-            // Only runs if they were evicted above OR they want to move voluntarily
+            // 2. PREFERENCE EVALUATION
             for (const pr of p.prefs) {
                 if (!pr.bid || pr.bid === "0") continue;
                 const parts = pr.bid.trim().split(/\s+/);
                 let targetKey = (parts.length === 2) ? `${parts[1]}-${parts[0]}` : `${parts[1]}-${parts[2]}`;
                 
-                let rankInTarget = 1; let targetOcc = 0;
-                bidders.forEach(other => {
+                let rank = 1; let targetOcc = 0;
+                for (const other of bidders) {
                     if (other.currentKey === targetKey) targetOcc++;
-                    if (other.sen < p.sen && other.currentKey === targetKey) rankInTarget++;
-                });
-
+                    if (other.sen < p.sen && other.currentKey === targetKey) rank++;
+                }
                 const limit = targetMap[targetKey] || 0;
 
-                // Hold Position Logic: If they are already here and rank is okay, they stay.
-                if (targetKey === p.currentKey && rankInTarget <= limit) {
+                if (targetKey === p.currentKey && rank <= limit) {
                     p.awardedPrefNum = pr.order; p.awardedReason = "Held Position";
                     foundAward = true; break;
                 }
+                if (rank > limit) continue;
 
-                if (rankInTarget > limit) continue; // Base is full for them
-
-                // Move Logic
-                if (targetOcc < limit || p.wasDisplaced) {
+                if (targetOcc < limit || overCapacity) {
                     const oldKey = p.currentKey;
-                    if (oldKey !== "UNASSIGNED") currentCounts[oldKey]--;
-                    currentCounts[targetKey]++;
+                    currentCounts[oldKey]--; currentCounts[targetKey]++;
                     p.currentKey = targetKey; p.moved = true; cascade = true; foundAward = true;
                     p.awardedPrefNum = pr.order; 
                     p.awardedReason = (targetOcc < limit) ? "Vacancy Award" : "Seniority Bump";
-                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: oldKey, to: targetKey, type: "Award" });
                     break; 
                 }
             }
 
-            // STAGE 3: VOLUNTARY HOLD
-            // If they weren't evicted and didn't move, they keep their seat by default.
-            if (!foundAward && p.currentKey !== "UNASSIGNED") {
-                foundAward = true;
-            }
+            // 3. AUTO-HOLD (Within limit)
+            if (!foundAward && !overCapacity) { foundAward = true; } 
+            else if (!foundAward) { p.wasDisplaced = true; }
 
-            // STAGE 4: FLEET CATEGORY SWEEP
-            // If they are unassigned and displaced, look for a vacant seat in their category (CA/FO).
-            if (!foundAward && p.currentKey === "UNASSIGNED") {
+            // 4. FLEET SWEEP
+            if (!foundAward && p.wasDisplaced) {
                 const currentSeatType = p.current.seat;
                 for (let key in targetMap) {
                     if (key.endsWith(`-${currentSeatType}`)) {
                         let occ = bidders.filter(b => b.currentKey === key).length;
                         if (occ < targetMap[key]) {
+                            const oldKey = p.currentKey;
+                            currentCounts[oldKey]--; currentCounts[key]++;
                             p.currentKey = key; p.moved = true; cascade = true; foundAward = true;
                             p.awardedPrefNum = "Sweep"; p.awardedReason = `${currentSeatType} Category Vacancy`;
-                            currentCounts[key]++;
-                            auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: "UNASSIGNED", to: key, type: "Sweep" });
                             break;
                         }
                     }
                 }
             }
 
-            // STAGE 5: AT MERCY
-            if (!foundAward && p.currentKey === "UNASSIGNED") {
-                p.isUnassigned = true; p.awardedReason = "At Mercy of Company";
+            // 5. AT MERCY
+            if (!foundAward && p.wasDisplaced) {
+                const oldKey = p.currentKey;
+                if (oldKey !== "UNASSIGNED") currentCounts[oldKey]--;
+                p.isUnassigned = true; p.currentKey = "UNASSIGNED"; p.awardedReason = "At Mercy of Company";
+                cascade = true; foundAward = true;
             }
-
-            if (cascade) break; // Restart from Pilot 1 whenever a seat change occurs
+            if (cascade) break; 
         }
     }
-    return { roster: bidders, loops, auditTrail };
+    return { roster: bidders, loops };
 }
 
 /** UI CODE **/
 let store = {}; let lastResults = [];
-function downloadCSV(filename, rows) {
-    const csvContent = rows.map(r => r.map(cell => `"${cell}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob); link.setAttribute("download", filename); link.click();
-}
-
 window.onload = async () => {
     try {
         const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
         const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
         store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
         renderCapacities();
-    } catch (e) { document.body.innerHTML = `<div style="padding:40px; color:red">🚨 ERROR LOADING DATA: ${e.message}</div>`; }
+    } catch (e) { document.body.innerHTML = `ERROR: ${e.message}`; }
 };
 
 function renderCapacities() {
@@ -247,7 +219,6 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => deltas[`${c.base}-${c.seat}`] = parseInt(document.getElementById(`delta-${c.base}-${c.seat}`).value) || 0);
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    document.getElementById('auditLog').innerHTML = result.auditTrail.map(a => `<div>[Pass ${a.loop}] <strong>#${a.sen} ${a.name}</strong> to <strong>${a.to}</strong></div>`).join('');
     renderTable(lastResults);
     renderDashboards(lastResults);
 };
@@ -255,7 +226,7 @@ document.getElementById('runBtn').onclick = () => {
 function renderDashboards(roster) {
     let dispHtml = ''; let unassignedHtml = '';
     roster.forEach(p => {
-        if (p.isUnassigned) unassignedHtml += `<div class="unassigned-item">#${p.sen} ${p.name}: Assigned by Company</div>`;
+        if (p.isUnassigned) unassignedHtml += `<div class="unassigned-item">#${p.sen} ${p.name}: Unassigned</div>`;
         else if (p.wasDisplaced) dispHtml += `<div class="displaced-item">#${p.sen} ${p.name}: Awarded ${p.currentKey.replace('-',' ')}</div>`;
     });
     document.getElementById('displacedList').innerHTML = dispHtml || "None.";
@@ -266,12 +237,10 @@ function renderTable(roster) {
     document.getElementById('tableBody').innerHTML = roster.map(p => {
         const awardedPos = p.currentKey.replace('-', ' ');
         const tag = p.isUnassigned ? '<span class="tag unassigned-tag">AT MERCY</span>' : (p.wasDisplaced ? '<span class="tag displaced-tag">DISPLACED</span>' : '');
-        
         let finalRank = 1;
         roster.forEach(other => { if (other.sen < p.sen && other.currentKey === p.currentKey) finalRank++; });
         const capObj = store.caps.find(c => `${c.base}-${c.seat}` === p.currentKey);
         const limit = capObj ? (capObj.startCapacity + (parseInt(document.getElementById(`delta-${p.currentKey}`)?.value) || 0)) : "0";
-
         return `
             <tr>
                 <td>${p.sen}</td>
@@ -279,7 +248,7 @@ function renderTable(roster) {
                 <td style="color:${p.moved?'#3fb950':''}">${awardedPos}</td>
                 <td><span class="rank-badge">${finalRank} / ${limit}</span></td>
                 <td>
-                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "Original" : "Pref #" + p.awardedPrefNum}</span>
+                    <span class="award-detail">${p.awardedPrefNum === "N/A" ? "N/A" : "Pref #" + p.awardedPrefNum}</span>
                     <span class="award-reason">via ${p.awardedReason}</span>
                 </td>
                 <td>${p.orig.replace('-',' ')}</td>
