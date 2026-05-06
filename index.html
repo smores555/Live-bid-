@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - True Top-Down Displacement</title>
+    <title>737 Master Bid Control - Evaluation Log Edition</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -18,6 +18,7 @@
         .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
@@ -26,7 +27,10 @@
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
         .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
-        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
+        .bid-log { display: block; font-size: 0.7rem; color: #8b949e; line-height: 1.2; margin-top: 5px; }
+        .log-entry { border-bottom: 1px solid #222; padding: 2px 0; }
+        .log-success { color: #4ade80; font-weight: bold; }
+        .log-fail { color: #f85149; }
     </style>
 </head>
 <body>
@@ -73,7 +77,7 @@
                 <th>Pilot Name</th>
                 <th>Awarded Position</th>
                 <th>Final Standing (Rank / Limit)</th>
-                <th>Award Path</th>
+                <th>Award Path & Evaluation Log</th>
                 <th>Original Position</th>
             </tr>
         </thead>
@@ -92,29 +96,21 @@ function runBidEngine(data, deltaMap) {
     const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
     const activeBidders = data.roster.filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
-    // 1. Calculate LIVE headcount
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
-    // 2. Align Target Map strictly to Live Headcount + Delta
-    // This ensures that typing "-33" displacement results in EXACTLY -33 starting vacancy.
     let targetMap = {};
     Object.keys(liveHeadcount).forEach(key => {
-        const delta = deltaMap[key] || 0;
-        targetMap[key] = liveHeadcount[key] + delta;
+        targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
     });
-    // Fill in bases that might have 0 pilots but have a target in caps
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
-        if (targetMap[key] === undefined) {
-            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
-        }
+        if (targetMap[key] === undefined) targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
     });
 
-    // 3. Initialize "Desks Full" counts
     let currentCounts = { ...liveHeadcount };
 
     const bidders = activeBidders.map(p => {
@@ -130,10 +126,10 @@ function runBidEngine(data, deltaMap) {
         };
 
         return {
-            ...p, orig: pilotOrig, currentKey: pilotOrig, moved: false, isUnassigned: false, awardedPrefNum: "N/A", awardedReason: "", wasSelfDisplaced: false,
+            ...p, orig: pilotOrig, currentKey: pilotOrig, moved: false, isUnassigned: false, awardedPrefNum: "N/A", awardedReason: "", wasSelfDisplaced: false, bidLog: [],
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
-                if (isNaN(limit) || limit === 0) limit = 9999; // BPL 0 = No Limit
+                if (isNaN(limit) || limit === 0) limit = 9999;
                 return { ...pr, targetKey: getTargetKey(pr.bid), bpl: limit };
             }).sort((a, b) => a.order - b.order)
         };
@@ -143,51 +139,65 @@ function runBidEngine(data, deltaMap) {
         let awarded = false;
         const [origBase, origStatus] = p.orig.split('-');
 
-        // Step A: Primary Preference Bids
+        // Step A: Primary Preference Eval
         for (const pr of p.prefs) {
-            if (!pr.targetKey) continue;
-            let cap = targetMap[pr.targetKey] || 0;
-            
-            // RELATIVE SENIORITY CHECK: Only count pilots senior to me who have already taken a seat here.
-            // This prevents junior pilots who haven't moved yet from "blocking" a senior pilot's fallback.
-            let seniorsAlreadyInTarget = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
-
-            if (seniorsAlreadyInTarget < cap && (seniorsAlreadyInTarget + 1) <= pr.bpl) {
-                let targetOldVac = cap - (currentCounts[pr.targetKey] || 0);
-                let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
-
-                if (p.orig !== pr.targetKey) {
-                    currentCounts[p.orig]--;
-                    currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
-                    p.moved = true;
-                    p.awardedReason = targetOldVac > 0 ? `Awarded Pref #${pr.order} via Vacancy. Reduce ${pr.targetKey} vacancy from ${targetOldVac} to ${cap - currentCounts[pr.targetKey]}. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.` : `Awarded Pref #${pr.order} (Displaced Junior Pilot). Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
-                } else {
-                    p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
-                    p.moved = false;
-                }
-                
-                p.currentKey = pr.targetKey;
-                p.awardedPrefNum = pr.order;
-                awarded = true;
-                break;
+            if (!pr.targetKey) {
+                p.bidLog.push(`<div class="log-fail">Pref #${pr.order}: Invalid Bid String (${pr.bid})</div>`);
+                continue;
             }
+            let cap = targetMap[pr.targetKey] || 0;
+            let seniorOccupancy = bidders.filter(other => other.sen < p.sen && other.currentKey === pr.targetKey).length;
+            let rank = seniorOccupancy + 1;
+
+            if (seniorOccupancy >= cap) {
+                p.bidLog.push(`<div class="log-fail">Pref #${pr.order} (${pr.targetKey}): Denied (Base Full)</div>`);
+                continue;
+            }
+            if (rank > pr.bpl) {
+                p.bidLog.push(`<div class="log-fail">Pref #${pr.order} (${pr.targetKey}): Denied (BPL Rank ${rank} > Limit ${pr.bpl})</div>`);
+                continue;
+            }
+
+            // SUCCESS
+            let targetOldVac = cap - (currentCounts[pr.targetKey] || 0);
+            let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
+            
+            if (p.orig !== pr.targetKey) {
+                currentCounts[p.orig]--;
+                currentCounts[pr.targetKey] = (currentCounts[pr.targetKey] || 0) + 1;
+                p.moved = true;
+                p.awardedReason = targetOldVac > 0 ? `Awarded via Vacancy. ${pr.targetKey} Vacancy ${targetOldVac} → ${cap - currentCounts[pr.targetKey]}.` : `Awarded via Junior Displacement.`;
+            } else {
+                p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
+                p.moved = false;
+            }
+            
+            p.currentKey = pr.targetKey;
+            p.awardedPrefNum = pr.order;
+            p.bidLog.push(`<div class="log-success">Pref #${pr.order} (${pr.targetKey}): Awarded</div>`);
+            awarded = true;
+            break;
         }
 
-        // Step B: Seniority Hold
+        // Step B: Seniority Hold Eval
         if (!awarded) {
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
+            let rank = seniorsInMyBase + 1;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             let bplLimit = selfBid ? selfBid.bpl : 9999;
 
-            if (seniorsInMyBase < (targetMap[p.orig] || 0) && (seniorsInMyBase + 1) <= bplLimit) {
+            if (seniorsInMyBase < (targetMap[p.orig] || 0) && rank <= bplLimit) {
                 p.currentKey = p.orig;
                 p.awardedReason = `Held Position (Seniority). Vacancy remains at ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
+                p.bidLog.push(`<div class="log-success">Static Hold (${p.orig}): Awarded</div>`);
                 p.moved = false;
                 awarded = true;
+            } else {
+                p.bidLog.push(`<div class="log-fail">Static Hold (${p.orig}): Denied (Rank ${rank} Exceeds Capacity/BPL)</div>`);
             }
         }
 
-        // Step C: Section 24 Secondary Displacement
+        // Step C: Section 24 Eval
         if (!awarded) {
             const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
             for (const targetKey of cascadeOptions) {
@@ -199,39 +209,41 @@ function runBidEngine(data, deltaMap) {
                     currentCounts[p.orig]--;
                     currentCounts[targetKey]++;
                     p.currentKey = targetKey;
-                    p.awardedReason = `Section 24: Awarded ${targetKey} (Vacancy).`;
+                    p.awardedReason = `Section 24 Displacement: Awarded ${targetKey}.`;
+                    p.bidLog.push(`<div class="log-success">Section 24 (${targetKey}): Awarded</div>`);
                     p.moved = true;
                     awarded = true;
                     break;
+                } else {
+                    p.bidLog.push(`<div class="log-fail">Section 24 (${targetKey}): Denied (Full)</div>`);
                 }
             }
         }
 
-        // Step D: Pool
+        // Step D: Pool Eval
         if (!awarded) {
             let origOldVac = (targetMap[p.orig] || 0) - currentCounts[p.orig];
             currentCounts[p.orig]--; 
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
             p.moved = true;
-            
             let seniorsInMyBase = bidders.filter(other => other.sen < p.sen && other.currentKey === p.orig).length;
             const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
             p.wasSelfDisplaced = selfBid && (seniorsInMyBase + 1) > selfBid.bpl;
-            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction. Increase ${p.orig} vacancy from ${origOldVac} to ${(targetMap[p.orig] || 0) - currentCounts[p.orig]}.`;
+            p.awardedReason = p.wasSelfDisplaced ? `BPL Failure (Rank ${seniorsInMyBase + 1} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
+            p.bidLog.push(`<div class="log-fail">Final Action: Displaced to Pool</div>`);
         }
     });
 
     return { roster: bidders, targetMap };
 }
 
-// Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
-    const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    // Strip HTML from log for CSV
+    const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/<[^>]*>/g, '').replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
+    link.setAttribute("href", URL.createObjectURL(blob));
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
@@ -264,10 +276,10 @@ document.getElementById('runBtn').onclick = () => {
 function renderDashboards(roster) {
     let unassignedHtml = '', moverHtml = '', selfDispHtml = '';
     roster.forEach(p => {
-        const item = `<div class="${p.isUnassigned ? 'unassigned-item' : (p.wasSelfDisplaced ? 'self-disp-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
+        const item = `<div>#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
         if (p.isUnassigned) unassignedHtml += item;
         if (p.wasSelfDisplaced) selfDispHtml += item;
-        if (p.moved && !p.isUnassigned) moverHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
+        if (p.moved && !p.isUnassigned) moverHtml += `<div>#${p.sen} ${p.name} from ${p.orig}</div>`;
     });
     document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
     document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
@@ -283,16 +295,27 @@ function renderTable(roster, targetMap) {
         
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong><br>${tags}</td><td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td><td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td><td>${p.awardedReason}</td><td>${p.orig.replace('-',' ')}</td></tr>`;
+        
+        return `<tr>
+            <td>${p.sen}</td>
+            <td><strong>${p.name}</strong><br>${tags}</td>
+            <td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td>
+            <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td>
+            <td>
+                <strong>${p.awardedReason}</strong>
+                <div class="bid-log">${p.bidLog.join('')}</div>
+            </td>
+            <td>${p.orig.replace('-',' ')}</td>
+        </tr>`;
     }).join('');
 }
 
 document.getElementById('expMaster').onclick = () => {
-    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
+    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path Summary", "Full Evaluation Log", "Original Position"];
     const rows = lastResults.map(p => {
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        return [p.sen, p.name, p.currentKey, finalRank, p.awardedReason, p.orig];
+        return [p.sen, p.name, p.currentKey, finalRank, p.awardedReason, p.bidLog.join(' | '), p.orig];
     });
     exportToCSV("master_awards.csv", [headers, ...rows]);
 };
