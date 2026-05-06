@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - BPL Strict Detail</title>
+    <title>737 Master Bid Control - Happy Movers</title>
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -19,7 +19,7 @@
         .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
         .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         .self-disp-item { background: #2a1212; border-left: 4px solid var(--red); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        .mover-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
@@ -42,7 +42,7 @@
 
     <div class="dash-container">
         <div class="dash-box"><h4 class="dash-title" style="color:var(--red)">🛑 Self-Displaced (BPL Fail)</h4><div id="selfDispList">Ready...</div></div>
-        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">⚠️ Forced Displacements</h4><div id="displacedList">Ready...</div></div>
+        <div class="dash-box"><h4 class="dash-title" style="color:var(--yellow)">🚚 Successful Movers</h4><div id="moversList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--purple)">🆘 Pool: At Mercy</h4><div id="unassignedList">Ready...</div></div>
         <div class="dash-box"><h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4><div id="statusBox" style="font-size: 0.75rem;">Idle.</div></div>
     </div>
@@ -101,11 +101,8 @@ function runBidEngine(data, deltaMap) {
 
             const selfBidWithBpl = (prefData.preferences || []).find(pr => getTargetKey(pr.bid) === pilotOrig && (pr.bpl || pr.bpl_min));
             return {
-                ...p,
-                orig: pilotOrig,
-                currentKey: "UNASSIGNED",
-                awardAudit: [],
-                wantsToStay: (prefData.preferences.length === 0) || (getTargetKey(prefData.preferences[0].bid) === pilotOrig && !selfBidWithBpl),
+                ...p, orig: pilotOrig, currentKey: "UNASSIGNED", awardAudit: [],
+                isHappyMover: false, // Tag for successful bidders who moved
                 bplRestrictionOnOwnSeat: !!selfBidWithBpl,
                 prefs: (prefData.preferences || []).map(pr => ({
                     ...pr, targetKey: getTargetKey(pr.bid),
@@ -130,6 +127,7 @@ function runBidEngine(data, deltaMap) {
                 currentCounts[pr.targetKey]++;
                 p.awardAudit.push({ status: 'awarded', msg: `Pref #${pr.order} (${pr.targetKey}): Awarded (Pass ${rankInBase} / ${cap})` });
                 awarded = true;
+                if (p.currentKey !== p.orig) p.isHappyMover = true; // SUCCESSFUL MOVER
                 break;
             }
         }
@@ -139,10 +137,10 @@ function runBidEngine(data, deltaMap) {
             let cap = targetMap[targetKey] || 0;
             if (currentCounts[targetKey] < cap) {
                 currentCounts[targetKey]++;
-                let rank = currentCounts[targetKey];
                 p.currentKey = targetKey;
-                p.awardAudit.push({ status: 'awarded', msg: `Seniority Hold (${targetKey}): Success (Pass ${rank} / ${cap})` });
+                p.awardAudit.push({ status: 'awarded', msg: `Seniority Hold (${targetKey}): Success (Pass ${currentCounts[targetKey]} / ${cap})` });
                 awarded = true;
+                p.isHappyMover = false; // Stayed in seat
             } else {
                 p.awardAudit.push({ status: 'denied', msg: `Seniority Hold (${targetKey}): Denied (Base Full)` });
             }
@@ -151,8 +149,8 @@ function runBidEngine(data, deltaMap) {
         if (!awarded) {
             p.currentKey = "UNASSIGNED";
             p.isUnassigned = true;
+            p.isHappyMover = false; // Pool is NOT a happy move
             p.wasSelfDisplaced = p.bplRestrictionOnOwnSeat;
-            p.isDisplaced = p.wantsToStay && !p.wasSelfDisplaced;
             p.awardAudit.push({ status: 'denied', msg: `POOL: ${p.wasSelfDisplaced ? 'Self-Displaced via BPL' : 'Juniority Displacement'}` });
         }
     });
@@ -182,15 +180,15 @@ document.getElementById('runBtn').onclick = () => {
 };
 
 function renderDashboards(roster) {
-    let unHtml = ''; let sDHtml = ''; let fDHtml = '';
+    let unHtml = ''; let sDHtml = ''; let mHtml = '';
     roster.forEach(p => {
-        const item = `<div>#${p.sen} ${p.name}</div>`;
+        const item = `<div>#${p.sen} ${p.name} (${p.orig} ➔ ${p.currentKey.replace('-', ' ')})</div>`;
         if (p.wasSelfDisplaced) sDHtml += `<div class="self-disp-item">${item}</div>`;
-        else if (p.isDisplaced) fDHtml += `<div class="disp-item">${item}</div>`;
+        if (p.isHappyMover) mHtml += `<div class="mover-item">${item}</div>`;
         if (p.isUnassigned) unHtml += `<div class="unassigned-item">${item}</div>`;
     });
     document.getElementById('selfDispList').innerHTML = sDHtml || "None.";
-    document.getElementById('displacedList').innerHTML = fDHtml || "None.";
+    document.getElementById('moversList').innerHTML = mHtml || "None.";
     document.getElementById('unassignedList').innerHTML = unHtml || "None.";
 }
 
@@ -199,7 +197,7 @@ function renderTable(roster, targetMap) {
         const auditHtml = p.awardAudit.map(step => `<span class="audit-step ${step.status}">${step.msg}</span>`).join('');
         let tags = '';
         if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        if (p.isDisplaced) tags += '<span class="tag tag-yellow">DISPLACED</span>';
+        if (p.isHappyMover) tags += '<span class="tag tag-yellow">MOVED</span>';
         if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">POOL</span>';
 
         let finalRank = 1;
@@ -210,7 +208,7 @@ function renderTable(roster, targetMap) {
             <tr>
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
-                <td>${p.currentKey.replace('-', ' ')}</td>
+                <td style="color:${p.isHappyMover?'#3fb950':''}">${p.currentKey.replace('-', ' ')}</td>
                 <td><span class="rank-badge">${p.isUnassigned ? "-" : finalRank + " / " + limit}</span></td>
                 <td style="min-width:300px;">${auditHtml}</td>
                 <td>${p.orig.replace('-',' ')}</td>
