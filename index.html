@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="engine.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>737 Master Bid Control - True Top-Down Displacement</title>
+    
+    <script src="engine.js"></script>
+    
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
@@ -82,6 +84,11 @@
     </table>
 </div>
 
+<script>
+let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
+let lastResults = [];
+let lastTargetMap = {};
+
 // Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
     const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -116,6 +123,7 @@ document.getElementById('runBtn').onclick = () => {
     lastTargetMap = result.targetMap;
     renderTable(lastResults, lastTargetMap);
     renderDashboards(lastResults);
+    document.getElementById('statusBox').innerHTML = `Run complete. Evaluated ${lastResults.length} active bidders. System ran ${result.loops} cascade loops to resolve seniority.`;
 };
 
 function renderDashboards(roster) {
