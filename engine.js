@@ -240,22 +240,27 @@ function runBidEngine(data, deltaMap) {
 
                     const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
 
-                    if (rank <= cap && vacancyOk) {
+                 if (rank <= cap && vacancyOk) {
                         newSeat = targetKey;
                         awarded = true;
-                        const src = consumeSlot(targetKey);
-                        log = {
-                            step: 'C',
-                            fromKey: p.currentKey,
-                            toKey: targetKey,
-                            vacFromBefore: getVac(p.currentKey),
-                            vacToBefore: getVac(targetKey),
-                            source: src
-                        };
-                        break;
+                        
+                        // ── THE FIX: Only consume a slot and write a new log if actually moving in ──
+                        if (isMovingIn) {
+                            const src = consumeSlot(targetKey);
+                            log = {
+                                step: 'C',
+                                fromKey: p.currentKey,
+                                toKey: targetKey,
+                                vacFromBefore: getVac(p.currentKey),
+                                vacToBefore: getVac(targetKey),
+                                source: src
+                            };
+                        } else {
+                            // Preserve the log if they already moved here in an earlier loop
+                            log = p.moveLog;
+                        }
+                        break; 
                     }
-                }
-            }
 
             // ── STEP D: Pool (Unassigned) ─────────────────────────────────────
             if (!awarded) {
