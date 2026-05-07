@@ -82,14 +82,6 @@
     </table>
 </div>
 
-<script>
-let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
-let lastResults = [];
-let lastTargetMap = {};
-
-    return { roster: bidders, targetMap };
-}
-
 // Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
     const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
