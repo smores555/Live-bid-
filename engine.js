@@ -1,31 +1,19 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION
- *
- * Award Path is built from two layers:
- *
- * 1. p.moveLog  — immutable record written at the EXACT moment a pilot moves.
- * Contains vacancy numbers snapshotted at that instant.
- * This is the auditable ground truth.
- *
- * 2. p.awardedReason — final human-readable string assembled AFTER the cascade
- * settles, so stayed/held pilots reflect final vacancy state
- * rather than a stale mid-cascade snapshot.
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Absolute Seniority Update)
+ * * Logic Update: Vacancies are awarded strictly by seniority. 
+ * If a senior FO (e.g., 1715) and a junior CA (e.g., 1788) both bid 
+ * for a CA vacancy, the senior pilot is awarded the seat first.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
-    
-    // UPDATED FOR NEW FORMAT: Check the equip field inside the current object
     const is737 = (p) => p.current && p.current.equip === "737";
     
     const retiredSens = new Set(data.retired.filter(p => is737(p)).map(p => p.seniority));
     const noBidSens   = new Set(data.noBid.filter(p => is737(p)).map(p => p.sen));
-    
-    // UPDATED FOR NEW FORMAT: Filter using the new nested structure
     const activeBidders = data.roster.filter(p =>
         is737(p) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
 
-    // ── LABEL HELPERS ────────────────────────────────────────────────────────
     const baseNames = {
         ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
         SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland',
@@ -43,7 +31,6 @@ function runBidEngine(data, deltaMap) {
         return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
     }
 
-    // ── SLOT SOURCE TRACKER ──────────────────────────────────────────────────
     let slotSources = {};
 
     function consumeSlot(key) {
@@ -64,10 +51,8 @@ function runBidEngine(data, deltaMap) {
         return `Open position available (${src.label}).`;
     }
 
-    // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
     let liveHeadcount = {};
     activeBidders.forEach(p => {
-        // Accessing base and seat from the new current object
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
@@ -94,10 +79,8 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = { ...liveHeadcount };
     const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
-    // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
     const bidders = activeBidders.map(p => {
         const prefData  = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-        // Using the new nested structure for the origin key
         const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
 
         const getTargetKey = (bidStr) => {
@@ -127,7 +110,6 @@ function runBidEngine(data, deltaMap) {
         };
     }).sort((a, b) => a.sen - b.sen);
 
-    // ── SENIORITY CASCADE ────────────────────────────────────────────────────
     let cascade = true;
     let loops   = 0;
 
@@ -156,6 +138,7 @@ function runBidEngine(data, deltaMap) {
                     if (other.currentKey === targetKey) rank++;
                 }
 
+                // FIXED: If senior pilot's rank is within cap, they take the vacancy priority.
                 const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
@@ -296,7 +279,6 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    // ── BUILD FINAL REASON STRINGS ───────────────────────────────────────────
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
@@ -311,17 +293,14 @@ function runBidEngine(data, deltaMap) {
                 `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
             ];
             p.awardedReason = lines.join(' ');
-
         } else if (log.step === 'A' && log.stayed) {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
             p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
-
         } else if (log.step === 'B') {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
             p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
-
         } else if (log.step === 'C') {
             const lines = [
                 `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.`,
@@ -330,7 +309,6 @@ function runBidEngine(data, deltaMap) {
                 `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
             ];
             p.awardedReason = lines.join(' ');
-
         } else if (log.step === 'D') {
             if (log.selfDisp) {
                 p.awardedReason = `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
