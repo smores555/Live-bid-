@@ -155,7 +155,7 @@ function runBidEngine(data, deltaMap) {
             let selfDisp = false;
             const [origBase, origStatus] = p.orig.split('-');
 
-            // ── STEP A: Primary Preference Bids ──────────────────────────────
+          // ── STEP A: Primary Preference Bids ──────────────────────────────
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
                 const targetKey  = pr.targetKey;
@@ -187,16 +187,18 @@ function runBidEngine(data, deltaMap) {
                             source: src
                         };
                     } else {
-                        // ── NEW LOGIC: Check if they moved here during an earlier cascade loop ──
+                        // ── THE FIX: Check if they moved here during an earlier loop ──
                         if (p.orig === targetKey) {
                             // They truly stayed in their original seat
                             log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
                         } else {
-                            // They moved here earlier in the cascade. Preserve the original detailed log!
+                            // They moved here earlier in the cascade. Preserve the detailed log!
                             log = p.moveLog; 
                         }
                     }
-
+                    break; // <-- THIS BREAK IS CRITICAL! It stops the loop from overwriting the log.
+                }
+            }
             // ── STEP B: Seniority Hold ────────────────────────────────────────
             if (!awarded) {
                 const cap = targetMap[p.orig] || 0;
