@@ -261,7 +261,6 @@ function runBidEngine(data, deltaMap) {
                         }
                         break; 
                     }
-                }
 
             // ── STEP D: Pool (Unassigned) ─────────────────────────────────────
             if (!awarded) {
@@ -316,7 +315,6 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    }
     // ── BUILD FINAL REASON STRINGS ───────────────────────────────────────────
     // Now that the cascade is fully settled, write awardedReason for every pilot.
     // Movers use the immutable snapshot from moveLog (captured at move-moment).
