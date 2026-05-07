@@ -144,7 +144,7 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-            // Step D: Pool (Unassigned)
+           // Step D: Pool (Unassigned)
             if (!awarded) {
                 newSeat = "UNASSIGNED";
                 let rank = 1;
@@ -157,27 +157,34 @@ function runBidEngine(data, deltaMap) {
                 reason = selfDisp ? `BPL Failure (Rank ${rank} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
             }
 
-            // If the best valid seat for this pilot is different from where they currently sit in the loop, execute the move.
+            // --- THE FIX IS HERE ---
+            // Update the string reason and basic states NO MATTER WHAT
+            p.awardedReason = reason;
+            p.awardedPrefNum = prefNum;
+            p.wasSelfDisplaced = selfDisp;
+
+            // If the best valid seat for this pilot is different from where they currently sit in the loop, execute the physical move.
             if (newSeat !== p.currentKey) {
                 // Adjust global seat counts
                 if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
                 if (newSeat !== "UNASSIGNED") currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
 
-                // Update Pilot State
+                // Update physical location states
                 p.currentKey = newSeat;
-                p.awardedReason = reason;
-                p.awardedPrefNum = prefNum;
                 p.moved = (newSeat !== p.orig);
                 p.isUnassigned = (newSeat === "UNASSIGNED");
-                p.wasSelfDisplaced = selfDisp;
 
                 auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, reason: reason });
 
                 // CRITICAL: Restart the process from Pilot #1 because a pilot moved
                 cascade = true; 
                 break;
+            } else {
+                // If they didn't move during this loop, ensure these flags are accurate
+                p.moved = (p.currentKey !== p.orig); 
+                p.isUnassigned = (p.currentKey === "UNASSIGNED");
             }
-        }
+        } // <-- End of the bidder loop
         
         if (loops > 10000) break; // Safety breaker for infinite loops
     }
