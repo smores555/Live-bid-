@@ -187,12 +187,15 @@ function runBidEngine(data, deltaMap) {
                             source: src
                         };
                     } else {
-                        // Stayed in place — log toKey only, vacancy snapshotted after cascade
-                        log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
+                        // ── NEW LOGIC: Check if they moved here during an earlier cascade loop ──
+                        if (p.orig === targetKey) {
+                            // They truly stayed in their original seat
+                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
+                        } else {
+                            // They moved here earlier in the cascade. Preserve the original detailed log!
+                            log = p.moveLog; 
+                        }
                     }
-                    break;
-                }
-            }
 
             // ── STEP B: Seniority Hold ────────────────────────────────────────
             if (!awarded) {
