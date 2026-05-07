@@ -1,12 +1,12 @@
 /**
- * AIRLINE BID ENGINE - CASCADE EDITION (Merged with Fallback Logic)
- * 
- * Features:
+ * AIRLINE BID ENGINE - STRICT CAP EDITION
+ * * Features:
  * 1. Restarts from Seniority #1 on any move (True Cascade).
- * 2. Step A: Primary Bids & BPL.
- * 3. Step B: Seniority Hold.
- * 4. Step C: Section 24 Secondary Displacement.
- * 5. Step D: Unassigned Pool & Self-Displacement tracking.
+ * 2. STRICT CAP: Base capacity is an absolute hard limit.
+ * 3. Step A: Primary Bids & BPL.
+ * 4. Step B: Seniority Hold.
+ * 5. Step C: Section 24 Secondary Displacement.
+ * 6. Step D: Unassigned Pool & Self-Displacement tracking.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -92,27 +92,25 @@ function runBidEngine(data, deltaMap) {
                 let targetKey = pr.targetKey;
                 let cap = targetMap[targetKey] || 0;
 
-                // Calculate Rank (only counting pilots senior to p currently in this seat)
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                if (rank <= pr.bpl) {
-                    // Check physical capacity. (If they already hold this seat in the loop, they don't need a new vacancy)
-                    if (p.currentKey === targetKey || (currentCounts[targetKey] || 0) < cap) {
-                        newSeat = targetKey;
-                        reason = (p.orig !== targetKey) ? `Awarded Pref #${pr.order} via Vacancy.` : `Awarded Preference #${pr.order}. Remained in current position.`;
-                        prefNum = pr.order;
-                        awarded = true;
-                        break;
-                    }
+                // STRICT CHECK: Rank must be <= BPL AND Rank must be <= Target Capacity
+                if (rank <= pr.bpl && rank <= cap) {
+                    newSeat = targetKey;
+                    reason = (p.orig !== targetKey) ? `Awarded Pref #${pr.order} via Vacancy.` : `Awarded Preference #${pr.order}. Remained in current position.`;
+                    prefNum = pr.order;
+                    awarded = true;
+                    break;
                 }
             }
 
             // Step B: Seniority Hold
             if (!awarded) {
+                let cap = targetMap[p.orig] || 0;
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
@@ -121,7 +119,8 @@ function runBidEngine(data, deltaMap) {
                 const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
                 let bplLimit = selfBid ? selfBid.bpl : 9999;
 
-                if (rank <= bplLimit && (p.currentKey === p.orig || (currentCounts[p.orig] || 0) < (targetMap[p.orig] || 0))) {
+                // STRICT CHECK: Cannot hold base if rank exceeds base capacity
+                if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
                     reason = `Held Position (Seniority).`;
                     awarded = true;
@@ -131,11 +130,19 @@ function runBidEngine(data, deltaMap) {
             // Step C: Section 24 Secondary Displacement
             if (!awarded) {
                 const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
+                
                 for (const targetKey of cascadeOptions) {
                     if (targetMap[targetKey] === undefined) continue;
                     let cap = targetMap[targetKey] || 0;
                     
-                    if (p.currentKey === targetKey || (currentCounts[targetKey] || 0) < cap) {
+                    let rank = 1;
+                    for (const other of bidders) {
+                        if (other.sen >= p.sen) break;
+                        if (other.currentKey === targetKey) rank++;
+                    }
+
+                    // STRICT CHECK: Target capacity
+                    if (rank <= cap) {
                         newSeat = targetKey;
                         reason = `Section 24: Awarded ${targetKey} (Vacancy).`;
                         awarded = true;
@@ -144,7 +151,7 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-           // Step D: Pool (Unassigned)
+            // Step D: Pool (Unassigned)
             if (!awarded) {
                 newSeat = "UNASSIGNED";
                 let rank = 1;
@@ -157,19 +164,15 @@ function runBidEngine(data, deltaMap) {
                 reason = selfDisp ? `BPL Failure (Rank ${rank} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
             }
 
-            // --- THE FIX IS HERE ---
-            // Update the string reason and basic states NO MATTER WHAT
+            // --- STATE UPDATE ---
             p.awardedReason = reason;
             p.awardedPrefNum = prefNum;
             p.wasSelfDisplaced = selfDisp;
 
-            // If the best valid seat for this pilot is different from where they currently sit in the loop, execute the physical move.
             if (newSeat !== p.currentKey) {
-                // Adjust global seat counts
                 if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
                 if (newSeat !== "UNASSIGNED") currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
 
-                // Update physical location states
                 p.currentKey = newSeat;
                 p.moved = (newSeat !== p.orig);
                 p.isUnassigned = (newSeat === "UNASSIGNED");
@@ -180,11 +183,10 @@ function runBidEngine(data, deltaMap) {
                 cascade = true; 
                 break;
             } else {
-                // If they didn't move during this loop, ensure these flags are accurate
                 p.moved = (p.currentKey !== p.orig); 
                 p.isUnassigned = (p.currentKey === "UNASSIGNED");
             }
-        } // <-- End of the bidder loop
+        }
         
         if (loops > 10000) break; // Safety breaker for infinite loops
     }
