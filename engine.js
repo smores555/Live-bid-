@@ -1,12 +1,9 @@
 /**
- * AIRLINE BID ENGINE - STRICT CAP EDITION
+ * AIRLINE BID ENGINE - STRICT CAP + DETAILED TRACKER EDITION
  * * Features:
  * 1. Restarts from Seniority #1 on any move (True Cascade).
  * 2. STRICT CAP: Base capacity is an absolute hard limit.
- * 3. Step A: Primary Bids & BPL.
- * 4. Step B: Seniority Hold.
- * 5. Step C: Section 24 Secondary Displacement.
- * 6. Step D: Unassigned Pool & Self-Displacement tracking.
+ * 3. TRACKER: Explicitly logs vacancy increases/decreases during moves.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -86,6 +83,9 @@ function runBidEngine(data, deltaMap) {
             let selfDisp = false;
             const [origBase, origStatus] = p.orig.split('-');
 
+            // Helper to calculate current vacancy for any base
+            const getVac = (baseKey) => (targetMap[baseKey] || 0) - (currentCounts[baseKey] || 0);
+
             // Step A: Primary Preference Bids
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
@@ -101,7 +101,15 @@ function runBidEngine(data, deltaMap) {
                 // STRICT CHECK: Rank must be <= BPL AND Rank must be <= Target Capacity
                 if (rank <= pr.bpl && rank <= cap) {
                     newSeat = targetKey;
-                    reason = (p.orig !== targetKey) ? `Awarded Pref #${pr.order} via Vacancy.` : `Awarded Preference #${pr.order}. Remained in current position.`;
+                    
+                    if (p.currentKey !== targetKey) {
+                        let tgtVac = getVac(targetKey);
+                        let curVac = getVac(p.currentKey);
+                        reason = `Awarded Pref #${pr.order}. Reduce ${targetKey} vacancy ${tgtVac} -> ${tgtVac - 1}. Increase ${p.currentKey} vacancy ${curVac} -> ${curVac + 1}.`;
+                    } else {
+                        reason = `Awarded Preference #${pr.order}. Remained in current position. ${getVac(p.currentKey)} vacancies available.`;
+                    }
+                    
                     prefNum = pr.order;
                     awarded = true;
                     break;
@@ -122,7 +130,7 @@ function runBidEngine(data, deltaMap) {
                 // STRICT CHECK: Cannot hold base if rank exceeds base capacity
                 if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
-                    reason = `Held Position (Seniority).`;
+                    reason = `Held Position (Seniority). ${getVac(p.orig)} vacancies available.`;
                     awarded = true;
                 }
             }
@@ -144,7 +152,9 @@ function runBidEngine(data, deltaMap) {
                     // STRICT CHECK: Target capacity
                     if (rank <= cap) {
                         newSeat = targetKey;
-                        reason = `Section 24: Awarded ${targetKey} (Vacancy).`;
+                        let tgtVac = getVac(targetKey);
+                        let curVac = getVac(p.currentKey);
+                        reason = `Section 24: Awarded ${targetKey}. Reduce ${targetKey} vacancy ${tgtVac} -> ${tgtVac - 1}. Increase ${p.currentKey} vacancy ${curVac} -> ${curVac + 1}.`;
                         awarded = true;
                         break;
                     }
@@ -161,7 +171,10 @@ function runBidEngine(data, deltaMap) {
                 }
                 const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
                 selfDisp = selfBid && rank > selfBid.bpl;
-                reason = selfDisp ? `BPL Failure (Rank ${rank} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
+                
+                let curVac = getVac(p.currentKey);
+                let baseText = `Increase ${p.currentKey} vacancy ${curVac} -> ${curVac + 1}.`;
+                reason = selfDisp ? `BPL Failure (Rank ${rank} > Limit ${selfBid.bpl}). ${baseText}` : `Displaced: System-wide Reduction. ${baseText}`;
             }
 
             // --- STATE UPDATE ---
@@ -170,6 +183,7 @@ function runBidEngine(data, deltaMap) {
             p.wasSelfDisplaced = selfDisp;
 
             if (newSeat !== p.currentKey) {
+                // Execute math adjustment to global counts
                 if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
                 if (newSeat !== "UNASSIGNED") currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
 
