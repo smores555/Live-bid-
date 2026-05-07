@@ -19,16 +19,19 @@ function runBidEngine(data, deltaMap) {
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
-    // 2. Align Target Map strictly to Live Headcount + Delta
+    // 2. Align Target Map & Initialize Vacancy Tracker
     let targetMap = {};
+    let vacMap = {}; 
     Object.keys(liveHeadcount).forEach(key => {
         const delta = deltaMap[key] || 0;
         targetMap[key] = liveHeadcount[key] + delta;
+        vacMap[key] = delta; // Vacancy starts exactly at the input Delta (e.g., +50 or -17)
     });
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         if (targetMap[key] === undefined) {
             targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+            vacMap[key] = targetMap[key]; 
         }
     });
 
@@ -78,13 +81,11 @@ function runBidEngine(data, deltaMap) {
             const p = bidders[i];
             let awarded = false;
             let newSeat = null;
-            let reason = "";
             let prefNum = "N/A";
+            let method = "";
             let selfDisp = false;
+            let moveRank = 1;
             const [origBase, origStatus] = p.orig.split('-');
-
-            // Helper to calculate current vacancy for any base
-            const getVac = (baseKey) => (targetMap[baseKey] || 0) - (currentCounts[baseKey] || 0);
 
             // Step A: Primary Preference Bids
             for (const pr of p.prefs) {
@@ -98,19 +99,10 @@ function runBidEngine(data, deltaMap) {
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                // STRICT CHECK: Rank must be <= BPL AND Rank must be <= Target Capacity
                 if (rank <= pr.bpl && rank <= cap) {
                     newSeat = targetKey;
-                    
-                    if (p.currentKey !== targetKey) {
-                        let tgtVac = getVac(targetKey);
-                        let curVac = getVac(p.currentKey);
-                        reason = `Awarded Pref #${pr.order}. Reduce ${targetKey} vacancy ${tgtVac} -> ${tgtVac - 1}. Increase ${p.currentKey} vacancy ${curVac} -> ${curVac + 1}.`;
-                    } else {
-                        reason = `Awarded Preference #${pr.order}. Remained in current position. ${getVac(p.currentKey)} vacancies available.`;
-                    }
-                    
                     prefNum = pr.order;
+                    method = `Pref #${pr.order}`;
                     awarded = true;
                     break;
                 }
@@ -127,10 +119,9 @@ function runBidEngine(data, deltaMap) {
                 const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
                 let bplLimit = selfBid ? selfBid.bpl : 9999;
 
-                // STRICT CHECK: Cannot hold base if rank exceeds base capacity
                 if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
-                    reason = `Held Position (Seniority). ${getVac(p.orig)} vacancies available.`;
+                    method = `Hold`;
                     awarded = true;
                 }
             }
@@ -149,12 +140,9 @@ function runBidEngine(data, deltaMap) {
                         if (other.currentKey === targetKey) rank++;
                     }
 
-                    // STRICT CHECK: Target capacity
                     if (rank <= cap) {
                         newSeat = targetKey;
-                        let tgtVac = getVac(targetKey);
-                        let curVac = getVac(p.currentKey);
-                        reason = `Section 24: Awarded ${targetKey}. Reduce ${targetKey} vacancy ${tgtVac} -> ${tgtVac - 1}. Increase ${p.currentKey} vacancy ${curVac} -> ${curVac + 1}.`;
+                        method = `Section 24`;
                         awarded = true;
                         break;
                     }
@@ -171,39 +159,71 @@ function runBidEngine(data, deltaMap) {
                 }
                 const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
                 selfDisp = selfBid && rank > selfBid.bpl;
-                
-                let curVac = getVac(p.currentKey);
-                let baseText = `Increase ${p.currentKey} vacancy ${curVac} -> ${curVac + 1}.`;
-                reason = selfDisp ? `BPL Failure (Rank ${rank} > Limit ${selfBid.bpl}). ${baseText}` : `Displaced: System-wide Reduction. ${baseText}`;
+                method = selfDisp ? `BPL Failure` : `Displaced`;
+                moveRank = rank;
             }
 
-            // --- STATE UPDATE ---
-            p.awardedReason = reason;
-            p.awardedPrefNum = prefNum;
-            p.wasSelfDisplaced = selfDisp;
-
+            // --- STATE UPDATE & MATH TRACKER ---
+            // We ONLY generate a new string if they physically change seats in this loop
             if (newSeat !== p.currentKey) {
-                // Execute math adjustment to global counts
-                if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
-                if (newSeat !== "UNASSIGNED") currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
+                let oldVac = p.currentKey !== "UNASSIGNED" ? vacMap[p.currentKey] : 0;
+                let newVac = newSeat !== "UNASSIGNED" ? vacMap[newSeat] : 0;
 
+                // Adjust the live mathematical counts
+                if (p.currentKey !== "UNASSIGNED") {
+                    currentCounts[p.currentKey]--;
+                    vacMap[p.currentKey]++;
+                }
+                if (newSeat !== "UNASSIGNED") {
+                    currentCounts[newSeat]++;
+                    vacMap[newSeat]--;
+                }
+
+                // Construct the highly specific Transition String
+                let reasonStr = "";
+                if (newSeat === "UNASSIGNED") {
+                    let selfLog = selfDisp ? `(Rank ${moveRank} > Limit)` : ``;
+                    reasonStr = `${method} ${selfLog}. Increase ${p.currentKey} vacancy ${oldVac} -> ${vacMap[p.currentKey]}.`;
+                } else if (p.currentKey === "UNASSIGNED") {
+                    reasonStr = `Awarded ${method}. Reduce ${newSeat} vacancy ${newVac} -> ${vacMap[newSeat]}.`;
+                } else {
+                    reasonStr = `Awarded ${method}. Reduce ${newSeat} vacancy ${newVac} -> ${vacMap[newSeat]}. Increase ${p.currentKey} vacancy ${oldVac} -> ${vacMap[p.currentKey]}.`;
+                }
+
+                // Apply changes
                 p.currentKey = newSeat;
+                p.awardedReason = reasonStr; // Locks in the string!
+                p.awardedPrefNum = prefNum;
                 p.moved = (newSeat !== p.orig);
                 p.isUnassigned = (newSeat === "UNASSIGNED");
+                p.wasSelfDisplaced = selfDisp;
 
-                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, reason: reason });
+                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, reason: reasonStr });
 
                 // CRITICAL: Restart the process from Pilot #1 because a pilot moved
                 cascade = true; 
                 break;
             } else {
-                p.moved = (p.currentKey !== p.orig); 
-                p.isUnassigned = (p.currentKey === "UNASSIGNED");
+                // If they stayed put, just keep their background flags updated quietly
+                p.awardedPrefNum = prefNum;
+                p.wasSelfDisplaced = selfDisp;
             }
         }
         
         if (loops > 10000) break; // Safety breaker for infinite loops
     }
+
+    // Post-Cascade Finalization for Non-Movers
+    // Prints the final static vacancy count for pilots who held their seats
+    bidders.forEach(p => {
+        if (!p.moved && !p.isUnassigned) {
+            if (p.awardedPrefNum !== "N/A") {
+                p.awardedReason = `Awarded Preference #${p.awardedPrefNum}. Remained in current position. ${vacMap[p.orig]} vacancies available.`;
+            } else {
+                p.awardedReason = `Held Position (Seniority). ${vacMap[p.orig]} vacancies available.`;
+            }
+        }
+    });
 
     return { roster: bidders, loops, auditTrail, targetMap };
 }
