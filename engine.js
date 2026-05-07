@@ -1,154 +1,186 @@
 /**
- * AIRLINE BID ENGINE - 737 ACTIVE-RANK EDITION
- * Updated for compatibility with Dashboard UI
+ * AIRLINE BID ENGINE - CASCADE EDITION (Merged with Fallback Logic)
+ * 
+ * Features:
+ * 1. Restarts from Seniority #1 on any move (True Cascade).
+ * 2. Step A: Primary Bids & BPL.
+ * 3. Step B: Seniority Hold.
+ * 4. Step C: Section 24 Secondary Displacement.
+ * 5. Step D: Unassigned Pool & Self-Displacement tracking.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
-    
-    // 1. Scrub the Data - Identify 737 only
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-
     const retiredSens = new Set(data.retired.filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBid737 = data.noBid.filter(p => is737(p.seat));
-    const noBidSens = new Set(noBid737.map(p => p.sen));
+    const noBidSens = new Set(data.noBid.filter(p => is737(p.seat)).map(p => p.sen));
+    const activeBidders = data.roster.filter(p => is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen));
 
-    // Map No-Bids for seat occupancy (they occupy seats but don't count toward BPL)
-    const noBidOccupancy = {};
-    noBid737.forEach(p => noBidOccupancy[p.sen] = `${p.base}-${p.seat}`.toUpperCase());
+    // 1. Calculate LIVE headcount
+    let liveHeadcount = {};
+    activeBidders.forEach(p => {
+        const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
+    });
 
-    // 2. Initialize Current Occupancy (Physical Seats)
-    let currentCounts = {};
-    data.caps.forEach(c => currentCounts[`${c.base}-${c.seat}`.toUpperCase()] = 0);
-
-    // Initial Seats for No-Bid pilots
-    for (let sen in noBidOccupancy) {
-        const key = noBidOccupancy[sen];
-        if (currentCounts[key] === undefined) currentCounts[key] = 0;
-        currentCounts[key]++;
-    }
-
-    // 3. Filter and Prepare Active Bidders
-    const rosterMap = new Map();
-    data.roster.forEach(p => {
-        if (!rosterMap.has(p.sen) && is737(p.current.seat)) {
-            rosterMap.set(p.sen, p);
+    // 2. Align Target Map strictly to Live Headcount + Delta
+    let targetMap = {};
+    Object.keys(liveHeadcount).forEach(key => {
+        const delta = deltaMap[key] || 0;
+        targetMap[key] = liveHeadcount[key] + delta;
+    });
+    data.caps.forEach(c => {
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        if (targetMap[key] === undefined) {
+            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
         }
     });
 
-    const bidders = Array.from(rosterMap.values())
-        .filter(p => !retiredSens.has(p.sen) && !noBidSens.has(p.sen))
-        .map(p => {
-            const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
-            if (currentCounts[key] === undefined) currentCounts[key] = 0;
-            currentCounts[key]++; // Occupy current seat initially
-            
-            const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-            
-            return {
-                ...p, 
-                currentKey: key, 
-                orig: key, 
-                moved: false,
-                isUnassigned: false,
-                awardedPrefNum: "N/A",
-                awardedReason: "Pending...",
-                prefHistory: {}, 
-                prefs: (prefData.preferences || []).sort((a, b) => a.order - b.order)
-            };
-        }).sort((a, b) => a.sen - b.sen);
+    // 3. Initialize "Desks Full" counts
+    let currentCounts = { ...liveHeadcount };
 
-    // 4. Set Hard Targets (Initial Count + Delta)
-    let targetMap = {};
-    for (let key in currentCounts) {
-        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
-    }
+    // 4. Map Bidders & Format Preferences
+    const bidders = activeBidders.map(p => {
+        const prefData = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+        const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        
+        const getTargetKey = (bidStr) => {
+            const parts = bidStr.trim().toUpperCase().split(/\s+/);
+            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'];
+            const seats = ['CA', 'FO'];
+            let b = parts.find(x => bases.includes(x));
+            let s = parts.find(x => seats.includes(x));
+            return (b && s) ? `${b}-${s}` : null;
+        };
+
+        return {
+            ...p, 
+            orig: pilotOrig, 
+            currentKey: pilotOrig, 
+            moved: false, 
+            isUnassigned: false, 
+            awardedPrefNum: "N/A", 
+            awardedReason: "Pending...", 
+            wasSelfDisplaced: false,
+            prefs: (prefData.preferences || []).map(pr => {
+                let limit = parseInt(pr.bpl || pr.bpl_min);
+                if (isNaN(limit) || limit === 0) limit = 9999; // BPL 0 = No Limit
+                return { ...pr, targetKey: getTargetKey(pr.bid), bpl: limit };
+            }).sort((a, b) => a.order - b.order)
+        };
+    }).sort((a, b) => a.sen - b.sen);
 
     let cascade = true;
     let loops = 0;
 
-    // 5. The Seniority Cascade
+    // 5. The Seniority Cascade with Fallbacks
     while (cascade) {
         cascade = false;
         loops++;
+        
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            
+            let awarded = false;
+            let newSeat = null;
+            let reason = "";
+            let prefNum = "N/A";
+            let selfDisp = false;
+            const [origBase, origStatus] = p.orig.split('-');
+
+            // Step A: Primary Preference Bids
             for (const pr of p.prefs) {
-                if (!pr.bid) continue;
-                const parts = pr.bid.trim().toUpperCase().split(/\s+/);
-                if (parts.length < 3) continue;
-                const targetKey = `${parts[1]}-${parts[2]}`;
-                
-                // --- RANK CALCULATION (ACTIVE BIDDERS ONLY) ---
+                if (!pr.targetKey) continue;
+                let targetKey = pr.targetKey;
+                let cap = targetMap[targetKey] || 0;
+
+                // Calculate Rank (only counting pilots senior to p currently in this seat)
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                const reqBPL = parseInt(pr.bpl_min || pr.bpl) || 9999;
-                const bplLog = `. BPL if awarded = ${rank}.`;
-
-                // --- BPL CHECK ---
-                if (reqBPL > 0 && rank > reqBPL) {
-                    p.awardedReason = `Denied: Rank ${rank} exceeds BPL ${reqBPL}`;
-                    continue; 
-                }
-
-                // --- REMAIN IN POSITION ---
-                if (targetKey === p.currentKey) {
-                    p.awardedReason = `Awarded Preference #${pr.order}. Remained in current position.`;
-                    p.moved = false;
-                    p.awardedPrefNum = pr.order;
-                    break; 
-                }
-
-                // --- CAPACITY CHECK ---
-                const currentOcc = currentCounts[targetKey] || 0;
-                const limit = targetMap[targetKey] || 0;
-                const targetVacancies = limit - currentOcc;
-
-                if (currentOcc < limit) {
-                    const oldKey = p.currentKey;
-                    const oldLimit = targetMap[oldKey] || 0;
-                    const oldOcc = currentCounts[oldKey] || 0;
-
-                    // Perform the move
-                    currentCounts[oldKey]--; 
-                    currentCounts[targetKey]++;
-
-                    const targetVacAfter = limit - currentCounts[targetKey];
-                    const oldVacAfter = oldLimit - currentCounts[oldKey];
-
-                    p.awardedReason = `Awarded Pref #${pr.order} via Vacancy. Move to ${targetKey}.`;
-                    p.awardedPrefNum = pr.order;
-                    p.currentKey = targetKey;
-                    p.moved = true;
-
-                    auditTrail.push({
-                        loop: loops, 
-                        sen: p.sen, 
-                        name: p.name, 
-                        from: oldKey, 
-                        to: targetKey
-                    });
-                    
-                    cascade = true; // RESTART FROM PILOT #1
-                    break; 
+                if (rank <= pr.bpl) {
+                    // Check physical capacity. (If they already hold this seat in the loop, they don't need a new vacancy)
+                    if (p.currentKey === targetKey || (currentCounts[targetKey] || 0) < cap) {
+                        newSeat = targetKey;
+                        reason = (p.orig !== targetKey) ? `Awarded Pref #${pr.order} via Vacancy.` : `Awarded Preference #${pr.order}. Remained in current position.`;
+                        prefNum = pr.order;
+                        awarded = true;
+                        break;
+                    }
                 }
             }
-            if (cascade) break; 
-        }
-        if (loops > 10000) break; // Safety break
-    }
 
-    // Post-pass: Identify any pilots who couldn't hold anything
-    bidders.forEach(p => {
-        if (p.awardedPrefNum === "N/A" && p.currentKey !== p.orig) {
-             // Seniority-based displacement logic for those who fail all bids
-             // This can be expanded further for Section 24 compliance
+            // Step B: Seniority Hold
+            if (!awarded) {
+                let rank = 1;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === p.orig) rank++;
+                }
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                let bplLimit = selfBid ? selfBid.bpl : 9999;
+
+                if (rank <= bplLimit && (p.currentKey === p.orig || (currentCounts[p.orig] || 0) < (targetMap[p.orig] || 0))) {
+                    newSeat = p.orig;
+                    reason = `Held Position (Seniority).`;
+                    awarded = true;
+                }
+            }
+
+            // Step C: Section 24 Secondary Displacement
+            if (!awarded) {
+                const cascadeOptions = [...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`), `${origBase}-FO`, ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'].filter(b => b !== origBase).map(b => `${b}-FO`)];
+                for (const targetKey of cascadeOptions) {
+                    if (targetMap[targetKey] === undefined) continue;
+                    let cap = targetMap[targetKey] || 0;
+                    
+                    if (p.currentKey === targetKey || (currentCounts[targetKey] || 0) < cap) {
+                        newSeat = targetKey;
+                        reason = `Section 24: Awarded ${targetKey} (Vacancy).`;
+                        awarded = true;
+                        break;
+                    }
+                }
+            }
+
+            // Step D: Pool (Unassigned)
+            if (!awarded) {
+                newSeat = "UNASSIGNED";
+                let rank = 1;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === p.orig) rank++;
+                }
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                selfDisp = selfBid && rank > selfBid.bpl;
+                reason = selfDisp ? `BPL Failure (Rank ${rank} > Limit ${selfBid.bpl}).` : `Displaced: System-wide Reduction.`;
+            }
+
+            // If the best valid seat for this pilot is different from where they currently sit in the loop, execute the move.
+            if (newSeat !== p.currentKey) {
+                // Adjust global seat counts
+                if (p.currentKey !== "UNASSIGNED") currentCounts[p.currentKey]--;
+                if (newSeat !== "UNASSIGNED") currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
+
+                // Update Pilot State
+                p.currentKey = newSeat;
+                p.awardedReason = reason;
+                p.awardedPrefNum = prefNum;
+                p.moved = (newSeat !== p.orig);
+                p.isUnassigned = (newSeat === "UNASSIGNED");
+                p.wasSelfDisplaced = selfDisp;
+
+                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, reason: reason });
+
+                // CRITICAL: Restart the process from Pilot #1 because a pilot moved
+                cascade = true; 
+                break;
+            }
         }
-    });
+        
+        if (loops > 10000) break; // Safety breaker for infinite loops
+    }
 
     return { roster: bidders, loops, auditTrail, targetMap };
 }
