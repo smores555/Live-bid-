@@ -340,16 +340,6 @@
     }
   },
   {
-    "id": "pil35",
-    "sen": 35,
-    "name": "BOYCE, KEVIN M.",
-    "current": {
-      "equip": "737",
-      "base": "SEA",
-      "seat": "CA"
-    }
-  },
-  {
     "id": "pil36",
     "sen": 36,
     "name": "ROECKERS, MARK E.",
@@ -626,26 +616,6 @@
     "current": {
       "equip": "737",
       "base": "SEA",
-      "seat": "CA"
-    }
-  },
-  {
-    "id": "pil64",
-    "sen": 64,
-    "name": "KRANJCEVICH, PATRICK S.",
-    "current": {
-      "equip": "737",
-      "base": "SEA",
-      "seat": "CA"
-    }
-  },
-  {
-    "id": "pil65",
-    "sen": 65,
-    "name": "McKINNIS, DOUGLAS L.",
-    "current": {
-      "equip": "737",
-      "base": "ANC",
       "seat": "CA"
     }
   },
@@ -2350,16 +2320,6 @@
     }
   },
   {
-    "id": "pil236",
-    "sen": 236,
-    "name": "WIEBMER, ROBERT",
-    "current": {
-      "equip": "737",
-      "base": "SFO",
-      "seat": "CA"
-    }
-  },
-  {
     "id": "pil237",
     "sen": 237,
     "name": "SEARS, MATTHEW H.",
@@ -3536,16 +3496,6 @@
     "current": {
       "equip": "737",
       "base": "PDX",
-      "seat": "CA"
-    }
-  },
-  {
-    "id": "pil355",
-    "sen": 355,
-    "name": "ALLAN, ROBERT",
-    "current": {
-      "equip": "737",
-      "base": "SFO",
       "seat": "CA"
     }
   },
@@ -10166,16 +10116,6 @@
     "current": {
       "equip": "737",
       "base": "PDX",
-      "seat": "CA"
-    }
-  },
-  {
-    "id": "pil1018",
-    "sen": 1018,
-    "name": "LAYTON, KENNETH",
-    "current": {
-      "equip": "737",
-      "base": "LAX",
       "seat": "CA"
     }
   },
