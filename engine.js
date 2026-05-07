@@ -1,21 +1,25 @@
 /**
- * AIRLINE BID ENGINE - VACANCY LEDGER + SOURCE ATTRIBUTION EDITION
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION
  *
- * Features:
- * 1. True top-down cascade: restart from Sen #1 on any move.
- * 2. Strict cap: rank must be <= targetMap capacity.
- * 3. Vacancy gate: moving INTO a position requires vacancy > 0.
- * 4. Holding your own base never requires a vacancy (you are already there).
- * 5. Human-readable vacancy ledger in EVERY Award Path row, including
- *    stayed-in-place and held pilots:
- *      "Held Position (Seniority) — Seattle Captain.
- *       Seattle Captain: 44 of 761 slots open."
- *    For movers:
- *      "Decrease San Diego Captain vacancy 18 → 17.
- *       Increase Portland Captain vacancy 0 → 1."
- * 6. Source attribution on every inbound move:
- *      "Slot proffered from: SMITH, JOHN (Sen #142)"
- *      "Slot from vacancy (retirement / system reduction)"
+ * Award Path is built from two layers:
+ *
+ *  1. p.moveLog  — immutable record written at the EXACT moment a pilot moves.
+ *                  Contains vacancy numbers snapshotted at that instant.
+ *                  This is the auditable ground truth.
+ *
+ *  2. p.awardedReason — final human-readable string assembled AFTER the cascade
+ *                       settles, so stayed/held pilots reflect final vacancy state
+ *                       rather than a stale mid-cascade snapshot.
+ *
+ * Award Path format (movers):
+ *   "Awarded Pref #1 — Portland First Officer.
+ *    Reduce vacancy in PDX FO from 7 to 6.
+ *    Increase vacancy in SEA CA from 0 to 1.
+ *    Proffered from Sen #88 - JONES, ROBERT."
+ *
+ * Award Path format (stayed / held):
+ *   "Held Position (Seniority) — Seattle Captain.
+ *    Seattle CA vacancy: 44 open of 761."
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -26,35 +30,30 @@ function runBidEngine(data, deltaMap) {
         is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
 
-    // ── POSITION LABEL LOOKUP ────────────────────────────────────────────────
+    // ── LABEL HELPERS ────────────────────────────────────────────────────────
     const baseNames = {
-        ANC: 'Anchorage', SEA: 'Seattle',        LAX: 'Los Angeles',
-        SAN: 'San Diego', SFO: 'San Francisco',   PDX: 'Portland',
+        ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
+        SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland',
         LAS: 'Las Vegas'
     };
     const seatNames = { CA: 'Captain', FO: 'First Officer' };
 
+    // Short form used inside ledger lines: "SEA CA", "PDX FO"
+    function keyLabel(key) {
+        const [base, seat] = (key || '').split('-');
+        return `${base} ${seat}`;
+    }
+
+    // Long form used in headers: "Seattle Captain"
     function posLabel(key) {
         const [base, seat] = (key || '').split('-');
         return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
     }
 
-    // Builds the two ledger lines for a pilot actually moving between positions.
-    function moveLedger(fromKey, toKey, vacToBefore, vacFromBefore) {
-        const lines = [];
-        if (toKey && toKey !== 'UNASSIGNED') {
-            lines.push(`Decrease ${posLabel(toKey)} vacancy ${vacToBefore} \u2192 ${vacToBefore - 1}`);
-        }
-        if (fromKey && fromKey !== 'UNASSIGNED') {
-            lines.push(`Increase ${posLabel(fromKey)} vacancy ${vacFromBefore} \u2192 ${vacFromBefore + 1}`);
-        }
-        return lines.join('. ') + (lines.length ? '.' : '');
-    }
-
     // ── SLOT SOURCE TRACKER ──────────────────────────────────────────────────
-    // FIFO queue per position key.
-    //   { type: 'vacancy', label: '...' }        - pre-existing open slot
-    //   { type: 'pilot',   name: str, sen: num } - opened when a pilot departed
+    // FIFO queue per position — tracks where each open slot came from.
+    //   { type: 'vacancy', label: 'retirement / system reduction' }
+    //   { type: 'pilot',   sen: number, name: string }
     let slotSources = {};
 
     function consumeSlot(key) {
@@ -64,19 +63,18 @@ function runBidEngine(data, deltaMap) {
             : { type: 'vacancy', label: 'retirement / system reduction' };
     }
 
-    function releaseSlot(key, pilotName, pilotSen) {
+    function releaseSlot(key, pilotSen, pilotName) {
         if (!slotSources[key]) slotSources[key] = [];
-        slotSources[key].push({ type: 'pilot', name: pilotName, sen: pilotSen });
+        slotSources[key].push({ type: 'pilot', sen: pilotSen, name: pilotName });
     }
 
-    function attribution(src) {
-        if (!src) return 'Slot source unknown.';
-        if (src.type === 'pilot') return `Slot proffered from: ${src.name} (Sen #${src.sen}).`;
-        return `Slot from vacancy (${src.label}).`;
+    function fmtSource(src) {
+        if (!src) return 'Source unknown.';
+        if (src.type === 'pilot') return `Proffered from Sen #${src.sen} - ${src.name}.`;
+        return `Open position available (${src.label}).`;
     }
 
     // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
-
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -94,7 +92,7 @@ function runBidEngine(data, deltaMap) {
         }
     });
 
-    // Seed slot sources with pre-existing open slots (delta / retirements)
+    // Seed pre-existing vacancies (from delta / retirements)
     Object.keys(targetMap).forEach(key => {
         const preExisting = (targetMap[key] || 0) - (liveHeadcount[key] || 0);
         slotSources[key] = [];
@@ -104,14 +102,9 @@ function runBidEngine(data, deltaMap) {
     });
 
     let currentCounts = { ...liveHeadcount };
-
-    // Live vacancy = target cap minus how many pilots are currently sitting there.
-    // For a pilot who has NOT moved, they are already counted in currentCounts,
-    // so getVac() correctly returns the remaining open slots excluding themselves.
     const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
     // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
-
     const bidders = activeBidders.map(p => {
         const prefData  = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
         const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -134,6 +127,9 @@ function runBidEngine(data, deltaMap) {
             awardedPrefNum: "N/A",
             awardedReason: "Pending...",
             wasSelfDisplaced: false,
+            // moveLog stores the immutable snapshot written at move-moment:
+            // { step, prefOrder, fromKey, toKey, vacFromBefore, vacToBefore, source, bplRank, bplLimit }
+            moveLog: null,
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
                 if (isNaN(limit) || limit === 0) limit = 9999;
@@ -143,7 +139,6 @@ function runBidEngine(data, deltaMap) {
     }).sort((a, b) => a.sen - b.sen);
 
     // ── SENIORITY CASCADE ────────────────────────────────────────────────────
-
     let cascade = true;
     let loops   = 0;
 
@@ -155,7 +150,7 @@ function runBidEngine(data, deltaMap) {
             const p = bidders[i];
             let awarded  = false;
             let newSeat  = null;
-            let reason   = "";
+            let log      = null;   // will become p.moveLog
             let prefNum  = "N/A";
             let selfDisp = false;
             const [origBase, origStatus] = p.orig.split('-');
@@ -173,36 +168,33 @@ function runBidEngine(data, deltaMap) {
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                // Vacancy gate: inbound moves need a real open slot
                 const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
                     newSeat = targetKey;
-
-                    if (isMovingIn) {
-                        // Moving to a different position — full ledger + attribution
-                        const vacToBefore  = getVac(targetKey);
-                        const vacFrmBefore = getVac(p.currentKey);
-                        const src = consumeSlot(targetKey);
-                        reason = [
-                            `Awarded Pref #${pr.order} \u2014 ${posLabel(targetKey)}.`,
-                            moveLedger(p.currentKey, targetKey, vacToBefore, vacFrmBefore),
-                            attribution(src)
-                        ].join(' ');
-                    } else {
-                        // Stayed in current position — show live vacancy snapshot
-                        const remVac = getVac(p.currentKey);
-                        const capNow = targetMap[p.currentKey] || 0;
-                        reason = `Awarded Pref #${pr.order} \u2014 Remained in ${posLabel(p.currentKey)}. ${posLabel(p.currentKey)} vacancy: ${remVac} of ${capNow} slots open.`;
-                    }
                     prefNum = pr.order;
                     awarded = true;
+
+                    if (isMovingIn) {
+                        const src = consumeSlot(targetKey);
+                        log = {
+                            step: 'A',
+                            prefOrder: pr.order,
+                            fromKey: p.currentKey,
+                            toKey: targetKey,
+                            vacFromBefore: getVac(p.currentKey),
+                            vacToBefore: getVac(targetKey),
+                            source: src
+                        };
+                    } else {
+                        // Stayed in place — log toKey only, vacancy snapshotted after cascade
+                        log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
+                    }
                     break;
                 }
             }
 
             // ── STEP B: Seniority Hold ────────────────────────────────────────
-            // Pilot stays in their original base — no vacancy needed.
             if (!awarded) {
                 const cap = targetMap[p.orig] || 0;
                 let rank  = 1;
@@ -215,10 +207,8 @@ function runBidEngine(data, deltaMap) {
 
                 if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
-                    // Pilot is already in currentCounts, so getVac = remaining open slots
-                    const remVac = getVac(p.orig);
-                    reason = `Held Position (Seniority) \u2014 ${posLabel(p.orig)}. ${posLabel(p.orig)} vacancy: ${remVac} of ${cap} slots open.`;
                     awarded = true;
+                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true };
                 }
             }
 
@@ -247,15 +237,16 @@ function runBidEngine(data, deltaMap) {
 
                     if (rank <= cap && vacancyOk) {
                         newSeat = targetKey;
-                        const vacToBefore  = getVac(targetKey);
-                        const vacFrmBefore = getVac(p.currentKey);
-                        const src = consumeSlot(targetKey);
-                        reason = [
-                            `Section 24 Displacement \u2192 ${posLabel(targetKey)}.`,
-                            moveLedger(p.currentKey, targetKey, vacToBefore, vacFrmBefore),
-                            attribution(src)
-                        ].join(' ');
                         awarded = true;
+                        const src = consumeSlot(targetKey);
+                        log = {
+                            step: 'C',
+                            fromKey: p.currentKey,
+                            toKey: targetKey,
+                            vacFromBefore: getVac(p.currentKey),
+                            vacToBefore: getVac(targetKey),
+                            source: src
+                        };
                         break;
                     }
                 }
@@ -271,26 +262,28 @@ function runBidEngine(data, deltaMap) {
                 }
                 const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
                 selfDisp = selfBid && rank > selfBid.bpl;
-
-                const curVac   = getVac(p.currentKey);
-                const baseText = `Increase ${posLabel(p.currentKey)} vacancy ${curVac} \u2192 ${curVac + 1}.`;
-                reason = selfDisp
-                    ? `BPL Failure \u2014 Rank ${rank} exceeds limit of ${selfBid.bpl} for ${posLabel(p.orig)}. ${baseText}`
-                    : `Displaced: System-wide reduction \u2014 no position available. ${baseText}`;
+                log = {
+                    step: 'D',
+                    fromKey: p.currentKey,
+                    toKey: 'UNASSIGNED',
+                    vacFromBefore: getVac(p.currentKey),
+                    selfDisp,
+                    bplRank: rank,
+                    bplLimit: selfBid ? selfBid.bpl : null,
+                    origKey: p.orig
+                };
             }
 
             // ── STATE UPDATE ──────────────────────────────────────────────────
-            p.awardedReason    = reason;
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
+            p.moveLog          = log;
 
             if (newSeat !== p.currentKey) {
-                // Pilot leaving — record them as the slot source for that position
                 if (p.currentKey !== "UNASSIGNED") {
-                    releaseSlot(p.currentKey, p.name, p.sen);
+                    releaseSlot(p.currentKey, p.sen, p.name);
                     currentCounts[p.currentKey]--;
                 }
-                // Pilot arriving
                 if (newSeat !== "UNASSIGNED") {
                     currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
                 }
@@ -299,9 +292,9 @@ function runBidEngine(data, deltaMap) {
                 p.moved        = (newSeat !== p.orig);
                 p.isUnassigned = (newSeat === "UNASSIGNED");
 
-                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, reason });
+                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, log });
 
-                cascade = true; // Restart from Sen #1
+                cascade = true;
                 break;
             } else {
                 p.moved        = (p.currentKey !== p.orig);
@@ -309,8 +302,61 @@ function runBidEngine(data, deltaMap) {
             }
         }
 
-        if (loops > 10000) break; // Safety valve
+        if (loops > 10000) break;
     }
+
+    // ── BUILD FINAL REASON STRINGS ───────────────────────────────────────────
+    // Now that the cascade is fully settled, write awardedReason for every pilot.
+    // Movers use the immutable snapshot from moveLog (captured at move-moment).
+    // Stayed/held pilots use the final live vacancy count.
+
+    bidders.forEach(p => {
+        const log = p.moveLog;
+        if (!log) { p.awardedReason = "No bid data."; return; }
+
+        const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
+
+        if (log.step === 'A' && !log.stayed) {
+            // Moved via preference bid
+            const lines = [
+                `Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.`,
+                `${fmtSource(log.source)}`,
+                `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
+                `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+            ];
+            p.awardedReason = lines.join(' ');
+
+        } else if (log.step === 'A' && log.stayed) {
+            // Preference bid, stayed in same position
+            const vac = finalVac(log.toKey);
+            const cap = targetMap[log.toKey] || 0;
+            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+
+        } else if (log.step === 'B') {
+            // Held by seniority
+            const vac = finalVac(log.toKey);
+            const cap = targetMap[log.toKey] || 0;
+            p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+
+        } else if (log.step === 'C') {
+            // Section 24 displacement move
+            const lines = [
+                `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.`,
+                `${fmtSource(log.source)}`,
+                `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
+                `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+            ];
+            p.awardedReason = lines.join(' ');
+
+        } else if (log.step === 'D') {
+            // Displaced / unassigned
+            if (log.selfDisp) {
+                p.awardedReason = `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            } else {
+                p.awardedReason = `Displaced: System-wide reduction \u2014 no position available. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            }
+        }
+    });
 
     return { roster: bidders, loops, auditTrail, targetMap };
 }
