@@ -7,7 +7,7 @@ function runBidEngine(data, deltaMap) {
     const is737 = (p) => p.current && p.current.equip === "737";
     
     // 1. FAST LOOKUP SETS
-    // Removed the is737 check here because the retired/nobid JSONs do not have the nested 'current' object.
+    // Fix applied here: Removed is737 filter since flat JSONs lack the current object.
     const retiredSens = new Set(data.retired.map(p => p.seniority || p.sen));
     const noBidSens   = new Set(data.noBid.map(p => p.sen));
 
