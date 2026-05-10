@@ -7,8 +7,9 @@ function runBidEngine(data, deltaMap) {
     const is737 = (p) => p.current && p.current.equip === "737";
     
     // 1. FAST LOOKUP SETS
-    const retiredSens = new Set(data.retired.filter(p => is737(p)).map(p => p.seniority || p.sen));
-    const noBidSens   = new Set(data.noBid.filter(p => is737(p)).map(p => p.sen));
+    // Removed the is737 check here because the retired/nobid JSONs do not have the nested 'current' object.
+    const retiredSens = new Set(data.retired.map(p => p.seniority || p.sen));
+    const noBidSens   = new Set(data.noBid.map(p => p.sen));
 
     // 2. PURGE RETIRED/NO-BID
     // Only active pilots participate in the bid and occupy seats.
