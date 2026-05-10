@@ -2,6 +2,8 @@
  * AIRLINE BID ENGINE - LIVE LEDGER EDITION (BPL Tracking Update)
  * Logic Update: Tracks skipped preferences to explain why a senior pilot 
  * was not awarded a higher-priority bid.
+ * * FIX APPLIED: Hard-coded targetMap to use the higher of live headcount or 
+ * defined capacity to prevent no-bid roster gaps from breaking award logic.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -56,16 +58,25 @@ function runBidEngine(data, deltaMap) {
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
+    // ── FIX: HARD-CODED HIGHER LOGIC ────────────────────────────────────────
     let targetMap = {};
-    Object.keys(liveHeadcount).forEach(key => {
-        targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
+    
+    // Create a set of all possible base-seat keys
+    const allKeys = new Set([
+        ...data.caps.map(c => `${c.base}-${c.seat}`.toUpperCase()),
+        ...Object.keys(liveHeadcount)
+    ]);
+
+    allKeys.forEach(key => {
+        const activeCount = liveHeadcount[key] || 0;
+        const capEntry = data.caps.find(c => `${c.base}-${c.seat}`.toUpperCase() === key);
+        const baseCapacity = capEntry ? capEntry.startCapacity : 0;
+        
+        // Use the higher of active count or base capacity to account for missing no-bids
+        const baseline = Math.max(activeCount, baseCapacity);
+        targetMap[key] = baseline + (deltaMap[key] || 0);
     });
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        if (targetMap[key] === undefined) {
-            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
-        }
-    });
+    // ────────────────────────────────────────────────────────────────────────
 
     Object.keys(targetMap).forEach(key => {
         const preExisting = (targetMap[key] || 0) - (liveHeadcount[key] || 0);
@@ -123,10 +134,9 @@ function runBidEngine(data, deltaMap) {
             let log      = null;
             let prefNum  = "N/A";
             let selfDisp = false;
-            let failedPrefs = []; // Track failures for the reason string
+            let failedPrefs = []; 
             const [origBase, origStatus] = p.orig.split('-');
 
-            // ââ STEP A: Primary Preference Bids ââââââââââââââââââââââââââââââ
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
                 const targetKey  = pr.targetKey;
@@ -141,7 +151,6 @@ function runBidEngine(data, deltaMap) {
 
                 const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
 
-                // LOG REASONS FOR FAILURE
                 if (rank > pr.bpl) {
                     failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
                 } else if (rank > cap) {
@@ -179,7 +188,6 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-            // ââ STEP B: Seniority Hold ââââââââââââââââââââââââââââââââââââââââ
             if (!awarded) {
                 const cap = targetMap[p.orig] || 0;
                 let rank  = 1;
@@ -197,7 +205,6 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-            // ââ STEP C: Section 24 Secondary Displacement ââââââââââââââââââââ
             if (!awarded) {
                 const cascadeOptions = [
                     ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
@@ -243,7 +250,6 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-            // ââ STEP D: Pool (Unassigned) âââââââââââââââââââââââââââââââââââââ
             if (!awarded) {
                 newSeat = "UNASSIGNED";
                 let rank = 1;
@@ -295,7 +301,6 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    // ââ BUILD FINAL REASON STRINGS âââââââââââââââââââââââââââââââââââââââââââ
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
