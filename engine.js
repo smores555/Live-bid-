@@ -1,26 +1,22 @@
 /**
  * AIRLINE BID ENGINE - LIVE LEDGER EDITION
- * UPDATED: Fleet-agnostic retired/no-bid exclusions.
+ * UPDATED: Section 24 Priority (CA Seats -> FO Seats)
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
 
-    // ── THE FIX: EXCLUSIONS NOW IGNORE FLEET ──────────────────────────────────
-    // We map across the entire input lists for retired and no-bid pilots 
-    // to ensure everyone is captured regardless of aircraft type.
+    // EXCLUSIONS: Ignore fleet for retired/no-bid lists
     const retiredSens = new Set((data.retired || []).map(p => p.sen || p.seniority));
     const noBidSens   = new Set((data.noBid || []).map(p => p.sen));
 
     const activeBidders = data.roster.filter(p =>
         is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
-    // ──────────────────────────────────────────────────────────────────────────
 
     const baseNames = {
         ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
-        SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland',
-        LAS: 'Las Vegas'
+        SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland'
     };
     const seatNames = { CA: 'Captain', FO: 'First Officer' };
 
@@ -90,7 +86,7 @@ function runBidEngine(data, deltaMap) {
         const getTargetKey = (bidStr) => {
             if (!bidStr) return null;
             const parts = bidStr.trim().toUpperCase().split(/\s+/);
-            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'];
+            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'];
             const seats = ['CA', 'FO'];
             const b = parts.find(x => bases.includes(x));
             const s = parts.find(x => seats.includes(x));
@@ -189,14 +185,20 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
+            // ── STEP C: Section 24 Secondary Displacement (REVISED) ──────────
             if (!awarded) {
-                const cascadeOptions = [
-                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
-                        .filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
+                const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'];
+                
+                // PRIORITY 1: Look for any open CA seats first
+                const caOptions = bases.filter(b => b !== origBase).map(b => `${b}-CA`);
+                
+                // PRIORITY 2: Look for any open FO seats
+                const foOptions = [
                     `${origBase}-FO`,
-                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
-                        .filter(b => b !== origBase).map(b => `${b}-FO`)
+                    ...bases.filter(b => b !== origBase).map(b => `${b}-FO`)
                 ];
+
+                const cascadeOptions = [...caOptions, ...foOptions];
 
                 for (const targetKey of cascadeOptions) {
                     if (targetMap[targetKey] === undefined) continue;
