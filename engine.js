@@ -1,18 +1,31 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION (BPL Tracking Update)
- * Logic Update: Tracks skipped preferences to explain why a senior pilot 
- * was not awarded a higher-priority bid.
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION
+ *
+ * Award Path is built from two layers:
+ *
+ * 1. p.moveLog  — immutable record written at the EXACT moment a pilot moves.
+ * Contains vacancy numbers snapshotted at that instant.
+ * This is the auditable ground truth.
+ *
+ * 2. p.awardedReason — final human-readable string assembled AFTER the cascade
+ * settles, so stayed/held pilots reflect final vacancy state
+ * rather than a stale mid-cascade snapshot.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
+    
+    // UPDATED FOR NEW FORMAT: Check the equip field inside the current object
     const is737 = (p) => p.current && p.current.equip === "737";
     
     const retiredSens = new Set(data.retired.filter(p => is737(p)).map(p => p.seniority));
     const noBidSens   = new Set(data.noBid.filter(p => is737(p)).map(p => p.sen));
+    
+    // UPDATED FOR NEW FORMAT: Filter using the new nested structure
     const activeBidders = data.roster.filter(p =>
         is737(p) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
 
+    // ── LABEL HELPERS ────────────────────────────────────────────────────────
     const baseNames = {
         ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
         SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland',
@@ -30,6 +43,7 @@ function runBidEngine(data, deltaMap) {
         return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
     }
 
+    // ── SLOT SOURCE TRACKER ──────────────────────────────────────────────────
     let slotSources = {};
 
     function consumeSlot(key) {
@@ -50,8 +64,10 @@ function runBidEngine(data, deltaMap) {
         return `Open position available (${src.label}).`;
     }
 
+    // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
     let liveHeadcount = {};
     activeBidders.forEach(p => {
+        // Accessing base and seat from the new current object
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
@@ -78,8 +94,10 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = { ...liveHeadcount };
     const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
+    // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
     const bidders = activeBidders.map(p => {
         const prefData  = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+        // Using the new nested structure for the origin key
         const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
 
         const getTargetKey = (bidStr) => {
@@ -109,6 +127,7 @@ function runBidEngine(data, deltaMap) {
         };
     }).sort((a, b) => a.sen - b.sen);
 
+    // ── SENIORITY CASCADE ────────────────────────────────────────────────────
     let cascade = true;
     let loops   = 0;
 
@@ -123,10 +142,8 @@ function runBidEngine(data, deltaMap) {
             let log      = null;
             let prefNum  = "N/A";
             let selfDisp = false;
-            let failedPrefs = []; // Track failures for the reason string
             const [origBase, origStatus] = p.orig.split('-');
 
-            // ── STEP A: Primary Preference Bids ──────────────────────────────
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
                 const targetKey  = pr.targetKey;
@@ -140,15 +157,6 @@ function runBidEngine(data, deltaMap) {
                 }
 
                 const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
-
-                // LOG REASONS FOR FAILURE
-                if (rank > pr.bpl) {
-                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
-                } else if (rank > cap) {
-                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds Capacity ${cap}.`);
-                } else if (isMovingIn && !vacancyOk) {
-                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: No vacancy.`);
-                }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
                     newSeat = targetKey;
@@ -164,22 +172,19 @@ function runBidEngine(data, deltaMap) {
                             toKey: targetKey,
                             vacFromBefore: getVac(p.currentKey),
                             vacToBefore: getVac(targetKey),
-                            source: src,
-                            failedPrefs
+                            source: src
                         };
                     } else {
                         if (p.orig === targetKey) {
-                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, failedPrefs };
+                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
                         } else {
                             log = p.moveLog; 
-                            if (log) log.failedPrefs = failedPrefs;
                         }
                     }
                     break;
                 }
             }
 
-            // ── STEP B: Seniority Hold ────────────────────────────────────────
             if (!awarded) {
                 const cap = targetMap[p.orig] || 0;
                 let rank  = 1;
@@ -193,11 +198,10 @@ function runBidEngine(data, deltaMap) {
                 if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
                     awarded = true;
-                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, failedPrefs };
+                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true };
                 }
             }
 
-            // ── STEP C: Section 24 Secondary Displacement ────────────────────
             if (!awarded) {
                 const cascadeOptions = [
                     ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
@@ -232,8 +236,7 @@ function runBidEngine(data, deltaMap) {
                                 toKey: targetKey,
                                 vacFromBefore: getVac(p.currentKey),
                                 vacToBefore: getVac(targetKey),
-                                source: src,
-                                failedPrefs
+                                source: src
                             };
                         } else {
                             log = p.moveLog;
@@ -243,7 +246,6 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-            // ── STEP D: Pool (Unassigned) ─────────────────────────────────────
             if (!awarded) {
                 newSeat = "UNASSIGNED";
                 let rank = 1;
@@ -261,8 +263,7 @@ function runBidEngine(data, deltaMap) {
                     selfDisp,
                     bplRank: rank,
                     bplLimit: selfBid ? selfBid.bpl : null,
-                    origKey: p.orig,
-                    failedPrefs
+                    origKey: p.orig
                 };
             }
 
@@ -300,41 +301,41 @@ function runBidEngine(data, deltaMap) {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
 
-        const failedStr = (log.failedPrefs && log.failedPrefs.length > 0) 
-            ? ` ${log.failedPrefs.join(' ')}` 
-            : '';
-
         const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
         if (log.step === 'A' && !log.stayed) {
             const lines = [
-                `Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr}`,
+                `Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.`,
                 `${fmtSource(log.source)}`,
                 `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
                 `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
             ];
             p.awardedReason = lines.join(' ');
+
         } else if (log.step === 'A' && log.stayed) {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+
         } else if (log.step === 'B') {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+
         } else if (log.step === 'C') {
             const lines = [
-                `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.${failedStr}`,
+                `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.`,
                 `${fmtSource(log.source)}`,
                 `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
                 `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
             ];
             p.awardedReason = lines.join(' ');
+
         } else if (log.step === 'D') {
             if (log.selfDisp) {
-                p.awardedReason = `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}.${failedStr} Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                p.awardedReason = `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             } else {
-                p.awardedReason = `Displaced: System-wide reduction \u2014 no position available.${failedStr} Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                p.awardedReason = `Displaced: System-wide reduction \u2014 no position available. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             }
         }
     });
