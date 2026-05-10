@@ -1,31 +1,21 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION
- *
- * Award Path is built from two layers:
- *
- * 1. p.moveLog  — immutable record written at the EXACT moment a pilot moves.
- * Contains vacancy numbers snapshotted at that instant.
- * This is the auditable ground truth.
- *
- * 2. p.awardedReason — final human-readable string assembled AFTER the cascade
- * settles, so stayed/held pilots reflect final vacancy state
- * rather than a stale mid-cascade snapshot.
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION (BPL Tracking Update)
+ * FIXED: Home Base Protection & Active-Only Headcount Purge.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
-    
-    // UPDATED FOR NEW FORMAT: Check the equip field inside the current object
     const is737 = (p) => p.current && p.current.equip === "737";
     
-    const retiredSens = new Set(data.retired.filter(p => is737(p)).map(p => p.seniority));
+    // 1. FAST LOOKUP SETS
+    const retiredSens = new Set(data.retired.filter(p => is737(p)).map(p => p.seniority || p.sen));
     const noBidSens   = new Set(data.noBid.filter(p => is737(p)).map(p => p.sen));
-    
-    // UPDATED FOR NEW FORMAT: Filter using the new nested structure
+
+    // 2. PURGE RETIRED/NO-BID
+    // Only active pilots participate in the bid and occupy seats.
     const activeBidders = data.roster.filter(p =>
         is737(p) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
 
-    // ── LABEL HELPERS ────────────────────────────────────────────────────────
     const baseNames = {
         ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
         SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland',
@@ -43,7 +33,6 @@ function runBidEngine(data, deltaMap) {
         return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
     }
 
-    // ── SLOT SOURCE TRACKER ──────────────────────────────────────────────────
     let slotSources = {};
 
     function consumeSlot(key) {
@@ -64,17 +53,20 @@ function runBidEngine(data, deltaMap) {
         return `Open position available (${src.label}).`;
     }
 
-    // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
+    // 3. CALCULATE LIVE HEADCOUNT FROM ACTIVE ONLY
     let liveHeadcount = {};
     activeBidders.forEach(p => {
-        // Accessing base and seat from the new current object
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
+    // 4. TARGET MAP (CAPACITY)
     let targetMap = {};
-    Object.keys(liveHeadcount).forEach(key => {
-        targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
+    activeBidders.forEach(p => {
+        const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        if (targetMap[key] === undefined) {
+             targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
+        }
     });
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
@@ -94,10 +86,8 @@ function runBidEngine(data, deltaMap) {
     let currentCounts = { ...liveHeadcount };
     const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
-    // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
     const bidders = activeBidders.map(p => {
         const prefData  = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
-        // Using the new nested structure for the origin key
         const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
 
         const getTargetKey = (bidStr) => {
@@ -127,7 +117,6 @@ function runBidEngine(data, deltaMap) {
         };
     }).sort((a, b) => a.sen - b.sen);
 
-    // ── SENIORITY CASCADE ────────────────────────────────────────────────────
     let cascade = true;
     let loops   = 0;
 
@@ -142,13 +131,17 @@ function runBidEngine(data, deltaMap) {
             let log      = null;
             let prefNum  = "N/A";
             let selfDisp = false;
+            let failedPrefs = []; 
             const [origBase, origStatus] = p.orig.split('-');
 
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
                 const targetKey  = pr.targetKey;
                 const cap        = targetMap[targetKey] || 0;
-                const isMovingIn = (p.currentKey !== targetKey);
+
+                // HOME BASE PROTECTION
+                const isGoingHome = (targetKey === p.orig);
+                const isMovingIn  = (p.currentKey !== targetKey);
 
                 let rank = 1;
                 for (const other of bidders) {
@@ -156,30 +149,31 @@ function runBidEngine(data, deltaMap) {
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
+                // A pilot never needs a vacancy to stay in or return to their original base.
+                const vacancyOk = isGoingHome ? true : (isMovingIn ? getVac(targetKey) > 0 : true);
+
+                if (rank > pr.bpl) {
+                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
+                } else if (rank > cap) {
+                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds Capacity ${cap}.`);
+                } else if (!isGoingHome && isMovingIn && !vacancyOk) {
+                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: No vacancy.`);
+                }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
                     newSeat = targetKey;
                     prefNum = pr.order;
                     awarded = true;
 
-                    if (isMovingIn) {
+                    if (!isGoingHome && isMovingIn) {
                         const src = consumeSlot(targetKey);
                         log = {
-                            step: 'A',
-                            prefOrder: pr.order,
-                            fromKey: p.currentKey,
-                            toKey: targetKey,
-                            vacFromBefore: getVac(p.currentKey),
-                            vacToBefore: getVac(targetKey),
-                            source: src
+                            step: 'A', prefOrder: pr.order, fromKey: p.currentKey, toKey: targetKey,
+                            vacFromBefore: getVac(p.currentKey), vacToBefore: getVac(targetKey),
+                            source: src, failedPrefs
                         };
                     } else {
-                        if (p.orig === targetKey) {
-                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
-                        } else {
-                            log = p.moveLog; 
-                        }
+                        log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, failedPrefs };
                     }
                     break;
                 }
@@ -198,7 +192,7 @@ function runBidEngine(data, deltaMap) {
                 if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
                     awarded = true;
-                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true };
+                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, failedPrefs };
                 }
             }
 
@@ -231,15 +225,12 @@ function runBidEngine(data, deltaMap) {
                         if (isMovingIn) {
                             const src = consumeSlot(targetKey);
                             log = {
-                                step: 'C',
-                                fromKey: p.currentKey,
-                                toKey: targetKey,
-                                vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
-                                source: src
+                                step: 'C', fromKey: p.currentKey, toKey: targetKey,
+                                vacFromBefore: getVac(p.currentKey), vacToBefore: getVac(targetKey),
+                                source: src, failedPrefs
                             };
                         } else {
-                            log = p.moveLog;
+                            log = { step: 'C', fromKey: null, toKey: targetKey, stayed: true, failedPrefs };
                         }
                         break; 
                     }
@@ -256,14 +247,10 @@ function runBidEngine(data, deltaMap) {
                 const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
                 selfDisp = selfBid && rank > selfBid.bpl;
                 log = {
-                    step: 'D',
-                    fromKey: p.currentKey,
-                    toKey: 'UNASSIGNED',
-                    vacFromBefore: getVac(p.currentKey),
-                    selfDisp,
-                    bplRank: rank,
-                    bplLimit: selfBid ? selfBid.bpl : null,
-                    origKey: p.orig
+                    step: 'D', fromKey: p.currentKey, toKey: 'UNASSIGNED',
+                    vacFromBefore: getVac(p.currentKey), selfDisp,
+                    bplRank: rank, bplLimit: selfBid ? selfBid.bpl : null,
+                    origKey: p.orig, failedPrefs
                 };
             }
 
@@ -285,7 +272,6 @@ function runBidEngine(data, deltaMap) {
                 p.isUnassigned = (newSeat === "UNASSIGNED");
 
                 auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, log });
-
                 cascade = true;
                 break;
             } else {
@@ -296,47 +282,26 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    // ── BUILD FINAL REASON STRINGS ───────────────────────────────────────────
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
 
+        const failedStr = (log.failedPrefs && log.failedPrefs.length > 0) 
+            ? ` ${log.failedPrefs.join(' ')}` : '';
         const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
         if (log.step === 'A' && !log.stayed) {
-            const lines = [
-                `Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.`,
-                `${fmtSource(log.source)}`,
-                `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
-                `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
-            ];
-            p.awardedReason = lines.join(' ');
-
+            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr} ${fmtSource(log.source)} Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
         } else if (log.step === 'A' && log.stayed) {
-            const vac = finalVac(log.toKey);
-            const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
-
+            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${finalVac(log.toKey)} open of ${targetMap[log.toKey] || 0}.`;
         } else if (log.step === 'B') {
-            const vac = finalVac(log.toKey);
-            const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
-
+            p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${finalVac(log.toKey)} open of ${targetMap[log.toKey] || 0}.`;
         } else if (log.step === 'C') {
-            const lines = [
-                `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.`,
-                `${fmtSource(log.source)}`,
-                `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
-                `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
-            ];
-            p.awardedReason = lines.join(' ');
-
+            p.awardedReason = `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.${failedStr} ${fmtSource(log.source)} Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
         } else if (log.step === 'D') {
-            if (log.selfDisp) {
-                p.awardedReason = `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
-            } else {
-                p.awardedReason = `Displaced: System-wide reduction \u2014 no position available. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
-            }
+            p.awardedReason = log.selfDisp 
+                ? `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}.${failedStr} Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                : `Displaced: System-wide reduction.${failedStr} Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
         }
     });
 
