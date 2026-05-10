@@ -1,25 +1,21 @@
 /**
  * AIRLINE BID ENGINE - LIVE LEDGER EDITION
- * FIXED VERSION
+ * UPDATED: Fleet-agnostic retired/no-bid exclusions.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
-    
-    // Safety check for missing data
-    if (!data || !data.roster) {
-        console.error("Bid Engine Error: Missing required roster data.");
-        return { roster: [], loops: 0, auditTrail: [], targetMap: {} };
-    }
-
     const is737 = (seat) => seat && !seat.includes('320') && !seat.includes('321');
-    
-    // Safety filters for retirement and no-bid lists
-    const retiredSens = new Set((data.retired || []).filter(p => is737(p.seat)).map(p => p.seniority));
-    const noBidSens   = new Set((data.noBid || []).filter(p => is737(p.seat)).map(p => p.sen));
-    
+
+    // ── THE FIX: EXCLUSIONS NOW IGNORE FLEET ──────────────────────────────────
+    // We map across the entire input lists for retired and no-bid pilots 
+    // to ensure everyone is captured regardless of aircraft type.
+    const retiredSens = new Set((data.retired || []).map(p => p.sen || p.seniority));
+    const noBidSens   = new Set((data.noBid || []).map(p => p.sen));
+
     const activeBidders = data.roster.filter(p =>
         is737(p.current.seat) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
+    // ──────────────────────────────────────────────────────────────────────────
 
     const baseNames = {
         ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
@@ -135,7 +131,6 @@ function runBidEngine(data, deltaMap) {
             let selfDisp = false;
             const [origBase, origStatus] = p.orig.split('-');
 
-            // ── STEP A: Primary Preference Bids ──────────────────────────────
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
                 const targetKey  = pr.targetKey;
@@ -167,15 +162,16 @@ function runBidEngine(data, deltaMap) {
                             source: src
                         };
                     } else {
-                        log = (p.orig === targetKey) 
-                            ? { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true }
-                            : p.moveLog; 
+                        if (p.orig === targetKey) {
+                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true };
+                        } else {
+                            log = p.moveLog; 
+                        }
                     }
                     break; 
                 }
             }
 
-            // ── STEP B: Seniority Hold ────────────────────────────────────────
             if (!awarded) {
                 const cap = targetMap[p.orig] || 0;
                 let rank  = 1;
@@ -193,7 +189,6 @@ function runBidEngine(data, deltaMap) {
                 }
             }
 
-            // ── STEP C: Section 24 Secondary Displacement ────────────────────
             if (!awarded) {
                 const cascadeOptions = [
                     ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
@@ -235,10 +230,9 @@ function runBidEngine(data, deltaMap) {
                         }
                         break; 
                     }
-                } // Fixed missing closing brace for the options loop
+                }
             }
 
-            // ── STEP D: Pool (Unassigned) ─────────────────────────────────────
             if (!awarded) {
                 newSeat = "UNASSIGNED";
                 let rank = 1;
@@ -260,7 +254,6 @@ function runBidEngine(data, deltaMap) {
                 };
             }
 
-            // ── STATE UPDATE ──────────────────────────────────────────────────
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
             p.moveLog          = log;
@@ -290,7 +283,6 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    // ── BUILD FINAL REASON STRINGS ───────────────────────────────────────────
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
