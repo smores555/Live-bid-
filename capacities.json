@@ -2,7 +2,7 @@
   {
     "base": "ANC",
     "seat": "CA",
-    "startCapacity": 152,
+    "startCapacity": 151,
     "delta": 0
   },
   {
@@ -44,7 +44,7 @@
   {
     "base": "SEA",
     "seat": "FO",
-    "startCapacity": 683,
+    "startCapacity": 684,
     "delta": 0
   },
   {
