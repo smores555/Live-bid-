@@ -1,7 +1,7 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Resident Protection Update)
- * Logic Update: Uses p.orig to protect pilots from being forced out of 
- * their home base by treating them as residents rather than movers.
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION (BPL Tracking Update)
+ * Logic Update: Tracks skipped preferences to explain why a senior pilot 
+ * was not awarded a higher-priority bid.
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
@@ -123,7 +123,7 @@ function runBidEngine(data, deltaMap) {
             let log      = null;
             let prefNum  = "N/A";
             let selfDisp = false;
-            let failedPrefs = []; 
+            let failedPrefs = []; // Track failures for the reason string
             const [origBase, origStatus] = p.orig.split('-');
 
             // ── STEP A: Primary Preference Bids ──────────────────────────────
@@ -131,9 +131,7 @@ function runBidEngine(data, deltaMap) {
                 if (!pr.targetKey) continue;
                 const targetKey  = pr.targetKey;
                 const cap        = targetMap[targetKey] || 0;
-                
-                // FIX: Check against p.orig to protect current base residency
-                const isMovingIn = (p.orig !== targetKey);
+                const isMovingIn = (p.currentKey !== targetKey);
 
                 let rank = 1;
                 for (const other of bidders) {
@@ -143,6 +141,7 @@ function runBidEngine(data, deltaMap) {
 
                 const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
 
+                // LOG REASONS FOR FAILURE
                 if (rank > pr.bpl) {
                     failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
                 } else if (rank > cap) {
@@ -156,7 +155,7 @@ function runBidEngine(data, deltaMap) {
                     prefNum = pr.order;
                     awarded = true;
 
-                    if (p.currentKey !== targetKey) {
+                    if (isMovingIn) {
                         const src = consumeSlot(targetKey);
                         log = {
                             step: 'A',
@@ -211,9 +210,7 @@ function runBidEngine(data, deltaMap) {
                 for (const targetKey of cascadeOptions) {
                     if (targetMap[targetKey] === undefined) continue;
                     const cap        = targetMap[targetKey] || 0;
-                    
-                    // FIX: Consistency check for secondary displacements
-                    const isMovingIn = (p.orig !== targetKey);
+                    const isMovingIn = (p.currentKey !== targetKey);
 
                     let rank = 1;
                     for (const other of bidders) {
@@ -227,7 +224,7 @@ function runBidEngine(data, deltaMap) {
                         newSeat = targetKey;
                         awarded = true;
                         
-                        if (p.currentKey !== targetKey) {
+                        if (isMovingIn) {
                             const src = consumeSlot(targetKey);
                             log = {
                                 step: 'C',
