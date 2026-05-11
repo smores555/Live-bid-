@@ -7,16 +7,21 @@ function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (p) => p.current && p.current.equip === "737";
     
-    const retiredSens = new Set(data.retired.filter(p => is737(p)).map(p => p.seniority));
-    const noBidSens   = new Set(data.noBid.filter(p => is737(p)).map(p => p.sen));
+    // ── PILOT EXCLUSION LOGIC ────────────────────────────────────────────────
+    // Tie retired and no-bid pilots by seniority, ignoring fleet type.
+    const retiredSens = new Set(data.retired.map(p => p.seniority || p.sen));
+    const noBidSens   = new Set(data.noBid.map(p => p.sen || p.seniority));
+
+    // Filter active bidders: must be 737 and not in retired/no-bid sets.
     const activeBidders = data.roster.filter(p =>
         is737(p) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
 
+    // ── LABEL HELPERS ────────────────────────────────────────────────────────
+    // Updated to reflect correct bases: ANC, SEA, PDX, SFO, LAX, SAN.
     const baseNames = {
         ANC: 'Anchorage', SEA: 'Seattle',       LAX: 'Los Angeles',
-        SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland',
-        LAS: 'Las Vegas'
+        SAN: 'San Diego', SFO: 'San Francisco',  PDX: 'Portland'
     };
     const seatNames = { CA: 'Captain', FO: 'First Officer' };
 
@@ -84,7 +89,7 @@ function runBidEngine(data, deltaMap) {
 
         const getTargetKey = (bidStr) => {
             const parts = bidStr.trim().toUpperCase().split(/\s+/);
-            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS'];
+            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']; // Removed LAS.
             const seats = ['CA', 'FO'];
             const b = parts.find(x => bases.includes(x));
             const s = parts.find(x => seats.includes(x));
@@ -123,7 +128,7 @@ function runBidEngine(data, deltaMap) {
             let log      = null;
             let prefNum  = "N/A";
             let selfDisp = false;
-            let failedPrefs = []; // Track failures for the reason string
+            let failedPrefs = []; 
             const [origBase, origStatus] = p.orig.split('-');
 
             // ── STEP A: Primary Preference Bids ──────────────────────────────
@@ -141,7 +146,6 @@ function runBidEngine(data, deltaMap) {
 
                 const vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
 
-                // LOG REASONS FOR FAILURE
                 if (rank > pr.bpl) {
                     failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
                 } else if (rank > cap) {
@@ -200,10 +204,10 @@ function runBidEngine(data, deltaMap) {
             // ── STEP C: Section 24 Secondary Displacement ────────────────────
             if (!awarded) {
                 const cascadeOptions = [
-                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
+                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'] // Removed LAS.
                         .filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
                     `${origBase}-FO`,
-                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX', 'LAS']
+                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'] // Removed LAS.
                         .filter(b => b !== origBase).map(b => `${b}-FO`)
                 ];
 
