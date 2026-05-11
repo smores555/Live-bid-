@@ -24800,16 +24800,6 @@
     }
   },
   {
-    "id": "pil2499",
-    "sen": 2499,
-    "name": "KENNEDY, CARTER",
-    "current": {
-      "equip": "737",
-      "base": "SEA",
-      "seat": "FO"
-    }
-  },
-  {
     "id": "pil2500",
     "sen": 2500,
     "name": "RADFORD, ISAAC",
@@ -30190,16 +30180,6 @@
     }
   },
   {
-    "id": "pil3039",
-    "sen": 3039,
-    "name": "LANGFIELD, QUINTON",
-    "current": {
-      "equip": "737",
-      "base": "SEA",
-      "seat": "FO"
-    }
-  },
-  {
     "id": "pil3040",
     "sen": 3040,
     "name": "DYCHES, CALEB",
@@ -31066,16 +31046,6 @@
     "current": {
       "equip": "737",
       "base": "SFO",
-      "seat": "FO"
-    }
-  },
-  {
-    "id": "pil3127",
-    "sen": 3127,
-    "name": "HARTUNG, ANDREW",
-    "current": {
-      "equip": "737",
-      "base": "SEA",
       "seat": "FO"
     }
   },
@@ -32866,16 +32836,6 @@
     "current": {
       "equip": "737",
       "base": "SFO",
-      "seat": "FO"
-    }
-  },
-  {
-    "id": "pil3308",
-    "sen": 3308,
-    "name": "COMPTON, ANTHONY",
-    "current": {
-      "equip": "737",
-      "base": "SEA",
       "seat": "FO"
     }
   },
