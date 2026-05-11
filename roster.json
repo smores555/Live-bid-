@@ -7120,16 +7120,6 @@
     }
   },
   {
-    "id": "pil727",
-    "sen": 727,
-    "name": "ECKERT, MARK",
-    "current": {
-      "equip": "737",
-      "base": "LAX",
-      "seat": "CA"
-    }
-  },
-  {
     "id": "pil728",
     "sen": 728,
     "name": "ANDRINGA, KEVIN",
