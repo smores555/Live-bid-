@@ -430,9 +430,11 @@ function runBidEngine(data, deltaMap) {
             ? ` Bumped Sen #${log.bumpedSen} (displacement chain).`
             : '';
 
+        const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
+
         if (log.step === 'A' && !log.stayed) {
             const lines = [
-                `Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr}`,
+                `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr}`,
                 `${fmtSource(log.source)}${bumpNote}`,
                 log.displacementBump
                     ? `Displacement move — no vacancy consumed in ${keyLabel(log.toKey)}.`
@@ -443,11 +445,11 @@ function runBidEngine(data, deltaMap) {
         } else if (log.step === 'A' && log.stayed) {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            p.awardedReason = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
         } else if (log.step === 'B') {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `Held Position (Seniority) \u2014 ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            p.awardedReason = `${sec24Prefix}Held Position (Seniority) \u2014 ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
         } else if (log.step === 'C') {
             const lines = [
                 `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.${failedStr}`,
