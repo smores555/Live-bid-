@@ -884,8 +884,8 @@
     "name": "KORIN, WILLIAM",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -1796,8 +1796,13 @@
     "name": "DIETZ, MICHAEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 13
+      },
+      {
+        "order": 2,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -2456,8 +2461,28 @@
     "name": "PARKER, JEFFREY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -2489,8 +2514,23 @@
     "name": "BETTY, JAMES",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -3583,8 +3623,13 @@
     "name": "EAKINS, BRYAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 20
+      },
+      {
+        "order": 2,
+        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -3792,8 +3837,13 @@
     "name": "WALTNER, ELI",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
         "bpl_min": 0
       }
     ]
@@ -4397,32 +4447,12 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA LAX",
-        "bpl_min": 0
-      },
-      {
-        "order": 2,
-        "bid": "CA SAN",
-        "bpl_min": 0
-      },
-      {
-        "order": 3,
-        "bid": "CA SFO",
-        "bpl_min": 0
-      },
-      {
-        "order": 4,
         "bid": "CA SEA",
         "bpl_min": 0
       },
       {
-        "order": 5,
-        "bid": "CA PDX",
-        "bpl_min": 0
-      },
-      {
-        "order": 6,
-        "bid": "CA ANC",
+        "order": 2,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -4631,8 +4661,8 @@
     "name": "CROISSANT, MARTIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -4862,8 +4892,13 @@
     "name": "CUMMINGS, CRAIG",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 110
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -5015,8 +5050,33 @@
     "name": "WHAM, ROBERT",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -5224,8 +5284,8 @@
     "name": "O'NEIL, CASEY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -5542,8 +5602,13 @@
     "name": "BERLOTTI, ANTHONY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -5912,8 +5977,8 @@
     "name": "JOHNSON, PETER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -6493,7 +6558,7 @@
       },
       {
         "order": 2,
-        "bid": "CA SEA",
+        "bid": "CA PDX",
         "bpl_min": 0
       }
     ]
@@ -6710,8 +6775,13 @@
     "name": "WROBEL, SHANE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
         "bpl_min": 0
       }
     ]
@@ -7517,8 +7587,13 @@
     "name": "KWIATKOWSKI, JASON",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 24
+      },
+      {
+        "order": 2,
+        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -8236,8 +8311,13 @@
     "name": "DAVIS, TIMOTHY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
         "bpl_min": 0
       }
     ]
@@ -8345,8 +8425,8 @@
     "name": "SMOKO, MATTHEW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -9008,8 +9088,38 @@
     "name": "BERTRAND, JOHN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 55
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 343
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -9467,8 +9577,38 @@
     "name": "GOLICZ, MARCIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -9533,8 +9673,8 @@
     "name": "SOLHAUG, STEVEN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -9700,8 +9840,8 @@
     "name": "FORD, RYAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -10903,8 +11043,38 @@
     "name": "BOSSE, FABRICE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -11268,17 +11438,27 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA PDX",
-        "bpl_min": 0
-      },
-      {
-        "order": 2,
         "bid": "CA SFO",
         "bpl_min": 0
       },
       {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
         "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
         "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
         "bpl_min": 0
       }
     ]
@@ -11570,8 +11750,33 @@
     "name": "VINING, CLIFFORD",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -12017,8 +12222,8 @@
     "name": "MICHELS, PETER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
         "bpl_min": 0
       }
     ]
@@ -12115,8 +12320,38 @@
     "name": "HARRIS, ARNA",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -12192,8 +12427,38 @@
     "name": "DEJO, ROY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 58
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 80
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -12225,8 +12490,8 @@
     "name": "WILSON, JAMES",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
         "bpl_min": 0
       }
     ]
@@ -12553,8 +12818,28 @@
     "name": "JANES, DARYL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -12663,8 +12948,33 @@
     "name": "HANNAH, DERIK",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -13224,8 +13534,38 @@
     "name": "KUHL, DANIEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -13494,8 +13834,23 @@
     "name": "TAYLOR, ANDREW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -13580,8 +13935,18 @@
     "name": "GANDARILLAS, ANDREW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -13746,8 +14111,43 @@
     "name": "KULLICK, ANDREW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -13795,8 +14195,8 @@
     "name": "SAMSOM, MARTIJN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -14133,8 +14533,18 @@
     "name": "DUPONT, RICHARD",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -14403,12 +14813,12 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA SEA",
+        "bid": "CA PDX",
         "bpl_min": 0
       },
       {
         "order": 2,
-        "bid": "CA PDX",
+        "bid": "CA SEA",
         "bpl_min": 0
       },
       {
@@ -15188,8 +15598,23 @@
     "name": "DAVIS, ALISHA",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -15399,8 +15824,18 @@
     "name": "MARSHALL, ELLIS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 80
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 122
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -15624,8 +16059,8 @@
     "name": "VALGARDSON, ERIC",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
         "bpl_min": 0
       }
     ]
@@ -15933,8 +16368,8 @@
     "name": "OLSON, BRIAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
         "bpl_min": 0
       }
     ]
@@ -16264,8 +16699,13 @@
     "name": "NELSON, JOHN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -17019,8 +17459,28 @@
     "name": "ALLISON, JAMES",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -17481,35 +17941,40 @@
       {
         "order": 1,
         "bid": "CA LAX",
-        "bpl_min": 0
+        "bpl_min": 140
       },
       {
         "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 80
+      },
+      {
+        "order": 3,
         "bid": "CA SEA",
         "bpl_min": 0
       },
       {
-        "order": 3,
-        "bid": "CA SAN",
-        "bpl_min": 0
-      },
-      {
         "order": 4,
-        "bid": "CA PDX",
+        "bid": "CA LAX",
         "bpl_min": 0
       },
       {
         "order": 5,
-        "bid": "CA SFO",
+        "bid": "CA PDX",
         "bpl_min": 0
       },
       {
         "order": 6,
-        "bid": "CA ANC",
+        "bid": "CA SFO",
         "bpl_min": 0
       },
       {
         "order": 7,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
         "bid": "CA LAX",
         "bpl_min": 0
       }
@@ -18345,8 +18810,13 @@
     "name": "STAULCUP, BENJAMIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -18489,8 +18959,13 @@
     "name": "MANCE, DELANNOR",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
         "bpl_min": 0
       }
     ]
@@ -18654,8 +19129,98 @@
     "name": "GOLDHAMER, CRAIG",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 95
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 158
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
+        "bpl_min": 418
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 111
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 75
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 70
+      },
+      {
+        "order": 7,
+        "bid": "CA SAN",
+        "bpl_min": 106
+      },
+      {
+        "order": 8,
+        "bid": "CA PDX",
+        "bpl_min": 175
+      },
+      {
+        "order": 9,
+        "bid": "CA SEA",
+        "bpl_min": 490
+      },
+      {
+        "order": 10,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 11,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 12,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 13,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 14,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 15,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 16,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 17,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 18,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 19,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -18944,8 +19509,38 @@
     "name": "CHANG, TERRENCE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -20033,6 +20628,16 @@
         "order": 1,
         "bid": "CA SEA",
         "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
       }
     ]
   },
@@ -20052,8 +20657,8 @@
     "name": "DAVIS, THEODORE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -20162,8 +20767,33 @@
     "name": "HOLMBERG, JESSY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -20878,12 +21508,12 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA SAN",
+        "bid": "CA LAX",
         "bpl_min": 0
       },
       {
         "order": 2,
-        "bid": "CA LAX",
+        "bid": "CA SAN",
         "bpl_min": 0
       },
       {
@@ -21646,8 +22276,13 @@
     "name": "HARGROVE, STUART",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -21680,22 +22315,17 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA SAN",
+        "bid": "CA LAX",
         "bpl_min": 0
       },
       {
         "order": 2,
-        "bid": "CA LAX",
+        "bid": "CA SAN",
         "bpl_min": 0
       },
       {
         "order": 3,
         "bid": "CA SEA",
-        "bpl_min": 0
-      },
-      {
-        "order": 4,
-        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -21705,8 +22335,28 @@
     "name": "THAXTON, BRYAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -22726,8 +23376,18 @@
     "name": "BRETZ, ROBERT",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -22845,8 +23505,38 @@
     "name": "HEARN, JAMES",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -23342,8 +24032,28 @@
     "name": "MAY, MICHAEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 125
+      },
+      {
+        "order": 4,
+        "bid": "CA SEA",
+        "bpl_min": 600
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -23491,26 +24201,46 @@
       {
         "order": 2,
         "bid": "CA SAN",
-        "bpl_min": 0
+        "bpl_min": 83
       },
       {
         "order": 3,
         "bid": "CA SFO",
-        "bpl_min": 80
+        "bpl_min": 75
       },
       {
         "order": 4,
-        "bid": "CA PDX",
+        "bid": "CA SAN",
         "bpl_min": 0
       },
       {
         "order": 5,
-        "bid": "CA SFO",
+        "bid": "CA PDX",
         "bpl_min": 0
       },
       {
         "order": 6,
-        "bid": "CA LAX",
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -23520,8 +24250,13 @@
     "name": "HATCH, HUGH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -23640,8 +24375,28 @@
     "name": "AMBROSE, PAUL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -23717,8 +24472,38 @@
     "name": "GILLILAND, WILLIAM",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -24057,16 +24842,26 @@
     "preferences": [
       {
         "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 110
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 650
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 113
+      },
+      {
+        "order": 4,
         "bid": "CA SEA",
         "bpl_min": 0
       },
       {
-        "order": 2,
-        "bid": "CA SAN",
-        "bpl_min": 105
-      },
-      {
-        "order": 3,
+        "order": 5,
         "bid": "FO SEA",
         "bpl_min": 0
       }
@@ -24104,8 +24899,28 @@
     "name": "GOLDEN, MATTHEW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -24186,8 +25001,28 @@
     "name": "SCHEIL, JOSEPH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -24766,6 +25601,21 @@
         "order": 2,
         "bid": "CA LAX",
         "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
       }
     ]
   },
@@ -24911,8 +25761,38 @@
     "name": "GONZALES, MARK",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -25534,8 +26414,33 @@
     "name": "RASMUSSEN, THOMAS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
         "bpl_min": 0
       }
     ]
@@ -25951,8 +26856,13 @@
     "name": "CHAMBERS, JUSTIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
         "bpl_min": 0
       }
     ]
@@ -25962,8 +26872,13 @@
     "name": "BLANCO, CHRISTOPHER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -26182,8 +27097,23 @@
     "name": "PRUITT, CHARLEY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -26913,8 +27843,8 @@
     "name": "SCOVILLE, DAVID",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -27013,8 +27943,23 @@
     "name": "FINCHER, WILLIAM",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -27040,8 +27985,18 @@
     "name": "STEWART, MATTHEW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -27155,7 +28110,7 @@
       {
         "order": 1,
         "bid": "CA SAN",
-        "bpl_min": 105
+        "bpl_min": 115
       },
       {
         "order": 2,
@@ -27196,8 +28151,8 @@
     "name": "ECKERLE, CHRISTOPHER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -27329,6 +28284,11 @@
         "order": 5,
         "bid": "CA SEA",
         "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO LAX",
+        "bpl_min": 0
       }
     ]
   },
@@ -27349,26 +28309,31 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA SAN",
-        "bpl_min": 116
+        "bid": "CA SFO",
+        "bpl_min": 131
       },
       {
         "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 110
+      },
+      {
+        "order": 3,
         "bid": "CA SFO",
         "bpl_min": 0
       },
       {
-        "order": 3,
+        "order": 4,
         "bid": "CA SAN",
         "bpl_min": 0
       },
       {
-        "order": 4,
+        "order": 5,
         "bid": "CA SEA",
         "bpl_min": 0
       },
       {
-        "order": 5,
+        "order": 6,
         "bid": "FO SAN",
         "bpl_min": 0
       }
@@ -27508,8 +28473,38 @@
     "name": "MORGAN, ERIC",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -28192,8 +29187,8 @@
     "name": "FREEMAN, CARY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -28327,17 +29322,12 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA SAN",
+        "bid": "FO LAX",
         "bpl_min": 0
       },
       {
         "order": 2,
         "bid": "FO SAN",
-        "bpl_min": 0
-      },
-      {
-        "order": 3,
-        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -28725,26 +29715,31 @@
       },
       {
         "order": 2,
+        "bid": "CA SFO",
+        "bpl_min": 132
+      },
+      {
+        "order": 3,
         "bid": "CA LAX",
         "bpl_min": 0
       },
       {
-        "order": 3,
+        "order": 4,
         "bid": "CA SFO",
         "bpl_min": 0
       },
       {
-        "order": 4,
+        "order": 5,
         "bid": "CA PDX",
         "bpl_min": 0
       },
       {
-        "order": 5,
+        "order": 6,
         "bid": "CA SAN",
         "bpl_min": 0
       },
       {
-        "order": 6,
+        "order": 7,
         "bid": "FO SEA",
         "bpl_min": 0
       }
@@ -28802,8 +29797,13 @@
     "name": "COOLEY, CLIFFORD",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -28946,25 +29946,35 @@
       {
         "order": 1,
         "bid": "CA SAN",
-        "bpl_min": 0
+        "bpl_min": 82
       },
       {
         "order": 2,
+        "bid": "CA SFO",
+        "bpl_min": 85
+      },
+      {
+        "order": 3,
         "bid": "CA SEA",
         "bpl_min": 0
       },
       {
-        "order": 3,
+        "order": 4,
         "bid": "CA SFO",
         "bpl_min": 0
       },
       {
-        "order": 4,
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
         "bid": "CA PDX",
         "bpl_min": 0
       },
       {
-        "order": 5,
+        "order": 7,
         "bid": "FO SEA",
         "bpl_min": 0
       }
@@ -29279,8 +30289,13 @@
     "name": "VALKENBURG, TOBY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -30298,6 +31313,21 @@
         "order": 2,
         "bid": "FO SEA",
         "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 0
       }
     ]
   },
@@ -30878,8 +31908,38 @@
     "name": "MAST, ANTHONY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -31160,8 +32220,28 @@
     "name": "KERR, JOHN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -31730,8 +32810,23 @@
     "name": "WILLIAMS, JODY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -32116,8 +33211,18 @@
     "name": "BULLEN, CASEY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -32490,8 +33595,8 @@
     "name": "WEES, JOEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -32620,8 +33725,33 @@
     "name": "FORTENBERRY, COLTON",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -32742,8 +33872,8 @@
     "name": "RENO, TIMOTHY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -33208,8 +34338,23 @@
     "name": "MILLER, DUSTIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -33569,8 +34714,33 @@
     "name": "MCNELIS, JOSEPH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -33862,8 +35032,8 @@
     "name": "NIEMAN, CHADLER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -34019,8 +35189,38 @@
     "name": "MOROSHAN, MICHAEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -34063,8 +35263,28 @@
     "name": "HOLMAN, KEITH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -34414,8 +35634,13 @@
     "name": "HARWOOD, PREM",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -34485,8 +35710,13 @@
     "name": "ROTHSCHILDS, CHRISTOPHER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -34912,6 +36142,46 @@
       {
         "order": 1,
         "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "CA SFO",
         "bpl_min": 0
       }
     ]
@@ -35341,8 +36611,38 @@
     "name": "SCHMIDT, GARRETT",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -35675,8 +36975,8 @@
     "name": "GARRY, CHRISTOPHER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -36046,8 +37346,8 @@
     "name": "MARSH, CURTIS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -36117,6 +37417,31 @@
     "preferences": [
       {
         "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
         "bid": "FO SEA",
         "bpl_min": 0
       }
@@ -36346,8 +37671,8 @@
     "name": "VAN CISE, CHRISTOPHER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -36359,6 +37684,31 @@
       {
         "order": 1,
         "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -36453,8 +37803,23 @@
     "name": "DUARTE, GABRIEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -36765,8 +38130,18 @@
     "name": "WEBER, ALYCE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -36941,8 +38316,8 @@
     "name": "PARISH, THEODORE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -37597,8 +38972,8 @@
     "name": "BREWSTER, LAWRENCE",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -37926,8 +39301,18 @@
     "name": "ABEL, MICHAEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -38553,8 +39938,8 @@
     "name": "LI, SEAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -38600,8 +39985,8 @@
     "name": "BRADY, BRIAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -38753,37 +40138,37 @@
       },
       {
         "order": 2,
-        "bid": "FO SEA",
+        "bid": "CA PDX",
         "bpl_min": 0
       },
       {
         "order": 3,
-        "bid": "FO PDX",
+        "bid": "FO SEA",
         "bpl_min": 0
       },
       {
         "order": 4,
-        "bid": "FO SAN",
+        "bid": "FO PDX",
         "bpl_min": 0
       },
       {
         "order": 5,
-        "bid": "FO LAX",
+        "bid": "FO SAN",
         "bpl_min": 0
       },
       {
         "order": 6,
-        "bid": "FO SFO",
+        "bid": "FO LAX",
         "bpl_min": 0
       },
       {
         "order": 7,
-        "bid": "FO ANC",
+        "bid": "FO SFO",
         "bpl_min": 0
       },
       {
         "order": 8,
-        "bid": "CA PDX",
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -39510,8 +40895,8 @@
     "name": "YEH, YU-PEI",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -39935,8 +41320,8 @@
     "name": "QUIOGUE, JORDAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -39987,8 +41372,58 @@
     "name": "DAL PRA, DOMINIC",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 11,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -40025,8 +41460,8 @@
     "name": "WILSON, MICKEY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -40299,8 +41734,13 @@
     "name": "GAVIN, NATHAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -40461,8 +41901,43 @@
     "name": "PLATT, MICHAEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -40505,8 +41980,38 @@
     "name": "SNURE, AXL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -40538,8 +42043,63 @@
     "name": "MOLONEY, MARCUS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 11,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 12,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -41310,9 +42870,19 @@
     "name": "COCHRAN, TIMOTHY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
         "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO LAX",
+        "bpl_min": 40
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 35
       }
     ]
   },
@@ -41524,21 +43094,16 @@
       },
       {
         "order": 2,
-        "bid": "FO SEA",
-        "bpl_min": 0
-      },
-      {
-        "order": 3,
         "bid": "FO PDX",
         "bpl_min": 0
       },
       {
-        "order": 4,
+        "order": 3,
         "bid": "FO LAX",
         "bpl_min": 0
       },
       {
-        "order": 5,
+        "order": 4,
         "bid": "FO SAN",
         "bpl_min": 0
       }
@@ -41597,8 +43162,8 @@
     "name": "STICKLER, KEVIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -41682,8 +43247,8 @@
     "name": "THORNTON, DAMON",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -42072,8 +43637,8 @@
     "name": "MORAN, DECLAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -42231,8 +43796,13 @@
     "name": "MACDONALD, STEPHEN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -42313,8 +43883,23 @@
     "name": "CASTILLO, ERVIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -42746,8 +44331,8 @@
     "name": "RUSS, ANDREW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -42980,8 +44565,33 @@
     "name": "HELMS, KENNETH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -43378,8 +44988,13 @@
     "name": "JOHNS, RILEY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -43879,8 +45494,13 @@
     "name": "MACDONALD-BROWN, JOSEPH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -44079,8 +45699,8 @@
     "name": "STEWART, JASON",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -44172,8 +45792,43 @@
     "name": "VAUGHAN, CRYSTAL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -44391,8 +46046,13 @@
     "name": "PRITT, JOSEPH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -44731,8 +46391,18 @@
     "name": "PETERSON, THOMAS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
         "bpl_min": 0
       }
     ]
@@ -44753,8 +46423,18 @@
     "name": "LARKINS, DOUGLAS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -45395,6 +47075,16 @@
         "order": 1,
         "bid": "FO LAX",
         "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 0
       }
     ]
   },
@@ -45561,8 +47251,8 @@
     "name": "EGAN, RICHARD",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -45730,8 +47420,33 @@
     "name": "BUSKIRK, SAMUEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA SEA",
         "bpl_min": 0
       }
     ]
@@ -46009,6 +47724,16 @@
       {
         "order": 2,
         "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -46297,27 +48022,27 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "CA SAN",
-        "bpl_min": 0
-      },
-      {
-        "order": 2,
         "bid": "CA LAX",
         "bpl_min": 0
       },
       {
+        "order": 2,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
         "order": 3,
-        "bid": "FO LAX",
+        "bid": "CA SFO",
         "bpl_min": 0
       },
       {
         "order": 4,
-        "bid": "FO SAN",
+        "bid": "FO LAX",
         "bpl_min": 0
       },
       {
         "order": 5,
-        "bid": "CA SFO",
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -46844,6 +48569,46 @@
         "order": 16,
         "bid": "CA SFO",
         "bpl_min": 0
+      },
+      {
+        "order": 17,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 18,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 19,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 20,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 21,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 22,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 23,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 24,
+        "bid": "CA SAN",
+        "bpl_min": 0
       }
     ]
   },
@@ -47134,8 +48899,18 @@
     "name": "DROZDOWSKI, JOHN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 60
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -47178,8 +48953,8 @@
     "name": "HOLOMAN, MICHAEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -47356,31 +49131,26 @@
       },
       {
         "order": 6,
-        "bid": "CA ANC",
-        "bpl_min": 0
-      },
-      {
-        "order": 7,
         "bid": "FO SEA",
         "bpl_min": 0
       },
       {
-        "order": 8,
+        "order": 7,
         "bid": "FO PDX",
         "bpl_min": 0
       },
       {
-        "order": 9,
+        "order": 8,
         "bid": "FO SAN",
         "bpl_min": 0
       },
       {
-        "order": 10,
+        "order": 9,
         "bid": "FO SFO",
         "bpl_min": 0
       },
       {
-        "order": 11,
+        "order": 10,
         "bid": "FO LAX",
         "bpl_min": 0
       }
@@ -47427,8 +49197,8 @@
     "name": "SUTPHEN, TRAVIS",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -47873,8 +49643,98 @@
     "name": "PERKINS, JUSTIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 540
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 70
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
+        "bpl_min": 550
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
+        "bpl_min": 75
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
+        "bpl_min": 555
+      },
+      {
+        "order": 6,
+        "bid": "FO SFO",
+        "bpl_min": 78
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
+        "bpl_min": 560
+      },
+      {
+        "order": 8,
+        "bid": "FO SFO",
+        "bpl_min": 80
+      },
+      {
+        "order": 9,
+        "bid": "FO SEA",
+        "bpl_min": 565
+      },
+      {
+        "order": 10,
+        "bid": "FO SFO",
+        "bpl_min": 100
+      },
+      {
+        "order": 11,
+        "bid": "FO LAX",
+        "bpl_min": 133
+      },
+      {
+        "order": 12,
+        "bid": "FO SAN",
+        "bpl_min": 92
+      },
+      {
+        "order": 13,
+        "bid": "FO SFO",
+        "bpl_min": 123
+      },
+      {
+        "order": 14,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 15,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 16,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 17,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 18,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 19,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -48085,8 +49945,63 @@
     "name": "ZINGER, ERIK",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 11,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 12,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -48821,12 +50736,17 @@
       },
       {
         "order": 2,
-        "bid": "FO PDX",
+        "bid": "FO SAN",
         "bpl_min": 0
       },
       {
         "order": 3,
-        "bid": "FO SAN",
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -48883,8 +50803,23 @@
     "name": "HARTUNG, ANDREW",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -49599,8 +51534,23 @@
     "name": "BYERLEY, GARRETT",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -49838,13 +51788,108 @@
       },
       {
         "order": 2,
-        "bid": "FO SAN",
-        "bpl_min": 68
+        "bid": "FO PDX",
+        "bpl_min": 180
       },
       {
         "order": 3,
+        "bid": "FO PDX",
+        "bpl_min": 150
+      },
+      {
+        "order": 4,
         "bid": "FO SFO",
+        "bpl_min": 97
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 73
+      },
+      {
+        "order": 6,
+        "bid": "FO LAX",
+        "bpl_min": 114
+      },
+      {
+        "order": 7,
+        "bid": "FO ANC",
+        "bpl_min": 79
+      },
+      {
+        "order": 8,
+        "bid": "FO PDX",
+        "bpl_min": 161
+      },
+      {
+        "order": 9,
+        "bid": "FO SFO",
+        "bpl_min": 105
+      },
+      {
+        "order": 10,
+        "bid": "FO SAN",
+        "bpl_min": 79
+      },
+      {
+        "order": 11,
+        "bid": "FO LAX",
+        "bpl_min": 123
+      },
+      {
+        "order": 12,
+        "bid": "FO ANC",
+        "bpl_min": 104
+      },
+      {
+        "order": 13,
+        "bid": "FO PDX",
+        "bpl_min": 173
+      },
+      {
+        "order": 14,
+        "bid": "FO SFO",
+        "bpl_min": 113
+      },
+      {
+        "order": 15,
+        "bid": "FO SAN",
+        "bpl_min": 85
+      },
+      {
+        "order": 16,
+        "bid": "FO LAX",
+        "bpl_min": 132
+      },
+      {
+        "order": 17,
+        "bid": "FO ANC",
         "bpl_min": 112
+      },
+      {
+        "order": 18,
+        "bid": "FO PDX",
+        "bpl_min": 184
+      },
+      {
+        "order": 19,
+        "bid": "FO SFO",
+        "bpl_min": 120
+      },
+      {
+        "order": 20,
+        "bid": "FO SAN",
+        "bpl_min": 91
+      },
+      {
+        "order": 21,
+        "bid": "FO LAX",
+        "bpl_min": 141
+      },
+      {
+        "order": 22,
+        "bid": "FO ANC",
+        "bpl_min": 119
       }
     ]
   },
@@ -49879,8 +51924,28 @@
     "name": "BREMS, STEFAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -49933,8 +51998,58 @@
     "name": "LAZZARO, JOSEPH",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 11,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -49975,8 +52090,33 @@
     "name": "SIMMONS, JAMES",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -50174,8 +52314,68 @@
     "name": "AMBROSE, STERLING",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SEA",
+        "bpl_min": 630
+      },
+      {
+        "order": 9,
+        "bid": "FO LAX",
+        "bpl_min": 140
+      },
+      {
+        "order": 10,
+        "bid": "FO SFO",
+        "bpl_min": 120
+      },
+      {
+        "order": 11,
+        "bid": "FO SAN",
+        "bpl_min": 50
+      },
+      {
+        "order": 12,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 13,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -50185,8 +52385,8 @@
     "name": "OAS, SAMUEL",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -50314,6 +52514,16 @@
       {
         "order": 2,
         "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -50511,8 +52721,23 @@
     "name": "NGUYEN, JONATHAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -50522,8 +52747,23 @@
     "name": "ATKINS, DANA",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -50544,8 +52784,33 @@
     "name": "WEBER, JACOB",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -50602,12 +52867,22 @@
       },
       {
         "order": 3,
-        "bid": "FO LAX",
+        "bid": "FO SAN",
         "bpl_min": 0
       },
       {
         "order": 4,
         "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -51208,8 +53483,43 @@
     "name": "ANDERSON, ERIN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 100
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 70
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
+        "bpl_min": 125
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 80
+      },
+      {
+        "order": 6,
+        "bid": "FO SFO",
+        "bpl_min": 110
+      },
+      {
+        "order": 7,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -51219,8 +53529,33 @@
     "name": "WALKER, CHRISTIAN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -51276,8 +53611,28 @@
     "name": "WELBORN, STUART",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -51355,8 +53710,33 @@
     "name": "GIRON, ROLAND",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -51449,8 +53829,28 @@
     "name": "ROUSE, FRANK",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -51460,8 +53860,23 @@
     "name": "TROJA, JOHN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -51555,6 +53970,21 @@
       {
         "order": 2,
         "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 79
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
+        "bpl_min": 105
+      },
+      {
+        "order": 5,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -52065,9 +54495,29 @@
     "name": "JOHNSON, JENNIFER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
         "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 123
+      },
+      {
+        "order": 4,
+        "bid": "FO SAN",
+        "bpl_min": 92
+      },
+      {
+        "order": 5,
+        "bid": "FO LAX",
+        "bpl_min": 144
       }
     ]
   },
@@ -52158,8 +54608,33 @@
     "name": "DARROW, JACOB",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 560
+      },
+      {
+        "order": 3,
+        "bid": "FO LAX",
+        "bpl_min": 144
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
+        "bpl_min": 123
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 92
+      },
+      {
+        "order": 6,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -52236,8 +54711,23 @@
     "name": "CORBETT, PHILIP",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -52696,8 +55186,33 @@
     "name": "HATFIELD, ISAAC",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -52718,8 +55233,53 @@
     "name": "BRONSON, ZACHARY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO ANC",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO LAX",
         "bpl_min": 0
       }
     ]
@@ -52986,8 +55546,53 @@
     "name": "WRIGHT, PATRICK",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "CA PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "CA SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "CA LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "CA SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "CA SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO SEA",
         "bpl_min": 0
       }
     ]
@@ -53451,8 +56056,13 @@
     "name": "CARTER, RICHARD",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
         "bpl_min": 0
       }
     ]
@@ -53742,8 +56352,33 @@
     "name": "BLACKMARR, STEPHEN",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -54078,6 +56713,21 @@
       {
         "order": 1,
         "bid": "FO SFO",
+        "bpl_min": 135
+      },
+      {
+        "order": 2,
+        "bid": "FO LAX",
+        "bpl_min": 145
+      },
+      {
+        "order": 3,
+        "bid": "FO SAN",
+        "bpl_min": 80
+      },
+      {
+        "order": 4,
+        "bid": "FO SFO",
         "bpl_min": 0
       }
     ]
@@ -54286,13 +56936,13 @@
       },
       {
         "order": 26,
-        "bid": "FO SAN",
-        "bpl_min": 95
+        "bid": "FO SFO",
+        "bpl_min": 134
       },
       {
         "order": 27,
-        "bid": "FO PDX",
-        "bpl_min": 0
+        "bid": "FO SAN",
+        "bpl_min": 95
       },
       {
         "order": 28,
@@ -54301,21 +56951,26 @@
       },
       {
         "order": 29,
-        "bid": "FO LAX",
+        "bid": "FO PDX",
         "bpl_min": 0
       },
       {
         "order": 30,
-        "bid": "FO SFO",
+        "bid": "FO LAX",
         "bpl_min": 0
       },
       {
         "order": 31,
-        "bid": "FO SAN",
+        "bid": "FO SFO",
         "bpl_min": 0
       },
       {
         "order": 32,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 33,
         "bid": "FO ANC",
         "bpl_min": 0
       }
@@ -55076,26 +57731,46 @@
       {
         "order": 2,
         "bid": "FO SEA",
-        "bpl_min": 0
+        "bpl_min": 559
       },
       {
         "order": 3,
         "bid": "FO PDX",
-        "bpl_min": 0
+        "bpl_min": 187
       },
       {
         "order": 4,
         "bid": "FO SFO",
-        "bpl_min": 0
+        "bpl_min": 122
       },
       {
         "order": 5,
-        "bid": "FO SAN",
-        "bpl_min": 0
+        "bid": "FO LAX",
+        "bpl_min": 143
       },
       {
         "order": 6,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 7,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 8,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 9,
         "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 10,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -55126,8 +57801,33 @@
     "name": "MURPHY, MOLLY",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -55137,8 +57837,13 @@
     "name": "MCCARTHY, CHRISTOPHER",
     "preferences": [
       {
-        "order": 0,
-        "bid": "",
+        "order": 1,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO SAN",
         "bpl_min": 0
       }
     ]
@@ -55333,7 +58038,7 @@
       {
         "order": 3,
         "bid": "FO SAN",
-        "bpl_min": 93
+        "bpl_min": 91
       },
       {
         "order": 4,
@@ -55426,6 +58131,31 @@
       {
         "order": 1,
         "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
+        "order": 2,
+        "bid": "FO PDX",
+        "bpl_min": 0
+      },
+      {
+        "order": 3,
+        "bid": "FO SFO",
+        "bpl_min": 0
+      },
+      {
+        "order": 4,
+        "bid": "FO LAX",
+        "bpl_min": 0
+      },
+      {
+        "order": 5,
+        "bid": "FO SAN",
+        "bpl_min": 0
+      },
+      {
+        "order": 6,
+        "bid": "FO ANC",
         "bpl_min": 0
       }
     ]
@@ -56269,22 +58999,22 @@
     "preferences": [
       {
         "order": 1,
-        "bid": "FO SEA",
-        "bpl_min": 0
-      },
-      {
-        "order": 2,
         "bid": "FO PDX",
         "bpl_min": 0
       },
       {
+        "order": 2,
+        "bid": "FO SEA",
+        "bpl_min": 0
+      },
+      {
         "order": 3,
-        "bid": "FO ANC",
+        "bid": "FO SFO",
         "bpl_min": 0
       },
       {
         "order": 4,
-        "bid": "FO SFO",
+        "bid": "FO ANC",
         "bpl_min": 0
       },
       {
