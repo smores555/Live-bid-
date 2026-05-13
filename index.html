@@ -6,6 +6,7 @@
     <title>737 Master Bid Control - True Top-Down Displacement</title>
     
     <script src="engine.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
         :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
@@ -211,13 +212,101 @@ document.getElementById('expMaster').onclick = () => {
 };
 
 document.getElementById('expBase').onclick = () => {
-    const headers = ["Position", "Seniority", "Name", "Rank"];
-    const rows = [];
-    Object.keys(lastTargetMap).forEach(key => {
-        const basePilots = lastResults.filter(p => p.currentKey === key).sort((a,b) => a.sen - b.sen);
-        basePilots.forEach((p, idx) => rows.push([key, p.sen, p.name, idx + 1]));
+    const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'];
+    const baseNames = { ANC: 'Anchorage', SEA: 'Seattle', LAX: 'Los Angeles', SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland' };
+
+    const wb = XLSX.utils.book_new();
+
+    // Styles (xlsx.full.min supports cell styles via !cellStyles)
+    const GREEN_DARK  = '1A5E1A'; // dark green header bg
+    const GREEN_MID   = '2EA84B'; // mid green rows
+    const GREEN_LIGHT = 'D6F0DB'; // light green alt rows
+    const BLUE_DARK   = '0D3D6B'; // dark blue header bg
+    const BLUE_MID    = '1565C0'; // mid blue rows
+    const BLUE_LIGHT  = 'D0E4F7'; // light blue alt rows
+    const WHITE       = 'FFFFFF';
+
+    function cellStyle(bgHex, bold, color) {
+        return {
+            fill: { fgColor: { rgb: bgHex } },
+            font: { bold: !!bold, color: { rgb: color || WHITE }, name: 'Arial', sz: 10 },
+            alignment: { horizontal: 'left', vertical: 'center' },
+            border: {
+                top:    { style: 'thin', color: { rgb: 'CCCCCC' } },
+                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                left:   { style: 'thin', color: { rgb: 'CCCCCC' } },
+                right:  { style: 'thin', color: { rgb: 'CCCCCC' } }
+            }
+        };
+    }
+
+    bases.forEach(base => {
+        const caKey = `${base}-CA`;
+        const foKey = `${base}-FO`;
+        const caPilots = lastResults.filter(p => p.currentKey === caKey).sort((a, b) => a.sen - b.sen);
+        const foPilots = lastResults.filter(p => p.currentKey === foKey).sort((a, b) => a.sen - b.sen);
+        if (caPilots.length === 0 && foPilots.length === 0) return;
+
+        const caCap = lastTargetMap[caKey] || 0;
+        const foCap = lastTargetMap[foKey] || 0;
+        const maxRows = Math.max(caPilots.length, foPilots.length);
+
+        const ws = {};
+        const range = { s: { r: 0, c: 0 }, e: { r: maxRows + 2, c: 7 } };
+
+        function setCell(r, c, v, style) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
+        }
+
+        // Row 0: title spanning all cols
+        const titleStyle = cellStyle(GREEN_DARK, true, WHITE);
+        setCell(0, 0, `737 ${baseNames[base] || base}`, titleStyle);
+        for (let c = 1; c <= 7; c++) setCell(0, c, '', titleStyle);
+
+        // Row 1: column headers — CA side green, gap col blank, FO side blue
+        setCell(1, 0, 'BPL #',             cellStyle(GREEN_DARK, true));
+        setCell(1, 1, 'CAPTAIN NAME',       cellStyle(GREEN_DARK, true));
+        setCell(1, 2, 'SEN #',             cellStyle(GREEN_DARK, true));
+        setCell(1, 3, String(caCap),        cellStyle(GREEN_DARK, true));
+        setCell(1, 4, 'BPL #',             cellStyle(BLUE_DARK,  true));
+        setCell(1, 5, 'FIRST OFFICER NAME', cellStyle(BLUE_DARK,  true));
+        setCell(1, 6, 'SEN #',             cellStyle(BLUE_DARK,  true));
+        setCell(1, 7, String(foCap),        cellStyle(BLUE_DARK,  true));
+
+        // Data rows
+        for (let i = 0; i < maxRows; i++) {
+            const r = i + 2;
+            const isAlt = i % 2 === 1;
+            const caBg = isAlt ? GREEN_LIGHT : WHITE;
+            const foBg = isAlt ? BLUE_LIGHT  : WHITE;
+            const caColor = '1A3A1A';
+            const foColor = '0D2A4A';
+
+            const ca = caPilots[i];
+            const fo = foPilots[i];
+
+            setCell(r, 0, ca ? i + 1    : '', cellStyle(caBg, false, caColor));
+            setCell(r, 1, ca ? ca.name  : '', cellStyle(caBg, false, caColor));
+            setCell(r, 2, ca ? ca.sen   : '', cellStyle(caBg, false, caColor));
+            setCell(r, 3, '',                 cellStyle(caBg, false, caColor));
+            setCell(r, 4, fo ? i + 1    : '', cellStyle(foBg, false, foColor));
+            setCell(r, 5, fo ? fo.name  : '', cellStyle(foBg, false, foColor));
+            setCell(r, 6, fo ? fo.sen   : '', cellStyle(foBg, false, foColor));
+            setCell(r, 7, '',                 cellStyle(foBg, false, foColor));
+        }
+
+        ws['!ref'] = XLSX.utils.encode_range(range);
+        ws['!cols'] = [
+            { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 },
+            { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 }
+        ];
+        ws['!rows'] = [{ hpt: 20 }, { hpt: 18 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, base);
     });
-    exportToCSV("base_lists.csv", [headers, ...rows]);
+
+    XLSX.writeFile(wb, 'base_lists.xlsx', { cellStyles: true });
 };
 
 document.getElementById('expLog').onclick = () => {
