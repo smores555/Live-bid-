@@ -424,8 +424,12 @@ function runBidEngine(data, deltaMap) {
             : '';
         const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
 
+        const failedStr = (log.failedPrefs && log.failedPrefs.length > 0)
+            ? ' ' + log.failedPrefs.join(' ')
+            : '';
+
         if (log.step === 'A' && !log.stayed) {
-            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr} ${fmtSource(log.source)}${bumpNote}`;
             const line2 = log.displacementBump
                 ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
                 : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
@@ -433,11 +437,11 @@ function runBidEngine(data, deltaMap) {
         } else if (log.step === 'A' && log.stayed) {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
-            return `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remain in current position. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            return `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remain in current position.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
         } else if (log.step === 'B') {
             return `Remain in current position.`;
         } else if (log.step === 'C') {
-            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}.${failedStr} ${fmtSource(log.source)}${bumpNote}`;
             const line2 = log.displacementBump
                 ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
                 : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
