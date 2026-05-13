@@ -52,7 +52,7 @@
   {
     "id": "pil9",
     "sen": 9,
-    "name": "GRAHAM, SIDNEY",
+    "name": "GRAHAM JR., SIDNEY",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -122,7 +122,7 @@
   {
     "id": "pil16",
     "sen": 16,
-    "name": "COX, R.",
+    "name": "COX, R",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -192,7 +192,7 @@
   {
     "id": "pil23",
     "sen": 23,
-    "name": "LONG, PHILIP",
+    "name": "LONG JR, PHILIP",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -282,7 +282,7 @@
   {
     "id": "pil32",
     "sen": 32,
-    "name": "OSBORNE, J.",
+    "name": "OSBORNE, J",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -302,7 +302,7 @@
   {
     "id": "pil34",
     "sen": 34,
-    "name": "CAGLEY, S.",
+    "name": "CAGLEY, S",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -382,7 +382,7 @@
   {
     "id": "pil42",
     "sen": 42,
-    "name": "SMITH, B.",
+    "name": "SMITH, B",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -552,7 +552,7 @@
   {
     "id": "pil60",
     "sen": 60,
-    "name": "MYRTVEDT, \"K.J.\"",
+    "name": "MYRTVEDT, \"K.J.\" KJETIL",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -602,7 +602,7 @@
   {
     "id": "pil65",
     "sen": 65,
-    "name": "McKINNIS, DOUGLAS",
+    "name": "MCKINNIS, DOUGLAS",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -732,7 +732,7 @@
   {
     "id": "pil78",
     "sen": 78,
-    "name": "ROPER, P.",
+    "name": "ROPER, P",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -752,7 +752,7 @@
   {
     "id": "pil80",
     "sen": 80,
-    "name": "McDONOUGH, M.",
+    "name": "MCDONOUGH, M",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -932,7 +932,7 @@
   {
     "id": "pil98",
     "sen": 98,
-    "name": "McLAUGHLIN, CHRISTIAN",
+    "name": "MCLAUGHLIN, CHRISTIAN",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -1052,7 +1052,7 @@
   {
     "id": "pil111",
     "sen": 111,
-    "name": "VanGRUNSVEN, MARK",
+    "name": "VANGRUNSVEN, MARK",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -1112,7 +1112,7 @@
   {
     "id": "pil117",
     "sen": 117,
-    "name": "FIGENSKAU, \"TRIG\"",
+    "name": "FIGENSKAU, \"TRIG\" TRYGVE S.",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -1182,7 +1182,7 @@
   {
     "id": "pil124",
     "sen": 124,
-    "name": "KLINGER, R.",
+    "name": "KLINGER, R",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -1332,7 +1332,7 @@
   {
     "id": "pil140",
     "sen": 140,
-    "name": "SMITH, E.",
+    "name": "SMITH, E",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -1492,7 +1492,7 @@
   {
     "id": "pil156",
     "sen": 156,
-    "name": "McDANIEL, TERRY",
+    "name": "MCDANIEL, TERRY",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -1572,7 +1572,7 @@
   {
     "id": "pil164",
     "sen": 164,
-    "name": "ZIPAY, \"JAMIE'",
+    "name": "ZIPAY, \"JAMIE' JAMES A.",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -2192,7 +2192,7 @@
   {
     "id": "pil227",
     "sen": 227,
-    "name": "CAMPBELL, \"CASEY\"",
+    "name": "CAMPBELL, \"CASEY\" CARROLL J.",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -2272,7 +2272,7 @@
   {
     "id": "pil235",
     "sen": 235,
-    "name": "MONTGOMERY, ROBERT",
+    "name": "MONTGOMERY JR.,ROBERT",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -2312,7 +2312,7 @@
   {
     "id": "pil239",
     "sen": 239,
-    "name": "WITTENFELD, W.",
+    "name": "WITTENFELD, W",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -2332,7 +2332,7 @@
   {
     "id": "pil241",
     "sen": 241,
-    "name": "THERRIAULT, R.",
+    "name": "THERRIAULT, R",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -2472,7 +2472,7 @@
   {
     "id": "pil255",
     "sen": 255,
-    "name": "PHIPPS, R.",
+    "name": "PHIPPS, R",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -2532,7 +2532,7 @@
   {
     "id": "pil261",
     "sen": 261,
-    "name": "JAMES, \"KB\"",
+    "name": "JAMES, \"KB\" KENDALL B.",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -2642,7 +2642,7 @@
   {
     "id": "pil272",
     "sen": 272,
-    "name": "BRANDORFF, H.",
+    "name": "BRANDORFF, H",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -2802,7 +2802,7 @@
   {
     "id": "pil289",
     "sen": 289,
-    "name": "OLSEN, DONALD",
+    "name": "OLSEN JR., DONALD",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -3012,7 +3012,7 @@
   {
     "id": "pil310",
     "sen": 310,
-    "name": "VARGECKO, P.",
+    "name": "VARGECKO, P",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -3112,7 +3112,7 @@
   {
     "id": "pil321",
     "sen": 321,
-    "name": "PHILLIPS, M.",
+    "name": "PHILLIPS, M",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -3442,7 +3442,7 @@
   {
     "id": "pil354",
     "sen": 354,
-    "name": "NORMAND, \"BUFF\"",
+    "name": "NORMAND, \"BUFF\" ARTHUR B.",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -3552,7 +3552,7 @@
   {
     "id": "pil365",
     "sen": 365,
-    "name": "ROBERTSON, STEPHEN",
+    "name": "ROBERTSON JR., STEPHEN",
     "current": {
       "equip": "737",
       "base": "SFO",
@@ -4432,7 +4432,7 @@
   {
     "id": "pil453",
     "sen": 453,
-    "name": "McGHEE, PETER",
+    "name": "MCGHEE, PETER",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -6232,7 +6232,7 @@
   {
     "id": "pil637",
     "sen": 637,
-    "name": "RODGERS, JOEL",
+    "name": "RODGERS JR., JOEL",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -6362,7 +6362,7 @@
   {
     "id": "pil650",
     "sen": 650,
-    "name": "MacCOSHAM, ROCHELL",
+    "name": "MACCOSHAM, ROCHELL",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -6832,7 +6832,7 @@
   {
     "id": "pil698",
     "sen": 698,
-    "name": "WALKER, MICHAEL",
+    "name": "WALKER JR., MICHAEL",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -6902,7 +6902,7 @@
   {
     "id": "pil705",
     "sen": 705,
-    "name": "McGIBNEY, MATTHEW",
+    "name": "MCGIBNEY, MATTHEW",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -7212,7 +7212,7 @@
   {
     "id": "pil736",
     "sen": 736,
-    "name": "McLAREN II, DOUGLAS",
+    "name": "MCLAREN II, DOUGLAS",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -7272,7 +7272,7 @@
   {
     "id": "pil742",
     "sen": 742,
-    "name": "McQUILLEN, WILLIAM",
+    "name": "MCQUILLEN, WILLIAM",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -7462,7 +7462,7 @@
   {
     "id": "pil761",
     "sen": 761,
-    "name": "BIDDLE, LARRY",
+    "name": "BIDDLE JR., LARRY",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -7642,7 +7642,7 @@
   {
     "id": "pil779",
     "sen": 779,
-    "name": "McGINNIS, THOMAS",
+    "name": "MCGINNIS, THOMAS",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -7722,7 +7722,7 @@
   {
     "id": "pil787",
     "sen": 787,
-    "name": "MITCHELL, LARRY",
+    "name": "MITCHELL JR., LARRY",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -7992,7 +7992,7 @@
   {
     "id": "pil814",
     "sen": 814,
-    "name": "McLAUGHLIN, TIMOTHY",
+    "name": "MCLAUGHLIN, TIMOTHY",
     "current": {
       "equip": "737",
       "base": "SFO",
@@ -9352,7 +9352,7 @@
   {
     "id": "pil951",
     "sen": 951,
-    "name": "McCAVERTY, SCOTT",
+    "name": "MCCAVERTY, SCOTT",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -10902,7 +10902,7 @@
   {
     "id": "pil1107",
     "sen": 1107,
-    "name": "ANDRIULLI, JOHN",
+    "name": "ANDRIULLI JR., JOHN",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -11222,7 +11222,7 @@
   {
     "id": "pil1139",
     "sen": 1139,
-    "name": "EDWARDS, ROBERT",
+    "name": "EDWARDS JR., ROBERT",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -12262,7 +12262,7 @@
   {
     "id": "pil1243",
     "sen": 1243,
-    "name": "PRCHAL, CHARLES",
+    "name": "PRCHAL JR., CHARLES",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -14242,7 +14242,7 @@
   {
     "id": "pil1441",
     "sen": 1441,
-    "name": "FAIGNANT, J.",
+    "name": "FAIGNANT, J",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -19302,7 +19302,7 @@
   {
     "id": "pil1947",
     "sen": 1947,
-    "name": "ASSINK, CHRISTYNA-ROSE",
+    "name": "ASSINK, CHRISTYNA",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -26162,7 +26162,7 @@
   {
     "id": "pil2633",
     "sen": 2633,
-    "name": "YEH, YU-PEI",
+    "name": "YEH, YU",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -27642,7 +27642,7 @@
   {
     "id": "pil2781",
     "sen": 2781,
-    "name": "GARCIA, ELIAS",
+    "name": "GARCIA JR, ELIAS",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -28062,7 +28062,7 @@
   {
     "id": "pil2824",
     "sen": 2824,
-    "name": "FLAHERTY, THOMAS",
+    "name": "FLAHERTY JR., THOMAS",
     "current": {
       "equip": "737",
       "base": "PDX",
@@ -28372,7 +28372,7 @@
   {
     "id": "pil2855",
     "sen": 2855,
-    "name": "LeBARON, BRYCE",
+    "name": "LEBARON, BRYCE",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -28822,7 +28822,7 @@
   {
     "id": "pil2900",
     "sen": 2900,
-    "name": "DeVINE, DAVID",
+    "name": "DEVINE, DAVID",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -29002,7 +29002,7 @@
   {
     "id": "pil2918",
     "sen": 2918,
-    "name": "LOVELADY II, MARTIN(JAY)",
+    "name": "LOVELADY II, MARTIN",
     "current": {
       "equip": "737",
       "base": "SAN",
@@ -29202,7 +29202,7 @@
   {
     "id": "pil2938",
     "sen": 2938,
-    "name": "KVALE, JOHN-MICHAEL",
+    "name": "KVALE, JOHN",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -29322,7 +29322,7 @@
   {
     "id": "pil2950",
     "sen": 2950,
-    "name": "McKINNIS, KENTON",
+    "name": "MCKINNIS, KENTON",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -29902,7 +29902,7 @@
   {
     "id": "pil3008",
     "sen": 3008,
-    "name": "BUNCH, STEVEN",
+    "name": "BUNCH JR., STEVEN",
     "current": {
       "equip": "737",
       "base": "SFO",
@@ -30352,7 +30352,7 @@
   {
     "id": "pil3053",
     "sen": 3053,
-    "name": "DROZDOWSKI, JOHN",
+    "name": "DROZDOWSKI JR., JOHN",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -30712,7 +30712,7 @@
   {
     "id": "pil3089",
     "sen": 3089,
-    "name": "BICKERSTAFF, THOMAS",
+    "name": "BICKERSTAFF JR. , THOMAS",
     "current": {
       "equip": "737",
       "base": "ANC",
@@ -32972,7 +32972,7 @@
   {
     "id": "pil3316",
     "sen": 3316,
-    "name": "WHIPP, JOSHUA",
+    "name": "WHIPP , JOSHUA",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -33082,7 +33082,7 @@
   {
     "id": "pil3327",
     "sen": 3327,
-    "name": "MATTHEWS, SAMUEL",
+    "name": "MATTHEWS , SAMUEL",
     "current": {
       "equip": "737",
       "base": "SEA",
@@ -33302,7 +33302,7 @@
   {
     "id": "pil3350",
     "sen": 3350,
-    "name": "CORCORAN, PETER",
+    "name": "CORCORAN , PETER",
     "current": {
       "equip": "737",
       "base": "SFO",
@@ -33512,7 +33512,7 @@
   {
     "id": "pil3372",
     "sen": 3372,
-    "name": "BALLOU II, EUGENE(GENE)",
+    "name": "BALLOU II, EUGENE",
     "current": {
       "equip": "737",
       "base": "SFO",
@@ -33552,7 +33552,7 @@
   {
     "id": "pil3376",
     "sen": 3376,
-    "name": "SIMS, JASON",
+    "name": "SIMS , JASON",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -33732,7 +33732,7 @@
   {
     "id": "pil3394",
     "sen": 3394,
-    "name": "BYUN, CHONG-HUN",
+    "name": "BYUN, CHONG",
     "current": {
       "equip": "737",
       "base": "LAX",
@@ -33802,7 +33802,7 @@
   {
     "id": "pil3402",
     "sen": 3402,
-    "name": "CHEN, BENJAMIN",
+    "name": "CHEN , BENJAMIN",
     "current": {
       "equip": "737",
       "base": "SFO",
@@ -33892,7 +33892,7 @@
   {
     "id": "pil3411",
     "sen": 3411,
-    "name": "PICKARD, KEVIN",
+    "name": "PICKARD JR, KEVIN",
     "current": {
       "equip": "737",
       "base": "SAN",
