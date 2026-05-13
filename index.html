@@ -88,6 +88,7 @@
 let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
 let lastResults = [];
 let lastTargetMap = {};
+let lastAuditTrail = [];
 
 // Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
@@ -121,7 +122,8 @@ document.getElementById('runBtn').onclick = () => {
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
     lastTargetMap = result.targetMap;
-    renderTable(lastResults, lastTargetMap);
+    lastAuditTrail = result.auditTrail;
+    renderTable(lastResults, lastTargetMap, lastAuditTrail);
     renderDashboards(lastResults);
     document.getElementById('statusBox').innerHTML = `Run complete. Evaluated ${lastResults.length} active bidders. System ran ${result.loops} cascade loops to resolve seniority.`;
 };
@@ -139,17 +141,72 @@ function renderDashboards(roster) {
     document.getElementById('displacedList').innerHTML = moverHtml || "None.";
 }
 
-function renderTable(roster, targetMap) {
-    document.getElementById('tableBody').innerHTML = roster.map(p => {
-        const awardedPos = p.currentKey.replace('-', ' ');
+function renderTable(roster, targetMap, auditTrail) {
+    // Build a lookup from sen -> pilot for tags/rank
+    const pilotMap = {};
+    roster.forEach(p => { pilotMap[p.sen] = p; });
+
+    // For pilots with multiple audit entries, show one row per move.
+    // For pilots with no audit entry (stayed put), show their single roster row.
+    const seenSens = new Set();
+    const rows = [];
+
+    // First pass: emit one row per auditTrail entry (covers all movers)
+    auditTrail.forEach(entry => {
+        const p = pilotMap[entry.sen];
+        if (!p) return;
+        seenSens.add(p.sen);
+
+        const toPos = entry.to.replace('-', ' ');
+        const fromPos = (entry.from || p.orig).replace('-', ' ');
+        const isLastMove = (entry.to === p.currentKey);
+
         let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
         if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
         else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple); color:white;">DISPLACED</span>';
-        
+
+        // Only show final rank on the last move row
+        let rankCell = '-';
+        if (isLastMove && p.currentKey !== "UNASSIGNED") {
+            let finalRank = 0;
+            roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
+            rankCell = `${finalRank} / ${targetMap[p.currentKey] || 0}`;
+        }
+
+        const reasonLines = (entry.reason || '').split('\n');
+        const reasonHtml = reasonLines[0] + (reasonLines[1] ? `<span class="award-reason">${reasonLines[1]}</span>` : '');
+
+        rows.push(`<tr>
+            <td>${p.sen}</td>
+            <td><strong>${p.name}</strong><br>${tags}</td>
+            <td style="color:${p.moved && !p.isUnassigned ? '#3fb950' : ''}">${toPos}</td>
+            <td><span class="rank-badge">${rankCell}</span></td>
+            <td>${reasonHtml}</td>
+            <td>${p.orig.replace('-', ' ')}</td>
+        </tr>`);
+    });
+
+    // Second pass: pilots with no audit entry (never moved — stayed put)
+    roster.forEach(p => {
+        if (seenSens.has(p.sen)) return;
+        const awardedPos = p.currentKey.replace('-', ' ');
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        return `<tr><td>${p.sen}</td><td><strong>${p.name}</strong><br>${tags}</td><td style="color:${p.moved && !p.isUnassigned ?'#3fb950':''}">${awardedPos}</td><td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td><td>${p.awardedReason}</td><td>${p.orig.replace('-',' ')}</td></tr>`;
-    }).join('');
+
+        const reasonLines = (p.awardedReason || '').split('\n');
+        const reasonHtml = reasonLines[0] + (reasonLines[1] ? `<span class="award-reason">${reasonLines[1]}</span>` : '');
+
+        rows.push(`<tr>
+            <td>${p.sen}</td>
+            <td><strong>${p.name}</strong></td>
+            <td>${awardedPos}</td>
+            <td><span class="rank-badge">${p.currentKey === "UNASSIGNED" ? "-" : finalRank + " / " + (targetMap[p.currentKey] || 0)}</span></td>
+            <td>${reasonHtml}</td>
+            <td>${p.orig.replace('-', ' ')}</td>
+        </tr>`);
+    });
+
+    document.getElementById('tableBody').innerHTML = rows.join('');
 }
 
 document.getElementById('expMaster').onclick = () => {
@@ -174,7 +231,12 @@ document.getElementById('expBase').onclick = () => {
 
 document.getElementById('expLog').onclick = () => {
     const headers = ["Seniority", "Name", "From", "To", "Transition Note"];
-    const rows = lastResults.filter(p => p.moved).map(p => [p.sen, p.name, p.orig, p.currentKey, p.awardedReason]);
+    const pilotMap = {};
+    lastResults.forEach(p => { pilotMap[p.sen] = p; });
+    const rows = lastAuditTrail.map(entry => {
+        const p = pilotMap[entry.sen];
+        return [entry.sen, entry.name, (entry.from || (p ? p.orig : '')), entry.to, (entry.reason || '').replace('\n', ' ')];
+    });
     exportToCSV("transition_log.csv", [headers, ...rows]);
 };
 </script>
