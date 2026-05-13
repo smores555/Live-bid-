@@ -403,7 +403,7 @@ function runBidEngine(data, deltaMap) {
                 p.moved        = (newSeat !== p.orig);
                 p.isUnassigned = (newSeat === "UNASSIGNED");
 
-                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, to: newSeat, log });
+                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: p.currentKey, to: newSeat, log });
 
                 cascade = true;
                 break;
@@ -415,58 +415,54 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    // ── BUILD AWARDED REASON STRINGS ─────────────────────────────────────────
-    bidders.forEach(p => {
-        const log = p.moveLog;
-        if (!log) { p.awardedReason = "No bid data."; return; }
-
-        const failedStr = (log.failedPrefs && log.failedPrefs.length > 0)
-            ? ` ${log.failedPrefs.join(' ')}`
-            : '';
-
-        const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
-
+    // ── BUILD REASON STRING FROM A LOG OBJECT ────────────────────────────────
+    function buildReasonFromLog(log, finalVacFn) {
+        if (!log) return "No bid data.";
+        const finalVac = finalVacFn || ((key) => (targetMap[key] || 0) - (currentCounts[key] || 0));
         const bumpNote = (log.displacementBump && log.bumpedSen)
             ? ` Bumped Sen #${log.bumpedSen} (displacement chain).`
             : '';
-
         const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
 
         if (log.step === 'A' && !log.stayed) {
-            const lines = [
-                `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr}`,
-                `${fmtSource(log.source)}${bumpNote}`,
-                log.displacementBump
-                    ? `Displacement move — no vacancy consumed in ${keyLabel(log.toKey)}.`
-                    : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
-                `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
-            ];
-            p.awardedReason = lines.join(' ');
+            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line2 = log.displacementBump
+                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            return line1 + '\n' + line2;
         } else if (log.step === 'A' && log.stayed) {
             const vac = finalVac(log.toKey);
             const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remained in ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            return `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remain in current position. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
         } else if (log.step === 'B') {
-            const vac = finalVac(log.toKey);
-            const cap = targetMap[log.toKey] || 0;
-            p.awardedReason = `${sec24Prefix}Held Position (Seniority) \u2014 ${posLabel(log.toKey)}.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            return `Remain in current position.`;
         } else if (log.step === 'C') {
-            const lines = [
-                `Section 24 Displacement \u2192 ${posLabel(log.toKey)}.${failedStr}`,
-                `${fmtSource(log.source)}${bumpNote}`,
-                log.displacementBump
-                    ? `Displacement move — no vacancy consumed in ${keyLabel(log.toKey)}.`
-                    : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}.`,
-                `Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
-            ];
-            p.awardedReason = lines.join(' ');
+            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line2 = log.displacementBump
+                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            return line1 + '\n' + line2;
         } else if (log.step === 'D') {
             if (log.selfDisp) {
-                p.awardedReason = `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}.${failedStr} Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                return `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             } else {
-                p.awardedReason = `Displaced: System-wide reduction \u2014 no position available.${failedStr} Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                return `Displaced: No position available \u2014 system-wide reduction. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             }
         }
+        return "No bid data.";
+    }
+
+    // ── STAMP REASON ON EACH AUDIT TRAIL ENTRY ───────────────────────────────
+    auditTrail.forEach(entry => {
+        entry.reason = buildReasonFromLog(entry.log);
+    });
+
+    // ── BUILD FINAL AWARDED REASON STRINGS ───────────────────────────────────
+    bidders.forEach(p => {
+        const log = p.moveLog;
+        if (!log) { p.awardedReason = "No bid data."; return; }
+        const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
+        p.awardedReason = buildReasonFromLog(log, finalVac);
     });
 
     return { roster: bidders, loops, auditTrail, targetMap };
