@@ -1,324 +1,469 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 Master Bid Control - True Top-Down Displacement</title>
-    
-    <script src="engine.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <style>
-        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
-        .container { max-width: 1600px; margin: 0 auto; }
-        .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
-        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
-        .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
-        .btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
-        .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
-        .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
-        .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
-        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
-        .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
-        .tag-red { background: var(--red); color: white; }
-        .tag-yellow { background: var(--yellow); color: #000; }
-        .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
-        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
-    </style>
-</head>
-<body>
+/**
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Displacement Chain Update)
+ * Logic Update: Force-displaced pilots do not need a vacancy to land.
+ * They bump the most junior pilot at their preferred base (where they
+ * outrank the junior-most). That bumped pilot inherits displacement rights
+ * and cascades the same way. Voluntary preference failures still require
+ * vacancies as before.
+ */
+function runBidEngine(data, deltaMap) {
+    const auditTrail = [];
+    const is737 = (p) => p.current && p.current.equip === "737";
 
-<div class="container">
-    <div class="card">
-        <h3 style="margin:0">Position Deltas (737 Fleet)</h3>
-        <div id="capGrid" class="cap-grid">Loading...</div>
-    </div>
+    // ── FIXED PILOT EXCLUSION LOGIC ──────────────────────────────────────────
+    const retiredSens = new Set(data.retired.map(p => p.sen || p.seniority));
+    const noBidSens   = new Set(data.noBid.map(p => p.sen || p.seniority));
 
-    <div class="dash-container">
-        <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--accent)">⚙️ Engine Status</h4>
-            <div id="statusBox" style="font-size: 0.75rem;">Idle.</div>
-        </div>
-        <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--yellow)">⚠️ MOVER Pilots</h4>
-            <div id="displacedList">Ready...</div>
-        </div>
-        <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--purple)">🆘 DISPLACED</h4>
-            <div id="unassignedList">Ready...</div>
-        </div>
-        <div class="dash-box">
-            <h4 class="dash-title" style="color:var(--red)">🛑 BPL Failures</h4>
-            <div id="selfDispList">Ready...</div>
-        </div>
-    </div>
+    const activeBidders = data.roster.filter(p =>
+        is737(p) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
+    );
 
-    <div class="toolbar">
-        <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
-        <button id="expBase" class="btn">CSV: BASE LIST</button>
-        <button id="expMaster" class="btn">CSV: MASTER AWARDS</button>
-        <button id="expLog" class="btn">CSV: TRANSITION LOG</button>
-        <div style="flex-grow:1"></div>
-        <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
-        <button id="lookupBtn" class="btn">LOOKUP</button>
-    </div>
+    // ── LABEL HELPERS ────────────────────────────────────────────────────────
+    const baseNames = {
+        ANC: 'Anchorage', SEA: 'Seattle',      LAX: 'Los Angeles',
+        SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland'
+    };
+    const seatNames = { CA: 'Captain', FO: 'First Officer' };
 
-    <table>
-        <thead>
-            <tr>
-                <th>Sen #</th>
-                <th>Pilot Name</th>
-                <th>Awarded Position</th>
-                <th>Final Standing (Rank / Limit)</th>
-                <th>Award Path</th>
-                <th>Original Position</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-    </table>
-</div>
-
-<script>
-let store = { roster: [], prefs: {}, caps: [], retired: [], noBid: [] };
-let lastResults = [];
-let lastTargetMap = {};
-let lastAuditTrail = [];
-
-// Robust Excel-Safe CSV Export
-function exportToCSV(filename, rows) {
-    const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-window.onload = async () => {
-    try {
-        const files = ['roster.json', 'preferences.json', 'capacities.json', 'retired_pilots.json', 'nobidpilots.json'];
-        const results = await Promise.all(files.map(async f => { const r = await fetch(f); return await r.json(); }));
-        store = { roster: results[0], prefs: results[1], caps: results[2], retired: results[3], noBid: results[4] };
-        renderCapacities();
-    } catch (e) { document.body.innerHTML = `<div style="padding:40px; color:red">🚨 ERROR: ${e.message}</div>`; }
-};
-
-function renderCapacities() {
-    document.getElementById('capGrid').innerHTML = store.caps.map(c => `<div class="cap-cell"><label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`).join('');
-}
-
-document.getElementById('runBtn').onclick = () => {
-    const deltas = {};
-    store.caps.forEach(c => { const el = document.getElementById(`delta-${c.base}-${c.seat}`); if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0; });
-    const result = runBidEngine(store, deltas);
-    lastResults = result.roster;
-    lastTargetMap = result.targetMap;
-    lastAuditTrail = result.auditTrail;
-    renderTable(lastResults, lastTargetMap, lastAuditTrail);
-    renderDashboards(lastResults);
-    document.getElementById('statusBox').innerHTML = `Run complete. Evaluated ${lastResults.length} active bidders. System ran ${result.loops} cascade loops to resolve seniority.`;
-};
-
-function renderDashboards(roster) {
-    let unassignedHtml = '', moverHtml = '', selfDispHtml = '';
-    roster.forEach(p => {
-        const item = `<div class="${p.isUnassigned ? 'unassigned-item' : (p.wasSelfDisplaced ? 'self-disp-item' : 'disp-item')}">#${p.sen} ${p.name}: ${p.awardedReason}</div>`;
-        if (p.isUnassigned) unassignedHtml += item;
-        if (p.wasSelfDisplaced) selfDispHtml += item;
-        if (p.moved && !p.isUnassigned) moverHtml += `<div class="disp-item">#${p.sen} ${p.name} from ${p.orig}</div>`;
-    });
-    document.getElementById('unassignedList').innerHTML = unassignedHtml || "None.";
-    document.getElementById('selfDispList').innerHTML = selfDispHtml || "None.";
-    document.getElementById('displacedList').innerHTML = moverHtml || "None.";
-}
-
-function renderTable(roster, targetMap, auditTrail) {
-    // Group audit entries by seniority, preserving cascade order within each pilot
-    const auditBySen = {};
-    auditTrail.forEach(entry => {
-        if (!auditBySen[entry.sen]) auditBySen[entry.sen] = [];
-        auditBySen[entry.sen].push(entry);
-    });
-
-    // Iterate roster in seniority order (already sorted by engine)
-    const html = roster.map(p => {
-        const entries = auditBySen[p.sen];
-        let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
-        if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple);color:white;">DISPLACED</span>';
-        const color = (p.moved && !p.isUnassigned) ? '#3fb950' : '';
-
-        function rankBadge(toKey) {
-            if (toKey === "UNASSIGNED") return '-';
-            let r = 0;
-            roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === toKey) r++; });
-            return `${r} / ${targetMap[toKey] || 0}`;
-        }
-
-        function reasonHtml(text) {
-            const lines = (text || '').split('\n');
-            return lines[0] + (lines[1] ? `<span class="award-reason">${lines[1]}</span>` : '');
-        }
-
-        if (!entries || entries.length === 0) {
-            // Stayed put — single row
-            const toPos = p.currentKey.replace('-', ' ');
-            return `<tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong></td>
-                <td>${toPos}</td>
-                <td><span class="rank-badge">${rankBadge(p.currentKey)}</span></td>
-                <td>${reasonHtml(p.awardedReason)}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
-            </tr>`;
-        }
-
-        // One row per audit entry; rank badge only on final move
-        return entries.map((entry, i) => {
-            const isLast = (i === entries.length - 1);
-            const toPos = entry.to.replace('-', ' ');
-            return `<tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${color}">${toPos}</td>
-                <td><span class="rank-badge">${isLast ? rankBadge(entry.to) : '-'}</span></td>
-                <td>${reasonHtml(entry.reason)}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
-            </tr>`;
-        }).join('');
-    }).join('');
-
-    document.getElementById('tableBody').innerHTML = html;
-}
-
-document.getElementById('expMaster').onclick = () => {
-    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
-    const rows = lastResults.map(p => {
-        let finalRank = 0;
-        if (p.currentKey !== "UNASSIGNED") lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        return [p.sen, p.name, p.currentKey, finalRank, p.awardedReason, p.orig];
-    });
-    exportToCSV("master_awards.csv", [headers, ...rows]);
-};
-
-document.getElementById('expBase').onclick = () => {
-    const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'];
-    const baseNames = { ANC: 'Anchorage', SEA: 'Seattle', LAX: 'Los Angeles', SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland' };
-
-    const wb = XLSX.utils.book_new();
-
-    // Styles (xlsx.full.min supports cell styles via !cellStyles)
-    const GREEN_DARK  = '1A5E1A'; // dark green header bg
-    const GREEN_MID   = '2EA84B'; // mid green rows
-    const GREEN_LIGHT = 'D6F0DB'; // light green alt rows
-    const BLUE_DARK   = '0D3D6B'; // dark blue header bg
-    const BLUE_MID    = '1565C0'; // mid blue rows
-    const BLUE_LIGHT  = 'D0E4F7'; // light blue alt rows
-    const WHITE       = 'FFFFFF';
-
-    function cellStyle(bgHex, bold, color) {
-        return {
-            fill: { fgColor: { rgb: bgHex } },
-            font: { bold: !!bold, color: { rgb: color || WHITE }, name: 'Arial', sz: 10 },
-            alignment: { horizontal: 'left', vertical: 'center' },
-            border: {
-                top:    { style: 'thin', color: { rgb: 'CCCCCC' } },
-                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
-                left:   { style: 'thin', color: { rgb: 'CCCCCC' } },
-                right:  { style: 'thin', color: { rgb: 'CCCCCC' } }
-            }
-        };
+    function keyLabel(key) {
+        const [base, seat] = (key || '').split('-');
+        return `${base} ${seat}`;
     }
 
-    bases.forEach(base => {
-        const caKey = `${base}-CA`;
-        const foKey = `${base}-FO`;
-        const caPilots = lastResults.filter(p => p.currentKey === caKey).sort((a, b) => a.sen - b.sen);
-        const foPilots = lastResults.filter(p => p.currentKey === foKey).sort((a, b) => a.sen - b.sen);
-        if (caPilots.length === 0 && foPilots.length === 0) return;
+    function posLabel(key) {
+        const [base, seat] = (key || '').split('-');
+        return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
+    }
 
-        const caCap = lastTargetMap[caKey] || 0;
-        const foCap = lastTargetMap[foKey] || 0;
-        const maxRows = Math.max(caPilots.length, foPilots.length);
+    let slotSources = {};
 
-        const ws = {};
-        const range = { s: { r: 0, c: 0 }, e: { r: maxRows + 2, c: 7 } };
+    function consumeSlot(key) {
+        if (!slotSources[key]) slotSources[key] = [];
+        return slotSources[key].length > 0
+            ? slotSources[key].shift()
+            : { type: 'vacancy', label: 'retirement / system reduction' };
+    }
 
-        function setCell(r, c, v, style) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
-        }
+    function releaseSlot(key, pilotSen, pilotName) {
+        if (!slotSources[key]) slotSources[key] = [];
+        slotSources[key].push({ type: 'pilot', sen: pilotSen, name: pilotName });
+    }
 
-        // Row 0: title spanning all cols
-        const titleStyle = cellStyle(GREEN_DARK, true, WHITE);
-        setCell(0, 0, `737 ${baseNames[base] || base}`, titleStyle);
-        for (let c = 1; c <= 7; c++) setCell(0, c, '', titleStyle);
+    function fmtSource(src) {
+        if (!src) return 'Source unknown.';
+        if (src.type === 'pilot') return `Proffered from Sen #${src.sen} - ${src.name}.`;
+        return `Open position available (${src.label}).`;
+    }
 
-        // Row 1: column headers — CA side green, gap col blank, FO side blue
-        setCell(1, 0, 'BPL #',             cellStyle(GREEN_DARK, true));
-        setCell(1, 1, 'CAPTAIN NAME',       cellStyle(GREEN_DARK, true));
-        setCell(1, 2, 'SEN #',             cellStyle(GREEN_DARK, true));
-        setCell(1, 3, String(caCap),        cellStyle(GREEN_DARK, true));
-        setCell(1, 4, 'BPL #',             cellStyle(BLUE_DARK,  true));
-        setCell(1, 5, 'FIRST OFFICER NAME', cellStyle(BLUE_DARK,  true));
-        setCell(1, 6, 'SEN #',             cellStyle(BLUE_DARK,  true));
-        setCell(1, 7, String(foCap),        cellStyle(BLUE_DARK,  true));
-
-        // Data rows
-        for (let i = 0; i < maxRows; i++) {
-            const r = i + 2;
-            const isAlt = i % 2 === 1;
-            const caBg = isAlt ? GREEN_LIGHT : WHITE;
-            const foBg = isAlt ? BLUE_LIGHT  : WHITE;
-            const caColor = '1A3A1A';
-            const foColor = '0D2A4A';
-
-            const ca = caPilots[i];
-            const fo = foPilots[i];
-
-            setCell(r, 0, ca ? i + 1    : '', cellStyle(caBg, false, caColor));
-            setCell(r, 1, ca ? ca.name  : '', cellStyle(caBg, false, caColor));
-            setCell(r, 2, ca ? ca.sen   : '', cellStyle(caBg, false, caColor));
-            setCell(r, 3, '',                 cellStyle(caBg, false, caColor));
-            setCell(r, 4, fo ? i + 1    : '', cellStyle(foBg, false, foColor));
-            setCell(r, 5, fo ? fo.name  : '', cellStyle(foBg, false, foColor));
-            setCell(r, 6, fo ? fo.sen   : '', cellStyle(foBg, false, foColor));
-            setCell(r, 7, '',                 cellStyle(foBg, false, foColor));
-        }
-
-        ws['!ref'] = XLSX.utils.encode_range(range);
-        ws['!cols'] = [
-            { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 },
-            { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 }
-        ];
-        ws['!rows'] = [{ hpt: 20 }, { hpt: 18 }];
-
-        XLSX.utils.book_append_sheet(wb, ws, base);
+    // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
+    let liveHeadcount = {};
+    activeBidders.forEach(p => {
+        const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+        liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
-    XLSX.writeFile(wb, 'base_lists.xlsx', { cellStyles: true });
-};
-
-document.getElementById('expLog').onclick = () => {
-    const headers = ["Seniority", "Name", "From", "To", "Transition Note"];
-    const pilotMap = {};
-    lastResults.forEach(p => { pilotMap[p.sen] = p; });
-    const rows = lastAuditTrail.map(entry => {
-        const p = pilotMap[entry.sen];
-        return [entry.sen, entry.name, (entry.from || (p ? p.orig : '')), entry.to, (entry.reason || '').replace('\n', ' ')];
+    let targetMap = {};
+    Object.keys(liveHeadcount).forEach(key => {
+        targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
     });
-    exportToCSV("transition_log.csv", [headers, ...rows]);
-};
-</script>
-</body>
-</html>
+    data.caps.forEach(c => {
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        if (targetMap[key] === undefined) {
+            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+        }
+    });
+
+    Object.keys(targetMap).forEach(key => {
+        const preExisting = (targetMap[key] || 0) - (liveHeadcount[key] || 0);
+        slotSources[key] = [];
+        for (let i = 0; i < preExisting; i++) {
+            slotSources[key].push({ type: 'vacancy', label: 'retirement / system reduction' });
+        }
+    });
+
+    let currentCounts = { ...liveHeadcount };
+    const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
+
+    // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
+    const bidders = activeBidders.map(p => {
+        const prefData  = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
+        const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
+
+        const getTargetKey = (bidStr) => {
+            const parts = bidStr.trim().toUpperCase().split(/\s+/);
+            const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'];
+            const seats = ['CA', 'FO'];
+            const b = parts.find(x => bases.includes(x));
+            const s = parts.find(x => seats.includes(x));
+            return (b && s) ? `${b}-${s}` : null;
+        };
+
+        return {
+            ...p,
+            orig: pilotOrig,
+            currentKey: pilotOrig,
+            moved: false,
+            isUnassigned: false,
+            awardedPrefNum: "N/A",
+            awardedReason: "Pending...",
+            wasSelfDisplaced: false,
+            isForceDisplaced: false,   // TRUE when the base shrank them out involuntarily
+            moveLog: null,
+            prefs: (prefData.preferences || []).map(pr => {
+                let limit = parseInt(pr.bpl || pr.bpl_min);
+                if (isNaN(limit) || limit === 0) limit = 9999;
+                return { ...pr, targetKey: getTargetKey(pr.bid), bpl: limit };
+            }).sort((a, b) => a.order - b.order)
+        };
+    }).sort((a, b) => a.sen - b.sen);
+
+    // ── HELPER: is pilot force-displaced from their current base? ────────────
+    // A pilot is force-displaced when the target capacity of their CURRENT base
+    // is less than their rank there. This is an involuntary condition — the
+    // base shrank beneath them. This is different from a BPL self-exclusion.
+    function isForceDisplacedFrom(pilot, key) {
+        const cap = targetMap[key] || 0;
+        let rank = 1;
+        for (const other of bidders) {
+            if (other.sen >= pilot.sen) break;
+            if (other.currentKey === key) rank++;
+        }
+        return rank > cap;
+    }
+
+    // ── HELPER: find the most junior pilot currently at a key ────────────────
+    function mostJuniorAt(key, excludeSen) {
+        let junior = null;
+        for (const other of bidders) {
+            if (other.currentKey === key && other.sen !== excludeSen) {
+                if (!junior || other.sen > junior.sen) {
+                    junior = other;
+                }
+            }
+        }
+        return junior;
+    }
+
+    // ── MAIN CASCADE LOOP ────────────────────────────────────────────────────
+    let cascade = true;
+    let loops   = 0;
+
+    while (cascade) {
+        cascade = false;
+        loops++;
+
+        for (let i = 0; i < bidders.length; i++) {
+            const p = bidders[i];
+            let awarded      = false;
+            let newSeat      = null;
+            let log          = null;
+            let prefNum      = "N/A";
+            let selfDisp     = false;
+            let failedPrefs  = [];
+            const [origBase, origStatus] = p.orig.split('-');
+
+            // Determine whether this pilot is currently force-displaced from
+            // wherever they are sitting right now.
+            const forcedOut = isForceDisplacedFrom(p, p.currentKey);
+
+            // ── STEP A: Work through submitted preferences ──────────────────
+            for (const pr of p.prefs) {
+                if (!pr.targetKey) continue;
+                const targetKey  = pr.targetKey;
+                const cap        = targetMap[targetKey] || 0;
+                const isMovingIn = (p.currentKey !== targetKey);
+
+                // Rank = how many senior pilots are already at targetKey + 1
+                let rank = 1;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === targetKey) rank++;
+                }
+
+                // Vacancy check: force-displaced pilots do NOT need a vacancy —
+                // they can bump the most junior pilot out of their chosen base.
+                // Voluntary movers still need an open slot.
+                let vacancyOk;
+                if (forcedOut && isMovingIn) {
+                    // No vacancy required — just need to be senior to someone there,
+                    // OR there IS an open vacancy already.
+                    const junior = mostJuniorAt(targetKey, p.sen);
+                    vacancyOk = getVac(targetKey) > 0 || (junior !== null && p.sen < junior.sen);
+                } else {
+                    vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
+                }
+
+                if (rank > pr.bpl) {
+                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
+                } else if (rank > cap) {
+                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds Capacity ${cap}.`);
+                } else if (isMovingIn && !vacancyOk) {
+                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: No vacancy.`);
+                }
+
+                if (rank <= pr.bpl && rank <= cap && vacancyOk) {
+                    newSeat = targetKey;
+                    prefNum = pr.order;
+                    awarded = true;
+
+                    if (isMovingIn) {
+                        const hasVac = getVac(targetKey) > 0;
+                        let bumpedPilot = null;
+
+                        if (forcedOut && !hasVac) {
+                            // Displacement bump: find the most junior pilot there and
+                            // mark them as force-displaced so they get the same rights.
+                            bumpedPilot = mostJuniorAt(targetKey, p.sen);
+                            if (bumpedPilot) {
+                                bumpedPilot.isForceDisplaced = true;
+                            }
+                            // No slot consumed — we are displacing into an occupied seat.
+                            log = {
+                                step: 'A',
+                                prefOrder: pr.order,
+                                fromKey: p.currentKey,
+                                toKey: targetKey,
+                                vacFromBefore: getVac(p.currentKey),
+                                vacToBefore: getVac(targetKey),
+                                source: bumpedPilot
+                                    ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
+                                    : { type: 'vacancy', label: 'retirement / system reduction' },
+                                displacementBump: !!bumpedPilot,
+                                bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
+                                forcedOut,
+                                failedPrefs
+                            };
+                        } else {
+                            const src = consumeSlot(targetKey);
+                            log = {
+                                step: 'A',
+                                prefOrder: pr.order,
+                                fromKey: p.currentKey,
+                                toKey: targetKey,
+                                vacFromBefore: getVac(p.currentKey),
+                                vacToBefore: getVac(targetKey),
+                                source: src,
+                                displacementBump: false,
+                                forcedOut,
+                                failedPrefs
+                            };
+                        }
+                    } else {
+                        if (p.orig === targetKey) {
+                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut, failedPrefs };
+                        } else {
+                            log = p.moveLog;
+                            if (log) log.failedPrefs = failedPrefs;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // ── STEP B: No pref awarded — try holding at orig base ──────────
+            if (!awarded) {
+                const cap = targetMap[p.orig] || 0;
+                let rank  = 1;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === p.orig) rank++;
+                }
+                const selfBid  = p.prefs.find(pr => pr.targetKey === p.orig);
+                const bplLimit = selfBid ? selfBid.bpl : 9999;
+
+                if (rank <= bplLimit && rank <= cap) {
+                    newSeat = p.orig;
+                    awarded = true;
+                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut: false, failedPrefs };
+                }
+            }
+
+            // ── STEP C: Force / Section-24 displacement fallback ────────────
+            // If still not awarded, try system cascade options.
+            // Force-displaced pilots: NO vacancy required (bump junior).
+            // Everyone else: vacancy required (unchanged behavior).
+            if (!awarded) {
+                const cascadeOptions = [
+                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
+                        .filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
+                    `${origBase}-FO`,
+                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
+                        .filter(b => b !== origBase).map(b => `${b}-FO`)
+                ];
+
+                for (const targetKey of cascadeOptions) {
+                    if (targetMap[targetKey] === undefined) continue;
+                    const cap        = targetMap[targetKey] || 0;
+                    const isMovingIn = (p.currentKey !== targetKey);
+
+                    let rank = 1;
+                    for (const other of bidders) {
+                        if (other.sen >= p.sen) break;
+                        if (other.currentKey === targetKey) rank++;
+                    }
+
+                    let vacancyOk;
+                    if (forcedOut && isMovingIn) {
+                        const junior = mostJuniorAt(targetKey, p.sen);
+                        vacancyOk = getVac(targetKey) > 0 || (junior !== null && p.sen < junior.sen);
+                    } else {
+                        vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
+                    }
+
+                    if (rank <= cap && vacancyOk) {
+                        newSeat = targetKey;
+                        awarded = true;
+
+                        if (isMovingIn) {
+                            const hasVac = getVac(targetKey) > 0;
+                            let bumpedPilot = null;
+
+                            if (forcedOut && !hasVac) {
+                                bumpedPilot = mostJuniorAt(targetKey, p.sen);
+                                if (bumpedPilot) {
+                                    bumpedPilot.isForceDisplaced = true;
+                                }
+                                log = {
+                                    step: 'C',
+                                    fromKey: p.currentKey,
+                                    toKey: targetKey,
+                                    vacFromBefore: getVac(p.currentKey),
+                                    vacToBefore: getVac(targetKey),
+                                    source: bumpedPilot
+                                        ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
+                                        : { type: 'vacancy', label: 'retirement / system reduction' },
+                                    displacementBump: !!bumpedPilot,
+                                    bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
+                                    forcedOut,
+                                    failedPrefs
+                                };
+                            } else {
+                                const src = consumeSlot(targetKey);
+                                log = {
+                                    step: 'C',
+                                    fromKey: p.currentKey,
+                                    toKey: targetKey,
+                                    vacFromBefore: getVac(p.currentKey),
+                                    vacToBefore: getVac(targetKey),
+                                    source: src,
+                                    displacementBump: false,
+                                    forcedOut,
+                                    failedPrefs
+                                };
+                            }
+                        } else {
+                            log = p.moveLog;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // ── STEP D: Truly unassigned ─────────────────────────────────────
+            if (!awarded) {
+                newSeat = "UNASSIGNED";
+                let rank = 1;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === p.orig) rank++;
+                }
+                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
+                selfDisp = selfBid && rank > selfBid.bpl;
+                log = {
+                    step: 'D',
+                    fromKey: p.currentKey,
+                    toKey: 'UNASSIGNED',
+                    vacFromBefore: getVac(p.currentKey),
+                    selfDisp,
+                    forcedOut,
+                    bplRank: rank,
+                    bplLimit: selfBid ? selfBid.bpl : null,
+                    origKey: p.orig,
+                    failedPrefs
+                };
+            }
+
+            p.awardedPrefNum   = prefNum;
+            p.wasSelfDisplaced = selfDisp;
+            p.moveLog          = log;
+
+            if (newSeat !== p.currentKey) {
+                if (p.currentKey !== "UNASSIGNED") {
+                    releaseSlot(p.currentKey, p.sen, p.name);
+                    currentCounts[p.currentKey]--;
+                }
+                if (newSeat !== "UNASSIGNED") {
+                    // For displacement bumps there is no new open slot created —
+                    // the displaced pilot leaving will register their own release
+                    // when they are processed. For normal moves, just increment.
+                    currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
+                }
+
+                p.currentKey   = newSeat;
+                p.moved        = (newSeat !== p.orig);
+                p.isUnassigned = (newSeat === "UNASSIGNED");
+
+                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: p.currentKey, to: newSeat, log });
+
+                cascade = true;
+                break;
+            } else {
+                p.moved        = (p.currentKey !== p.orig);
+                p.isUnassigned = (p.currentKey === "UNASSIGNED");
+            }
+        }
+        if (loops > 10000) break;
+    }
+
+    // ── BUILD REASON STRING FROM A LOG OBJECT ────────────────────────────────
+    function buildReasonFromLog(log, finalVacFn) {
+        if (!log) return "No bid data.";
+        const finalVac = finalVacFn || ((key) => (targetMap[key] || 0) - (currentCounts[key] || 0));
+        const bumpNote = (log.displacementBump && log.bumpedSen)
+            ? ` Bumped Sen #${log.bumpedSen} (displacement chain).`
+            : '';
+        const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
+
+        if (log.step === 'A' && !log.stayed) {
+            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line2 = log.displacementBump
+                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            return line1 + '\n' + line2;
+        } else if (log.step === 'A' && log.stayed) {
+            const vac = finalVac(log.toKey);
+            const cap = targetMap[log.toKey] || 0;
+            return `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remain in current position. ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+        } else if (log.step === 'B') {
+            return `Remain in current position.`;
+        } else if (log.step === 'C') {
+            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line2 = log.displacementBump
+                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            return line1 + '\n' + line2;
+        } else if (log.step === 'D') {
+            if (log.selfDisp) {
+                return `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            } else {
+                return `Displaced: No position available \u2014 system-wide reduction. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+            }
+        }
+        return "No bid data.";
+    }
+
+    // ── STAMP REASON ON EACH AUDIT TRAIL ENTRY ───────────────────────────────
+    auditTrail.forEach(entry => {
+        entry.reason = buildReasonFromLog(entry.log);
+    });
+
+    // ── BUILD FINAL AWARDED REASON STRINGS ───────────────────────────────────
+    bidders.forEach(p => {
+        const log = p.moveLog;
+        if (!log) { p.awardedReason = "No bid data."; return; }
+        const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
+        p.awardedReason = buildReasonFromLog(log, finalVac);
+    });
+
+    return { roster: bidders, loops, auditTrail, targetMap };
+}
