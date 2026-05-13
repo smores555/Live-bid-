@@ -132,6 +132,12 @@
     "seat": "CA"
   },
   {
+    "sen": 179,
+    "pil": "THOMAS, SCOTT A.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 183,
     "pil": "SEVERNS, JEFFREY M.",
     "base": "SEA",
@@ -157,7 +163,7 @@
   },
   {
     "sen": 224,
-    "pil": "VINANT-TANG, GARY ",
+    "pil": "VINANT-TANG, GARY",
     "base": "LAX",
     "seat": "CA"
   },
@@ -410,6 +416,12 @@
   {
     "sen": 472,
     "pil": "GRUSH, KEVIN",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 473,
+    "pil": "HEGG, TIMOTHY M.",
     "base": "SEA",
     "seat": "CA"
   },
@@ -807,6 +819,12 @@
     "sen": 1023,
     "pil": "ALBRIGHT, JUSTIN",
     "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1024,
+    "pil": "DALY, THOMAS",
+    "base": "SEA",
     "seat": "CA"
   },
   {
@@ -1507,13 +1525,13 @@
   },
   {
     "sen": 2664,
-    "pil": "EDGER, MICHAEL ",
+    "pil": "EDGER, MICHAEL",
     "base": "LAX",
     "seat": "FO"
   },
   {
     "sen": 2669,
-    "pil": "LEONARD, BENJAMIN ",
+    "pil": "LEONARD, BENJAMIN",
     "base": "ANC",
     "seat": "FO"
   },
@@ -1620,6 +1638,12 @@
     "seat": "FO"
   },
   {
+    "sen": 3017,
+    "pil": "WILLIAMS, MITCHELL",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
     "sen": 3019,
     "pil": "FURBUSH, LAUREN",
     "base": "SEA",
@@ -1699,7 +1723,7 @@
   },
   {
     "sen": 3199,
-    "pil": "SMITH, JOSHUA ",
+    "pil": "SMITH, JOSHUA",
     "base": "SFO",
     "seat": "FO"
   },
@@ -1801,7 +1825,7 @@
   },
   {
     "sen": 3375,
-    "pil": "COX, TYLER ",
+    "pil": "COX, TYLER",
     "base": "SFO",
     "seat": "FO"
   },
