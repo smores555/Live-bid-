@@ -167,56 +167,120 @@ function renderTable(roster, targetMap, auditTrail) {
 
     const html = roster.map(p => {
         const log          = p.moveLog;
-        const failedPrefs  = p.failedPrefs || [];   // ← read directly from pilot
-        const auditEntries = auditBySen[p.sen] || [];
 
-        const rows = [];
+        // ── Build rows grouped by cascade loop ──────────────────────────────
 
-        // ── 0. Reduction row — pilot was force-displaced from their base ─────
-        if (p.reductionEvent) {
-            rows.push({
-                prefNum: 'X',
-                fromPos: fmt(p.reductionEvent.fromKey) || '—',
-                toPos:   '737 ' + fmt(p.reductionEvent.fromKey),
-                status:  'Reduction',
-                reason:  `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${p.reductionEvent.minSen}.`
-            });
-        }
+        // ── Build rows grouped by cascade loop ──────────────────────────────
+        // Pattern per loop where reduction occurred:
+        //   Reduction → Denied rows for that loop → [intermediate Awarded if held] → ...
+        // Final loop: Reduction (if any) → Denied rows → final Awarded/Displaced
 
-        // ── 1. One Denied row per failed preference ──────────────────────────
+        const reductionEvents = p.reductionEvents || [];
+        const failedPrefs     = p.failedPrefs || [];
+        const auditEntries    = auditBySen[p.sen] || [];
+
+        // Group failedPrefs by loop number
+        const failedByLoop = {};
         failedPrefs.forEach(fp => {
-            rows.push({
-                prefNum: fp.order,
-                fromPos: fmt(fp.fromKey) || '—',
-                toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                status:  'Denied',
-                reason:  fp.reason || ''
-            });
+            const l = fp.loop || 0;
+            if (!failedByLoop[l]) failedByLoop[l] = [];
+            failedByLoop[l].push(fp);
         });
 
-        // ── 2. Reduction rows: only genuine force-displaced intermediate moves ──
-        //    Voluntary cascade churn (engine finding a better pref in a later loop)
-        //    is NOT a Reduction — skip those entirely.
-        if (auditEntries.length > 1) {
-            auditEntries.slice(0, -1).forEach(entry => {
-                const isForced = entry.log && entry.log.forcedOut;
-                if (!isForced) return; // skip voluntary re-evaluations
+        // Get the set of loops that had reductions
+        const reductionByLoop = {};
+        reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
+
+        // Build intermediate "held" audit rows (force-displaced pilot temporarily held)
+        // These are non-final audit entries where forcedOut was true in prior loop
+        const intermediateHolds = auditEntries.length > 1
+            ? auditEntries.slice(0, -1).filter(e => e.log && e.log.forcedOut)
+            : [];
+        // Map them by loop
+        const holdByLoop = {};
+        intermediateHolds.forEach(e => { holdByLoop[e.loop] = e; });
+
+        // Get all loops in order that had activity
+        const allLoops = [...new Set([
+            ...reductionEvents.map(r => r.loop),
+            ...failedPrefs.map(fp => fp.loop || 0)
+        ])].sort((a, b) => a - b);
+
+        // If no reductions at all, just do denied rows then final awarded
+        if (reductionEvents.length === 0) {
+            failedPrefs.forEach(fp => {
                 rows.push({
-                    prefNum: 'X',
-                    fromPos: fmt(entry.from) || '—',
-                    toPos:   entry.to ? ('737 ' + fmt(entry.to)) : '—',
-                    status:  'Reduction',
-                    reason:  entry.reason || 'Seniority is not high enough to hold position due to reductions.'
+                    prefNum: fp.order,
+                    fromPos: fmt(fp.fromKey) || '—',
+                    toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
+                    status:  'Denied',
+                    reason:  fp.reason || ''
                 });
+            });
+        } else {
+            // Interleave: for each loop that had a reduction, show:
+            // 1. Reduction row
+            // 2. Denied rows for that loop
+            // 3. Intermediate hold row (if they temporarily re-held)
+            allLoops.forEach(loop => {
+                const re   = reductionByLoop[loop];
+                const fps  = failedByLoop[loop] || [];
+                const hold = holdByLoop[loop];
+
+                if (re) {
+                    rows.push({
+                        prefNum: 'X',
+                        fromPos: fmt(re.fromKey) || '—',
+                        toPos:   '737 ' + fmt(re.fromKey),
+                        status:  'Reduction',
+                        reason:  `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${re.minSen}.`
+                    });
+                }
+
+                fps.forEach(fp => {
+                    rows.push({
+                        prefNum: fp.order,
+                        fromPos: fmt(fp.fromKey) || '—',
+                        toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
+                        status:  'Denied',
+                        reason:  fp.reason || ''
+                    });
+                });
+
+                // Intermediate hold: they won a pref or held in this loop
+                // but then got bumped again in the next loop
+                if (hold) {
+                    rows.push({
+                        prefNum: hold.log ? (hold.log.prefOrder || '—') : '—',
+                        fromPos: fmt(hold.from) || '—',
+                        toPos:   hold.to ? ('737 ' + fmt(hold.to)) : '—',
+                        status:  'Awarded',
+                        reason:  hold.reason || 'Awarded — subsequently displaced by senior pilot.'
+                    });
+                }
+            });
+
+            // Any failed prefs from loops with no reduction (shouldn't normally happen, but guard)
+            Object.keys(failedByLoop).forEach(loop => {
+                if (!reductionByLoop[loop]) {
+                    failedByLoop[loop].forEach(fp => {
+                        rows.push({
+                            prefNum: fp.order,
+                            fromPos: fmt(fp.fromKey) || '—',
+                            toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
+                            status:  'Denied',
+                            reason:  fp.reason || ''
+                        });
+                    });
+                }
             });
         }
 
-        // ── 3. Final awarded / displaced row ────────────────────────────────
+        // ── Final awarded / displaced row ────────────────────────────────────
         if (log) {
             const finalKey = p.currentKey;
             let prefNum, fromPos, toPos, status, reason;
 
-            // fromPos: use last audit entry's from, or orig if no audit
             const lastAudit = auditEntries.length ? auditEntries[auditEntries.length - 1] : null;
             fromPos = fmt(lastAudit ? lastAudit.from : p.orig) || '—';
 
