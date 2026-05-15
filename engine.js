@@ -110,6 +110,7 @@ function runBidEngine(data, deltaMap) {
             isForceDisplaced: false,
             moveLog: null,
             failedPrefs: [],
+            reductionEvent: null,
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
                 if (isNaN(limit) || limit === 0) limit = 9999;
@@ -162,6 +163,26 @@ function runBidEngine(data, deltaMap) {
 
             const forcedOut = isForceDisplacedFrom(p, p.currentKey);
 
+            // If forced out, capture the Reduction event details for display
+            // Find the seniority of the pilot who sits AT the capacity boundary
+            if (forcedOut && !p.reductionEvent) {
+                const cap = targetMap[p.currentKey] || 0;
+                let boundaryPilot = null;
+                let count = 0;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === p.currentKey) {
+                        count++;
+                        if (count === cap) { boundaryPilot = other; break; }
+                    }
+                }
+                const minSen = boundaryPilot ? boundaryPilot.sen : cap;
+                p.reductionEvent = {
+                    fromKey: p.currentKey,
+                    minSen
+                };
+            }
+
             // ── STEP A: Work through submitted preferences ──────────────────
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
@@ -184,7 +205,7 @@ function runBidEngine(data, deltaMap) {
                 }
 
                 if (rank > pr.bpl) {
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Seniority is not high enough to hold position. Minimum position seniority is ${pr.bpl}.`, status: 'Denied' });
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl' });
                 } else if (rank > cap) {
                     const vac = getVac(targetKey);
                     const msg = vac <= 0
