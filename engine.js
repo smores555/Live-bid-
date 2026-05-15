@@ -107,8 +107,9 @@ function runBidEngine(data, deltaMap) {
             awardedPrefNum: "N/A",
             awardedReason: "Pending...",
             wasSelfDisplaced: false,
-            isForceDisplaced: false,   // TRUE when the base shrank them out involuntarily
+            isForceDisplaced: false,
             moveLog: null,
+            failedPrefs: [],
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
                 if (isNaN(limit) || limit === 0) limit = 9999;
@@ -118,9 +119,6 @@ function runBidEngine(data, deltaMap) {
     }).sort((a, b) => a.sen - b.sen);
 
     // ── HELPER: is pilot force-displaced from their current base? ────────────
-    // A pilot is force-displaced when the target capacity of their CURRENT base
-    // is less than their rank there. This is an involuntary condition — the
-    // base shrank beneath them. This is different from a BPL self-exclusion.
     function isForceDisplacedFrom(pilot, key) {
         const cap = targetMap[key] || 0;
         let rank = 1;
@@ -162,8 +160,6 @@ function runBidEngine(data, deltaMap) {
             let failedPrefs  = [];
             const [origBase, origStatus] = p.orig.split('-');
 
-            // Determine whether this pilot is currently force-displaced from
-            // wherever they are sitting right now.
             const forcedOut = isForceDisplacedFrom(p, p.currentKey);
 
             // ── STEP A: Work through submitted preferences ──────────────────
@@ -173,20 +169,14 @@ function runBidEngine(data, deltaMap) {
                 const cap        = targetMap[targetKey] || 0;
                 const isMovingIn = (p.currentKey !== targetKey);
 
-                // Rank = how many senior pilots are already at targetKey + 1
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                // Vacancy check: force-displaced pilots do NOT need a vacancy —
-                // they can bump the most junior pilot out of their chosen base.
-                // Voluntary movers still need an open slot.
                 let vacancyOk;
                 if (forcedOut && isMovingIn) {
-                    // No vacancy required — just need to be senior to someone there,
-                    // OR there IS an open vacancy already.
                     const junior = mostJuniorAt(targetKey, p.sen);
                     vacancyOk = getVac(targetKey) > 0 || (junior !== null && p.sen < junior.sen);
                 } else {
@@ -215,13 +205,10 @@ function runBidEngine(data, deltaMap) {
                         let bumpedPilot = null;
 
                         if (forcedOut && !hasVac) {
-                            // Displacement bump: find the most junior pilot there and
-                            // mark them as force-displaced so they get the same rights.
                             bumpedPilot = mostJuniorAt(targetKey, p.sen);
                             if (bumpedPilot) {
                                 bumpedPilot.isForceDisplaced = true;
                             }
-                            // No slot consumed — we are displacing into an occupied seat.
                             log = {
                                 step: 'A',
                                 prefOrder: pr.order,
@@ -234,8 +221,7 @@ function runBidEngine(data, deltaMap) {
                                     : { type: 'vacancy', label: 'retirement / system reduction' },
                                 displacementBump: !!bumpedPilot,
                                 bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
-                                forcedOut,
-                                failedPrefs
+                                forcedOut
                             };
                         } else {
                             const src = consumeSlot(targetKey);
@@ -248,16 +234,14 @@ function runBidEngine(data, deltaMap) {
                                 vacToBefore: getVac(targetKey),
                                 source: src,
                                 displacementBump: false,
-                                forcedOut,
-                                failedPrefs
+                                forcedOut
                             };
                         }
                     } else {
                         if (p.orig === targetKey) {
-                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut, failedPrefs };
+                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut };
                         } else {
                             log = p.moveLog;
-                            if (log) log.failedPrefs = failedPrefs;
                         }
                     }
                     break;
@@ -278,14 +262,11 @@ function runBidEngine(data, deltaMap) {
                 if (rank <= bplLimit && rank <= cap) {
                     newSeat = p.orig;
                     awarded = true;
-                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut: false, failedPrefs };
+                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut: false };
                 }
             }
 
             // ── STEP C: Force / Section-24 displacement fallback ────────────
-            // If still not awarded, try system cascade options.
-            // Force-displaced pilots: NO vacancy required (bump junior).
-            // Everyone else: vacancy required (unchanged behavior).
             if (!awarded) {
                 const cascadeOptions = [
                     ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
@@ -338,8 +319,7 @@ function runBidEngine(data, deltaMap) {
                                         : { type: 'vacancy', label: 'retirement / system reduction' },
                                     displacementBump: !!bumpedPilot,
                                     bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
-                                    forcedOut,
-                                    failedPrefs
+                                    forcedOut
                                 };
                             } else {
                                 const src = consumeSlot(targetKey);
@@ -351,8 +331,7 @@ function runBidEngine(data, deltaMap) {
                                     vacToBefore: getVac(targetKey),
                                     source: src,
                                     displacementBump: false,
-                                    forcedOut,
-                                    failedPrefs
+                                    forcedOut
                                 };
                             }
                         } else {
@@ -382,24 +361,23 @@ function runBidEngine(data, deltaMap) {
                     forcedOut,
                     bplRank: rank,
                     bplLimit: selfBid ? selfBid.bpl : null,
-                    origKey: p.orig,
-                    failedPrefs
+                    origKey: p.orig
                 };
             }
 
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
             p.moveLog          = log;
+            p.failedPrefs      = failedPrefs; // stored directly on pilot — always accessible
 
             if (newSeat !== p.currentKey) {
+                const prevKey = p.currentKey; // capture BEFORE updating
+
                 if (p.currentKey !== "UNASSIGNED") {
                     releaseSlot(p.currentKey, p.sen, p.name);
                     currentCounts[p.currentKey]--;
                 }
                 if (newSeat !== "UNASSIGNED") {
-                    // For displacement bumps there is no new open slot created —
-                    // the displaced pilot leaving will register their own release
-                    // when they are processed. For normal moves, just increment.
                     currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
                 }
 
@@ -407,7 +385,7 @@ function runBidEngine(data, deltaMap) {
                 p.moved        = (newSeat !== p.orig);
                 p.isUnassigned = (newSeat === "UNASSIGNED");
 
-                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: p.currentKey, to: newSeat, log });
+                auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: prevKey, to: newSeat, log });
 
                 cascade = true;
                 break;
