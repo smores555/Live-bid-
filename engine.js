@@ -111,6 +111,7 @@ function runBidEngine(data, deltaMap) {
             moveLog: null,
             failedPrefs: [],
             reductionEvents: [],
+            reHoldEvents: [],
             holdEvents: [],
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
@@ -414,7 +415,7 @@ function runBidEngine(data, deltaMap) {
 
                 // If pilot was force-displaced but successfully re-held, record it
                 if (forcedOut && awarded) {
-                    p.holdEvents.push({ loop: loops, key: p.currentKey, log });
+                    p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
                 }
             }
         }
