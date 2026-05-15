@@ -163,7 +163,7 @@
   },
   {
     "sen": 224,
-    "pil": "VINANT-TANG, GARY",
+    "pil": "VINANT-TANG, GARY ",
     "base": "LAX",
     "seat": "CA"
   },
@@ -302,12 +302,6 @@
   {
     "sen": 339,
     "pil": "PEYTON, BRET A.",
-    "base": "SEA",
-    "seat": "CA"
-  },
-  {
-    "sen": 346,
-    "pil": "LEE, DAVID R.",
     "base": "SEA",
     "seat": "CA"
   },
@@ -471,6 +465,12 @@
     "sen": 540,
     "pil": "BRITTINGHAM, MARK",
     "base": "SFO",
+    "seat": "CA"
+  },
+  {
+    "sen": 560,
+    "pil": "GRIMES, MICHAEL",
+    "base": "LAX",
     "seat": "CA"
   },
   {
@@ -1182,18 +1182,6 @@
     "seat": "CA"
   },
   {
-    "sen": 1900,
-    "pil": "JOHNSON, ZACHARY",
-    "base": "LAX",
-    "seat": "CA"
-  },
-  {
-    "sen": 1910,
-    "pil": "JOHNSON, KYLE",
-    "base": "SEA",
-    "seat": "CA"
-  },
-  {
     "sen": 1921,
     "pil": "QUADY, SAMUEL",
     "base": "SFO",
@@ -1332,6 +1320,12 @@
     "seat": "CA"
   },
   {
+    "sen": 2112,
+    "pil": "SAMSON, TOM",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 2125,
     "pil": "TOWNES, LEWIS D",
     "base": "SEA",
@@ -1382,6 +1376,12 @@
   {
     "sen": 2258,
     "pil": "MAYES, LEASA",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2259,
+    "pil": "SAUNDERS, ZANE",
     "base": "SEA",
     "seat": "FO"
   },
@@ -1525,13 +1525,13 @@
   },
   {
     "sen": 2664,
-    "pil": "EDGER, MICHAEL",
+    "pil": "EDGER, MICHAEL ",
     "base": "LAX",
     "seat": "FO"
   },
   {
     "sen": 2669,
-    "pil": "LEONARD, BENJAMIN",
+    "pil": "LEONARD, BENJAMIN ",
     "base": "ANC",
     "seat": "FO"
   },
@@ -1584,6 +1584,12 @@
     "seat": "FO"
   },
   {
+    "sen": 2839,
+    "pil": "HOOVER, ALEX",
+    "base": "PDX",
+    "seat": "FO"
+  },
+  {
     "sen": 2844,
     "pil": "ESKEW, MARK",
     "base": "SEA",
@@ -1629,12 +1635,6 @@
     "sen": 2991,
     "pil": "DEVEREAUX, ALECSANDRA",
     "base": "SEA",
-    "seat": "FO"
-  },
-  {
-    "sen": 2993,
-    "pil": "LARKIN, MORGAN",
-    "base": "SAN",
     "seat": "FO"
   },
   {
@@ -1723,7 +1723,7 @@
   },
   {
     "sen": 3199,
-    "pil": "SMITH, JOSHUA",
+    "pil": "SMITH, JOSHUA ",
     "base": "SFO",
     "seat": "FO"
   },
@@ -1825,7 +1825,7 @@
   },
   {
     "sen": 3375,
-    "pil": "COX, TYLER",
+    "pil": "COX, TYLER ",
     "base": "SFO",
     "seat": "FO"
   },
