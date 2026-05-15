@@ -158,6 +158,14 @@ function renderTable(roster, targetMap, auditTrail) {
         return '';
     }
 
+    function buildHoldReason(log) {
+        if (!log) return 'Remain in current position.';
+        if (log.step === 'A' && log.stayed) return 'Remain in current position.';
+        if (log.step === 'B') return 'Remain in current position.';
+        if (log.step === 'A' && log.prefOrder) return `Awarded Pref #${log.prefOrder} — subsequently displaced by senior pilot.`;
+        return 'Remain in current position.';
+    }
+
     // Group audit trail by seniority number
     const auditBySen = {};
     auditTrail.forEach(entry => {
@@ -191,18 +199,14 @@ function renderTable(roster, targetMap, auditTrail) {
         const reductionByLoop = {};
         reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
 
-        // Build intermediate audit rows — any non-final move the pilot made.
-        // These represent temporary positions they held before being bumped again.
-        // Key by the loop number of the NEXT reduction (so we attach the hold
-        // row between the reduction that caused it and the next reduction).
+        // Build hold events map by the loop of the NEXT reduction
+        // holdEvents are recorded when a force-displaced pilot successfully re-holds
         const holdByLoop = {};
-        if (auditEntries.length > 1) {
-            auditEntries.slice(0, -1).forEach(e => {
-                // Find the next reductionEvent after this hold's loop
-                const nextRe = reductionEvents.find(r => r.loop > e.loop);
-                if (nextRe) holdByLoop[nextRe.loop] = e;
-            });
-        }
+        const holdEvents = p.holdEvents || [];
+        holdEvents.forEach(he => {
+            const nextRe = reductionEvents.find(r => r.loop > he.loop);
+            if (nextRe) holdByLoop[nextRe.loop] = he;
+        });
 
         // Get all loops in order that had activity
         const allLoops = [...new Set([
@@ -253,15 +257,14 @@ function renderTable(roster, targetMap, auditTrail) {
                     });
                 });
 
-                // Intermediate hold: they won a pref or held in this loop
-                // but then got bumped again in the next loop
+                // Intermediate hold: pilot re-held their position temporarily
                 if (hold) {
                     rows.push({
-                        prefNum: hold.log ? (hold.log.prefOrder || '—') : '—',
-                        fromPos: fmt(hold.from) || '—',
-                        toPos:   hold.to ? ('737 ' + fmt(hold.to)) : '—',
+                        prefNum: hold.log ? (hold.log.prefOrder || hold.log.step || '—') : '—',
+                        fromPos: fmt(hold.key) || '—',
+                        toPos:   '737 ' + fmt(hold.key),
                         status:  'Awarded',
-                        reason:  hold.reason || 'Awarded — subsequently displaced by senior pilot.'
+                        reason:  hold.log ? buildHoldReason(hold.log) : 'Remain in current position.'
                     });
                 }
             });
