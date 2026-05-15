@@ -111,6 +111,7 @@ function runBidEngine(data, deltaMap) {
             moveLog: null,
             failedPrefs: [],
             reductionEvents: [],
+            holdEvents: [],
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
                 if (isNaN(limit) || limit === 0) limit = 9999;
@@ -410,6 +411,11 @@ function runBidEngine(data, deltaMap) {
             } else {
                 p.moved        = (p.currentKey !== p.orig);
                 p.isUnassigned = (p.currentKey === "UNASSIGNED");
+
+                // If pilot was force-displaced but successfully re-held, record it
+                if (forcedOut && awarded) {
+                    p.holdEvents.push({ loop: loops, key: p.currentKey, log });
+                }
             }
         }
         if (loops > 10000) break;
