@@ -25,7 +25,9 @@
         .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: top; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: middle; }
+        tr:last-child td { border-bottom: 1px solid var(--border); }
+        .pilot-group-sep td { border-top: 2px solid var(--accent) !important; }
         .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
@@ -75,10 +77,11 @@
             <tr>
                 <th>Sen #</th>
                 <th>Pilot Name</th>
-                <th>Awarded Position</th>
-                <th>Final Standing (Rank / Limit)</th>
-                <th>Award Path</th>
-                <th>Original Position</th>
+                <th>From</th>
+                <th>To</th>
+                <th style="text-align:center">Pref #</th>
+                <th>Status</th>
+                <th>Notes</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -143,57 +146,131 @@ function renderDashboards(roster) {
 }
 
 function renderTable(roster, targetMap, auditTrail) {
-    // Group audit entries by seniority, preserving cascade order within each pilot
+    // Helpers
+    function fmt(key) { return (key || '').replace('-', ' '); }
+
+    function rankBadge(p, toKey) {
+        if (!toKey || toKey === 'UNASSIGNED') return '-';
+        let r = 0;
+        roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === toKey) r++; });
+        return `${r} / ${targetMap[toKey] || 0}`;
+    }
+
+    function reasonHtml(text) {
+        const lines = (text || '').split('\n');
+        return lines[0] + (lines[1] ? `<span class="award-reason">${lines[1]}</span>` : '');
+    }
+
+    function statusStyle(status) {
+        if (status === 'Awarded') return 'color:#3fb950;font-weight:bold;';
+        if (status === 'Reduction') return 'color:var(--yellow);font-weight:bold;';
+        if (status === 'Denied') return 'color:var(--red);font-weight:bold;';
+        return '';
+    }
+
+    // Group audit trail by sen for reduction tracking
     const auditBySen = {};
     auditTrail.forEach(entry => {
         if (!auditBySen[entry.sen]) auditBySen[entry.sen] = [];
         auditBySen[entry.sen].push(entry);
     });
 
-    // Iterate roster in seniority order (already sorted by engine)
     const html = roster.map(p => {
-        const entries = auditBySen[p.sen];
-        let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
-        if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-        else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple);color:white;">DISPLACED</span>';
-        const color = (p.moved && !p.isUnassigned) ? '#3fb950' : '';
+        const log = p.moveLog;
+        const failedPrefs = (log && log.failedPrefs) ? log.failedPrefs : [];
+        const auditEntries = auditBySen[p.sen] || [];
 
-        function rankBadge(toKey) {
-            if (toKey === "UNASSIGNED") return '-';
-            let r = 0;
-            roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === toKey) r++; });
-            return `${r} / ${targetMap[toKey] || 0}`;
+        // Build the ordered list of display rows for this pilot
+        // Each row: { prefNum, fromPos, toPos, status, reason, isFinal }
+        const rows = [];
+
+        // ── Denied rows (one per failed preference) ──
+        failedPrefs.forEach(fp => {
+            rows.push({
+                prefNum:  fp.order,
+                fromPos:  fmt(fp.fromKey),
+                toPos:    '737 ' + fmt(fp.targetKey),
+                status:   fp.status || 'Denied',
+                reason:   fp.reason,
+                isFinal:  false
+            });
+        });
+
+        // ── Reduction rows (cascade moves where pilot was bumped out) ──
+        // If audit has more than one entry, intermediate ones are Reduction events
+        if (auditEntries.length > 1) {
+            auditEntries.slice(0, -1).forEach(entry => {
+                rows.push({
+                    prefNum:  'X',
+                    fromPos:  fmt(entry.from),
+                    toPos:    '737 ' + fmt(entry.to),
+                    status:   'Reduction',
+                    reason:   entry.reason || 'Seniority is not high enough to hold position due to reductions.',
+                    isFinal:  false
+                });
+            });
         }
 
-        function reasonHtml(text) {
-            const lines = (text || '').split('\n');
-            return lines[0] + (lines[1] ? `<span class="award-reason">${lines[1]}</span>` : '');
+        // ── Final awarded / displaced row ──
+        if (log) {
+            const finalKey = p.currentKey;
+            let prefNum, toPos, status, reason;
+
+            if (finalKey === 'UNASSIGNED') {
+                prefNum = '-';
+                toPos   = 'UNASSIGNED';
+                status  = p.wasSelfDisplaced ? 'BPL Fail' : 'Displaced';
+                reason  = p.awardedReason;
+            } else if (log.step === 'B') {
+                prefNum = '-';
+                toPos   = '737 ' + fmt(finalKey);
+                status  = 'Awarded';
+                reason  = 'Remain in current position.';
+            } else if (log.step === 'A' && log.stayed) {
+                prefNum = log.prefOrder;
+                toPos   = '737 ' + fmt(finalKey);
+                status  = 'Awarded';
+                reason  = 'Remain in current position.';
+            } else if (log.step === 'A' || log.step === 'C') {
+                prefNum = log.prefOrder || '-';
+                toPos   = '737 ' + fmt(log.toKey || finalKey);
+                status  = 'Awarded';
+                reason  = p.awardedReason;
+            } else {
+                prefNum = '-';
+                toPos   = '737 ' + fmt(finalKey);
+                status  = 'Awarded';
+                reason  = p.awardedReason;
+            }
+
+            rows.push({ prefNum, fromPos: fmt(auditEntries.length ? auditEntries[auditEntries.length-1].from : p.orig), toPos, status, reason, isFinal: true });
+        } else {
+            // No movement at all — stayed put, no log
+            rows.push({
+                prefNum: '-',
+                fromPos: fmt(p.orig),
+                toPos:   '737 ' + fmt(p.currentKey),
+                status:  'Awarded',
+                reason:  'Remain in current position.',
+                isFinal: true
+            });
         }
 
-        if (!entries || entries.length === 0) {
-            // Stayed put — single row
-            const toPos = p.currentKey.replace('-', ' ');
+        // ── Render rows ──
+        const isMover   = p.moved && !p.isUnassigned;
+        const nameColor = isMover ? '#3fb950' : p.isUnassigned ? 'var(--purple)' : 'var(--text)';
+
+        return rows.map((row, i) => {
+            const senCell  = i === 0 ? `<td rowspan="${rows.length}" style="font-weight:bold;vertical-align:top;border-bottom:2px solid var(--accent)">${p.sen}</td>` : '';
+            const nameCell = i === 0 ? `<td rowspan="${rows.length}" style="vertical-align:top;border-bottom:2px solid var(--accent)"><strong style="color:${nameColor}">${p.name}</strong></td>` : '';
+            const borderBottom = i === rows.length - 1 ? 'border-bottom:2px solid var(--accent)' : '';
             return `<tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong></td>
-                <td>${toPos}</td>
-                <td><span class="rank-badge">${rankBadge(p.currentKey)}</span></td>
-                <td>${reasonHtml(p.awardedReason)}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
-            </tr>`;
-        }
-
-        // One row per audit entry; rank badge only on final move
-        return entries.map((entry, i) => {
-            const isLast = (i === entries.length - 1);
-            const toPos = entry.to.replace('-', ' ');
-            return `<tr>
-                <td>${p.sen}</td>
-                <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${color}">${toPos}</td>
-                <td><span class="rank-badge">${isLast ? rankBadge(entry.to) : '-'}</span></td>
-                <td>${reasonHtml(entry.reason)}</td>
-                <td>${p.orig.replace('-', ' ')}</td>
+                ${senCell}${nameCell}
+                <td style="${borderBottom}">${row.fromPos}</td>
+                <td style="${borderBottom}">${row.toPos}</td>
+                <td style="${borderBottom};text-align:center">${row.prefNum}</td>
+                <td style="${borderBottom};${statusStyle(row.status)}">${row.status}</td>
+                <td style="${borderBottom}">${reasonHtml(row.reason)}</td>
             </tr>`;
         }).join('');
     }).join('');
