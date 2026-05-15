@@ -1,5 +1,4 @@
 /**
-
 - AIRLINE BID ENGINE - LIVE LEDGER EDITION (Displacement Chain Update)
 - Logic Update: Force-displaced pilots do not need a vacancy to land.
 - They bump the most junior pilot at their preferred base (where they
