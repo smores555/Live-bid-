@@ -172,6 +172,17 @@ function renderTable(roster, targetMap, auditTrail) {
 
         const rows = [];
 
+        // ── 0. Reduction row — pilot was force-displaced from their base ─────
+        if (p.reductionEvent) {
+            rows.push({
+                prefNum: 'X',
+                fromPos: fmt(p.reductionEvent.fromKey) || '—',
+                toPos:   '737 ' + fmt(p.reductionEvent.fromKey),
+                status:  'Reduction',
+                reason:  `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${p.reductionEvent.minSen}.`
+            });
+        }
+
         // ── 1. One Denied row per failed preference ──────────────────────────
         failedPrefs.forEach(fp => {
             rows.push({
@@ -251,29 +262,43 @@ function renderTable(roster, targetMap, auditTrail) {
         // ── Render all rows for this pilot ───────────────────────────────────
         const isMover   = p.moved && !p.isUnassigned;
         const nameColor = isMover ? '#3fb950' : p.isUnassigned ? 'var(--purple)' : 'var(--text)';
-        const pilotBorderStyle = 'border-top: 2px solid #30363d;';
+        const moverTag  = isMover ? `<br><span class="tag tag-yellow">MOVER</span>` : 
+                          p.wasSelfDisplaced ? `<br><span class="tag tag-red">BPL FAIL</span>` :
+                          p.isUnassigned ? `<br><span class="tag" style="background:var(--purple);color:white;">DISPLACED</span>` : '';
+
+        // Rank badge for final row: how many pilots at or senior to p are at that key
+        function rankBadge(toKey) {
+            if (!toKey || toKey === 'UNASSIGNED' || toKey === '—') return '';
+            let r = 0;
+            roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === toKey) r++; });
+            const cap = targetMap[toKey] || 0;
+            return `<span class="rank-badge">${r} / ${cap}</span>`;
+        }
 
         return rows.map((row, i) => {
             const isFirst = i === 0;
             const isLast  = i === rows.length - 1;
-            const groupBorder = isLast ? 'border-bottom: 2px solid var(--accent);' : '';
 
             const senCell  = isFirst
                 ? `<td rowspan="${rows.length}" style="font-weight:bold;vertical-align:top;padding-top:14px;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);">${p.sen}</td>`
                 : '';
             const nameCell = isFirst
-                ? `<td rowspan="${rows.length}" style="vertical-align:top;padding-top:14px;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);"><strong style="color:${nameColor}">${p.name}</strong></td>`
+                ? `<td rowspan="${rows.length}" style="vertical-align:top;padding-top:14px;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);"><strong style="color:${nameColor}">${p.name}</strong>${moverTag}</td>`
                 : '';
 
-            const tdStyle = `style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${groupBorder}"`;
+            const tdStyle = `style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${isLast ? 'border-bottom:2px solid var(--accent);' : ''}"`;
+            const tdStyleCenter = `style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${isLast ? 'border-bottom:2px solid var(--accent);' : ''}text-align:center;"`;
+            const tdStyleStatus = `style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${isLast ? 'border-bottom:2px solid var(--accent);' : ''}${statusStyle(row.status)}"`;
+
+            const rankCell = isLast ? rankBadge(p.currentKey) : '';
 
             return `<tr>
                 ${senCell}${nameCell}
                 <td ${tdStyle}>${row.fromPos}</td>
                 <td ${tdStyle}>${row.toPos}</td>
-                <td ${tdStyle} style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${groupBorder}text-align:center;">${row.prefNum}</td>
-                <td ${tdStyle} style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${groupBorder}${statusStyle(row.status)}">${row.status}</td>
-                <td ${tdStyle}>${reasonHtml(row.reason)}</td>
+                <td ${tdStyleCenter}>${row.prefNum}</td>
+                <td ${tdStyleStatus}>${row.status}</td>
+                <td ${tdStyle}>${rankCell}${rankCell ? ' ' : ''}${reasonHtml(row.reason)}</td>
             </tr>`;
         }).join('');
     }).join('');
