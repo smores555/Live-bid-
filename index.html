@@ -191,14 +191,18 @@ function renderTable(roster, targetMap, auditTrail) {
         const reductionByLoop = {};
         reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
 
-        // Build intermediate "held" audit rows (force-displaced pilot temporarily held)
-        // These are non-final audit entries where forcedOut was true in prior loop
-        const intermediateHolds = auditEntries.length > 1
-            ? auditEntries.slice(0, -1).filter(e => e.log && e.log.forcedOut)
-            : [];
-        // Map them by loop
+        // Build intermediate audit rows — any non-final move the pilot made.
+        // These represent temporary positions they held before being bumped again.
+        // Key by the loop number of the NEXT reduction (so we attach the hold
+        // row between the reduction that caused it and the next reduction).
         const holdByLoop = {};
-        intermediateHolds.forEach(e => { holdByLoop[e.loop] = e; });
+        if (auditEntries.length > 1) {
+            auditEntries.slice(0, -1).forEach(e => {
+                // Find the next reductionEvent after this hold's loop
+                const nextRe = reductionEvents.find(r => r.loop > e.loop);
+                if (nextRe) holdByLoop[nextRe.loop] = e;
+            });
+        }
 
         // Get all loops in order that had activity
         const allLoops = [...new Set([
