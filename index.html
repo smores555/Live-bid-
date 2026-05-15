@@ -398,7 +398,7 @@ document.getElementById('expMaster').onclick = () => {
         ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
     }
 
-    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Vacancy Movement", "Original Position"];
+    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
     headers.forEach((h, c) => setCell(0, c, h, hStyle()));
 
     lastResults.forEach((p, i) => {
@@ -408,16 +408,14 @@ document.getElementById('expMaster').onclick = () => {
         if (p.currentKey !== "UNASSIGNED") lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
         const cap = lastTargetMap[p.currentKey] || 0;
         const rankStr = p.currentKey === "UNASSIGNED" ? '' : `${finalRank} / ${cap}`;
-        const reason = p.awardedReason || '';
-        const lines = reason.split('\n');
-        const awardPath = lines[0] || '';
-        const vacMovement = lines[1] || '';
-        const vals = [p.sen, p.name, p.currentKey.replace('-', ' '), rankStr, awardPath, vacMovement, p.orig.replace('-', ' ')];
-        vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4 || c === 5)));
+        const rawReason = (p.awardedReason || '').replace('(retirement / system reduction)', '').replace('\n', ' ').replace(/\s+/g, ' ').trim();
+        const fullReason = rawReason;
+        const vals = [p.sen, p.name, p.currentKey.replace('-', ' '), rankStr, fullReason, p.orig.replace('-', ' ')];
+        vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4)));
     });
 
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastResults.length, c: 6 } });
-    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 80 }, { wch: 60 }, { wch: 14 }];
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastResults.length, c: 5 } });
+    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 80 }, { wch: 14 }];
     ws['!rows'] = [{ hpt: 18 }];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Master Awards');
