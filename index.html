@@ -124,64 +124,7 @@ function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `<div class="cap-cell"><label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`).join('');
 }
 
-document.getElementById('lookupBtn').onclick = () => {
-    const sen = parseInt(document.getElementById('lookupInput').value);
-    if (!sen || !lastResults.length) return;
-    const p = lastResults.find(p => p.sen === sen);
-    if (!p) { alert(`Sen #${sen} not found.`); return; }
-
-    const auditBySen = {};
-    lastAuditTrail.forEach(e => { if (!auditBySen[e.sen]) auditBySen[e.sen] = []; auditBySen[e.sen].push(e); });
-    const entries = auditBySen[sen] || [];
-
-    let tags = (p.moved && !p.isUnassigned) ? '<span class="tag tag-yellow">MOVER</span>' : '';
-    if (p.wasSelfDisplaced) tags += '<span class="tag tag-red">SELF-DISPLACED</span>';
-    else if (p.isUnassigned) tags += '<span class="tag" style="background:var(--purple);color:white;">DISPLACED</span>';
-    const color = (p.moved && !p.isUnassigned) ? '#3fb950' : '';
-
-    function rankBadge(toKey) {
-        if (!toKey || toKey === 'UNASSIGNED') return '-';
-        let r = 0;
-        lastResults.forEach(other => { if (other.sen <= sen && other.currentKey === toKey) r++; });
-        return `${r} / ${lastTargetMap[toKey] || 0}`;
-    }
-    function reasonHtml(text) {
-        const lines = (text || '').split('\n');
-        return lines[0] + (lines[1] ? `<span class="award-reason">${lines[1]}</span>` : '');
-    }
-
-    let html = '';
-    if (!entries.length) {
-        html = `<tr><td>${sen}</td><td><strong>${p.name}</strong></td><td>${p.currentKey.replace('-',' ')}</td><td><span class="rank-badge">${rankBadge(p.currentKey)}</span></td><td>${reasonHtml(p.awardedReason)}</td><td>${p.orig.replace('-',' ')}</td></tr>`;
-    } else {
-        html = entries.map((entry, i) => {
-            const isLast = (i === entries.length - 1);
-            const isPass = !!entry.isPass;
-            const toPos  = (entry.to || '').replace('-', ' ');
-            if (isPass) {
-                return `<tr style="background:#1a1500;">
-                    <td style="color:#555">${sen}</td>
-                    <td style="color:#ffd33d;font-size:0.75rem;">↺ re-hold pass</td>
-                    <td style="color:#ffd33d">${toPos}</td>
-                    <td>-</td>
-                    <td><span class="award-reason" style="color:#ffd33d">${entry.reason || ''}</span></td>
-                    <td style="color:#555">${p.orig.replace('-',' ')}</td>
-                </tr>`;
-            }
-            return `<tr>
-                <td>${sen}</td>
-                <td><strong>${p.name}</strong><br>${tags}</td>
-                <td style="color:${color}">${toPos}</td>
-                <td><span class="rank-badge">${isLast ? rankBadge(entry.to) : '-'}</span></td>
-                <td>${reasonHtml(entry.reason)}</td>
-                <td>${p.orig.replace('-',' ')}</td>
-            </tr>`;
-        }).join('');
-    }
-
-    document.getElementById('tableBody').innerHTML = html;
-    window.scrollTo(0, document.getElementById('tableBody').getBoundingClientRect().top + window.scrollY - 80);
-};
+document.getElementById('runBtn').onclick = () => {
     const deltas = {};
     store.caps.forEach(c => { const el = document.getElementById(`delta-${c.base}-${c.seat}`); if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0; });
     const result = runBidEngine(store, deltas);
@@ -249,22 +192,19 @@ function renderTable(roster, targetMap, auditTrail) {
 
         // One row per audit entry; rank badge only on final move
         return entries.map((entry, i) => {
-            const isLast  = (i === entries.length - 1);
-            const isPass  = !!entry.isPass;
-            const toPos   = (entry.to || '').replace('-', ' ');
-            const fromPos = (entry.from || '').replace('-', ' ');
-
+            const isLast = (i === entries.length - 1);
+            const isPass = !!entry.isPass;
+            const toPos  = (entry.to || '').replace('-', ' ');
             if (isPass) {
                 return `<tr style="background:#1a1500;">
                     <td style="color:#555">${p.sen}</td>
-                    <td style="color:#ffd33d;font-size:0.75rem;">↺ re-hold pass</td>
+                    <td style="color:#ffd33d;font-size:0.75rem;">&#8635; re-hold pass</td>
                     <td style="color:#ffd33d">${toPos}</td>
                     <td>-</td>
-                    <td><span class="award-reason" style="color:#ffd33d">${(entry.reason || '')}</span></td>
+                    <td><span class="award-reason" style="color:#ffd33d">${entry.reason || ''}</span></td>
                     <td style="color:#555">${p.orig.replace('-', ' ')}</td>
                 </tr>`;
             }
-
             return `<tr>
                 <td>${p.sen}</td>
                 <td><strong>${p.name}</strong><br>${tags}</td>
