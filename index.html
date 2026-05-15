@@ -202,7 +202,7 @@ function renderTable(roster, targetMap, auditTrail) {
         // Build hold events map by the loop of the NEXT reduction
         // holdEvents are recorded when a force-displaced pilot successfully re-holds
         const holdByLoop = {};
-        const holdEvents = p.holdEvents || [];
+        const holdEvents = p.reHoldEvents || [];
         holdEvents.forEach(he => {
             const nextRe = reductionEvents.find(r => r.loop > he.loop);
             if (nextRe) holdByLoop[nextRe.loop] = he;
@@ -398,7 +398,7 @@ document.getElementById('expMaster').onclick = () => {
         ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
     }
 
-    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
+    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Vacancy Movement", "Original Position"];
     headers.forEach((h, c) => setCell(0, c, h, hStyle()));
 
     lastResults.forEach((p, i) => {
@@ -406,12 +406,18 @@ document.getElementById('expMaster').onclick = () => {
         const alt = i % 2 === 1;
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        const vals = [p.sen, p.name, p.currentKey.replace('-', ' '), finalRank || '', p.awardedReason, p.orig.replace('-', ' ')];
-        vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4)));
+        const cap = lastTargetMap[p.currentKey] || 0;
+        const rankStr = p.currentKey === "UNASSIGNED" ? '' : `${finalRank} / ${cap}`;
+        const reason = p.awardedReason || '';
+        const lines = reason.split('\n');
+        const awardPath = lines[0] || '';
+        const vacMovement = lines[1] || '';
+        const vals = [p.sen, p.name, p.currentKey.replace('-', ' '), rankStr, awardPath, vacMovement, p.orig.replace('-', ' ')];
+        vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4 || c === 5)));
     });
 
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastResults.length, c: 5 } });
-    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 80 }, { wch: 14 }];
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastResults.length, c: 6 } });
+    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 80 }, { wch: 60 }, { wch: 14 }];
     ws['!rows'] = [{ hpt: 18 }];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Master Awards');
