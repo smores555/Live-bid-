@@ -194,11 +194,15 @@ function runBidEngine(data, deltaMap) {
                 }
 
                 if (rank > pr.bpl) {
-                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds BPL ${pr.bpl}.`);
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Seniority is not high enough to hold position. Minimum position seniority is ${pr.bpl}.`, status: 'Denied' });
                 } else if (rank > cap) {
-                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: Rank ${rank} exceeds Capacity ${cap}.`);
+                    const vac = getVac(targetKey);
+                    const msg = vac <= 0
+                        ? `Requested position has 0 vacancy and cannot accept additional pilots.`
+                        : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied' });
                 } else if (isMovingIn && !vacancyOk) {
-                    failedPrefs.push(`Pref #${pr.order} (${keyLabel(targetKey)}) skipped: No vacancy.`);
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied' });
                 }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
@@ -424,31 +428,25 @@ function runBidEngine(data, deltaMap) {
             : '';
         const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
 
-        const failedStr = (log.failedPrefs && log.failedPrefs.length > 0)
-            ? ' ' + log.failedPrefs.join(' ')
-            : '';
-
         if (log.step === 'A' && !log.stayed) {
-            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}.${failedStr} ${fmtSource(log.source)}${bumpNote}`;
+            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
             const line2 = log.displacementBump
                 ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
                 : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             return line1 + '\n' + line2;
         } else if (log.step === 'A' && log.stayed) {
-            const vac = finalVac(log.toKey);
-            const cap = targetMap[log.toKey] || 0;
-            return `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 Remain in current position.${failedStr} ${keyLabel(log.toKey)} vacancy: ${vac} open of ${cap}.`;
+            return `Remain in current position.`;
         } else if (log.step === 'B') {
             return `Remain in current position.`;
         } else if (log.step === 'C') {
-            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}.${failedStr} ${fmtSource(log.source)}${bumpNote}`;
+            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
             const line2 = log.displacementBump
                 ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
                 : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             return line1 + '\n' + line2;
         } else if (log.step === 'D') {
             if (log.selfDisp) {
-                return `BPL Failure \u2014 Rank ${log.bplRank} exceeds limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                return `BPL Failure \u2014 Rank ${log.bplRank} exceeds BPL limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             } else {
                 return `Displaced: No position available \u2014 system-wide reduction. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             }
