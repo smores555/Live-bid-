@@ -110,7 +110,7 @@ function runBidEngine(data, deltaMap) {
             isForceDisplaced: false,
             moveLog: null,
             failedPrefs: [],
-            reductionEvent: null,
+            reductionEvents: [],
             prefs: (prefData.preferences || []).map(pr => {
                 let limit = parseInt(pr.bpl || pr.bpl_min);
                 if (isNaN(limit) || limit === 0) limit = 9999;
@@ -163,9 +163,9 @@ function runBidEngine(data, deltaMap) {
 
             const forcedOut = isForceDisplacedFrom(p, p.currentKey);
 
-            // If forced out, capture the Reduction event details for display
-            // Find the seniority of the pilot who sits AT the capacity boundary
-            if (forcedOut && !p.reductionEvent) {
+            // Every time this pilot is force-displaced, record a Reduction event
+            // (can happen multiple times across cascade loops)
+            if (forcedOut) {
                 const cap = targetMap[p.currentKey] || 0;
                 let boundaryPilot = null;
                 let count = 0;
@@ -177,10 +177,7 @@ function runBidEngine(data, deltaMap) {
                     }
                 }
                 const minSen = boundaryPilot ? boundaryPilot.sen : cap;
-                p.reductionEvent = {
-                    fromKey: p.currentKey,
-                    minSen
-                };
+                p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
             }
 
             // ── STEP A: Work through submitted preferences ──────────────────
@@ -205,15 +202,15 @@ function runBidEngine(data, deltaMap) {
                 }
 
                 if (rank > pr.bpl) {
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl' });
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl', loop: loops });
                 } else if (rank > cap) {
                     const vac = getVac(targetKey);
                     const msg = vac <= 0
                         ? `Requested position has 0 vacancy and cannot accept additional pilots.`
                         : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied' });
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
                 } else if (isMovingIn && !vacancyOk) {
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied' });
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
                 }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
