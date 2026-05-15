@@ -26,13 +26,11 @@
         table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
         th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
         td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: middle; }
-        tr:last-child td { border-bottom: 1px solid var(--border); }
-        .pilot-group-sep td { border-top: 2px solid var(--accent) !important; }
+        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
         .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
         .tag-red { background: var(--red); color: white; }
         .tag-yellow { background: var(--yellow); color: #000; }
         .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
-        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -94,7 +92,6 @@ let lastResults = [];
 let lastTargetMap = {};
 let lastAuditTrail = [];
 
-// Robust Excel-Safe CSV Export
 function exportToCSV(filename, rows) {
     const csvContent = rows.map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -146,15 +143,7 @@ function renderDashboards(roster) {
 }
 
 function renderTable(roster, targetMap, auditTrail) {
-    // Helpers
-    function fmt(key) { return (key || '').replace('-', ' '); }
-
-    function rankBadge(p, toKey) {
-        if (!toKey || toKey === 'UNASSIGNED') return '-';
-        let r = 0;
-        roster.forEach(other => { if (other.sen <= p.sen && other.currentKey === toKey) r++; });
-        return `${r} / ${targetMap[toKey] || 0}`;
-    }
+    function fmt(key) { return (key || '').replace(/-/g, ' '); }
 
     function reasonHtml(text) {
         const lines = (text || '').split('\n');
@@ -165,10 +154,11 @@ function renderTable(roster, targetMap, auditTrail) {
         if (status === 'Awarded') return 'color:#3fb950;font-weight:bold;';
         if (status === 'Reduction') return 'color:var(--yellow);font-weight:bold;';
         if (status === 'Denied') return 'color:var(--red);font-weight:bold;';
+        if (status === 'Displaced' || status === 'BPL Fail') return 'color:var(--purple);font-weight:bold;';
         return '';
     }
 
-    // Group audit trail by sen for reduction tracking
+    // Group audit trail by seniority number
     const auditBySen = {};
     auditTrail.forEach(entry => {
         if (!auditBySen[entry.sen]) auditBySen[entry.sen] = [];
@@ -176,53 +166,56 @@ function renderTable(roster, targetMap, auditTrail) {
     });
 
     const html = roster.map(p => {
-        const log = p.moveLog;
-        const failedPrefs = (log && log.failedPrefs) ? log.failedPrefs : [];
+        const log          = p.moveLog;
+        const failedPrefs  = p.failedPrefs || [];   // ← read directly from pilot
         const auditEntries = auditBySen[p.sen] || [];
 
-        // Build the ordered list of display rows for this pilot
-        // Each row: { prefNum, fromPos, toPos, status, reason, isFinal }
         const rows = [];
 
-        // ── Denied rows (one per failed preference) ──
+        // ── 1. One Denied row per failed preference ──────────────────────────
         failedPrefs.forEach(fp => {
             rows.push({
-                prefNum:  fp.order,
-                fromPos:  fmt(fp.fromKey),
-                toPos:    '737 ' + fmt(fp.targetKey),
-                status:   fp.status || 'Denied',
-                reason:   fp.reason,
-                isFinal:  false
+                prefNum: fp.order,
+                fromPos: fmt(fp.fromKey) || '—',
+                toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
+                status:  'Denied',
+                reason:  fp.reason || ''
             });
         });
 
-        // ── Reduction rows (cascade moves where pilot was bumped out) ──
-        // If audit has more than one entry, intermediate ones are Reduction events
+        // ── 2. Reduction rows: only genuine force-displaced intermediate moves ──
+        //    Voluntary cascade churn (engine finding a better pref in a later loop)
+        //    is NOT a Reduction — skip those entirely.
         if (auditEntries.length > 1) {
             auditEntries.slice(0, -1).forEach(entry => {
+                const isForced = entry.log && entry.log.forcedOut;
+                if (!isForced) return; // skip voluntary re-evaluations
                 rows.push({
-                    prefNum:  'X',
-                    fromPos:  fmt(entry.from),
-                    toPos:    '737 ' + fmt(entry.to),
-                    status:   'Reduction',
-                    reason:   entry.reason || 'Seniority is not high enough to hold position due to reductions.',
-                    isFinal:  false
+                    prefNum: 'X',
+                    fromPos: fmt(entry.from) || '—',
+                    toPos:   entry.to ? ('737 ' + fmt(entry.to)) : '—',
+                    status:  'Reduction',
+                    reason:  entry.reason || 'Seniority is not high enough to hold position due to reductions.'
                 });
             });
         }
 
-        // ── Final awarded / displaced row ──
+        // ── 3. Final awarded / displaced row ────────────────────────────────
         if (log) {
             const finalKey = p.currentKey;
-            let prefNum, toPos, status, reason;
+            let prefNum, fromPos, toPos, status, reason;
+
+            // fromPos: use last audit entry's from, or orig if no audit
+            const lastAudit = auditEntries.length ? auditEntries[auditEntries.length - 1] : null;
+            fromPos = fmt(lastAudit ? lastAudit.from : p.orig) || '—';
 
             if (finalKey === 'UNASSIGNED') {
-                prefNum = '-';
+                prefNum = '—';
                 toPos   = 'UNASSIGNED';
                 status  = p.wasSelfDisplaced ? 'BPL Fail' : 'Displaced';
                 reason  = p.awardedReason;
             } else if (log.step === 'B') {
-                prefNum = '-';
+                prefNum = '—';
                 toPos   = '737 ' + fmt(finalKey);
                 status  = 'Awarded';
                 reason  = 'Remain in current position.';
@@ -232,45 +225,55 @@ function renderTable(roster, targetMap, auditTrail) {
                 status  = 'Awarded';
                 reason  = 'Remain in current position.';
             } else if (log.step === 'A' || log.step === 'C') {
-                prefNum = log.prefOrder || '-';
+                prefNum = log.prefOrder || '—';
                 toPos   = '737 ' + fmt(log.toKey || finalKey);
                 status  = 'Awarded';
                 reason  = p.awardedReason;
             } else {
-                prefNum = '-';
+                prefNum = '—';
                 toPos   = '737 ' + fmt(finalKey);
                 status  = 'Awarded';
                 reason  = p.awardedReason;
             }
 
-            rows.push({ prefNum, fromPos: fmt(auditEntries.length ? auditEntries[auditEntries.length-1].from : p.orig), toPos, status, reason, isFinal: true });
+            rows.push({ prefNum, fromPos, toPos, status, reason });
         } else {
-            // No movement at all — stayed put, no log
+            // No log at all — stayed put with no movement
             rows.push({
-                prefNum: '-',
+                prefNum: '—',
                 fromPos: fmt(p.orig),
                 toPos:   '737 ' + fmt(p.currentKey),
                 status:  'Awarded',
-                reason:  'Remain in current position.',
-                isFinal: true
+                reason:  'Remain in current position.'
             });
         }
 
-        // ── Render rows ──
+        // ── Render all rows for this pilot ───────────────────────────────────
         const isMover   = p.moved && !p.isUnassigned;
         const nameColor = isMover ? '#3fb950' : p.isUnassigned ? 'var(--purple)' : 'var(--text)';
+        const pilotBorderStyle = 'border-top: 2px solid #30363d;';
 
         return rows.map((row, i) => {
-            const senCell  = i === 0 ? `<td rowspan="${rows.length}" style="font-weight:bold;vertical-align:top;border-bottom:2px solid var(--accent)">${p.sen}</td>` : '';
-            const nameCell = i === 0 ? `<td rowspan="${rows.length}" style="vertical-align:top;border-bottom:2px solid var(--accent)"><strong style="color:${nameColor}">${p.name}</strong></td>` : '';
-            const borderBottom = i === rows.length - 1 ? 'border-bottom:2px solid var(--accent)' : '';
+            const isFirst = i === 0;
+            const isLast  = i === rows.length - 1;
+            const groupBorder = isLast ? 'border-bottom: 2px solid var(--accent);' : '';
+
+            const senCell  = isFirst
+                ? `<td rowspan="${rows.length}" style="font-weight:bold;vertical-align:top;padding-top:14px;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);">${p.sen}</td>`
+                : '';
+            const nameCell = isFirst
+                ? `<td rowspan="${rows.length}" style="vertical-align:top;padding-top:14px;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);"><strong style="color:${nameColor}">${p.name}</strong></td>`
+                : '';
+
+            const tdStyle = `style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${groupBorder}"`;
+
             return `<tr>
                 ${senCell}${nameCell}
-                <td style="${borderBottom}">${row.fromPos}</td>
-                <td style="${borderBottom}">${row.toPos}</td>
-                <td style="${borderBottom};text-align:center">${row.prefNum}</td>
-                <td style="${borderBottom};${statusStyle(row.status)}">${row.status}</td>
-                <td style="${borderBottom}">${reasonHtml(row.reason)}</td>
+                <td ${tdStyle}>${row.fromPos}</td>
+                <td ${tdStyle}>${row.toPos}</td>
+                <td ${tdStyle} style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${groupBorder}text-align:center;">${row.prefNum}</td>
+                <td ${tdStyle} style="${isFirst ? 'border-top:2px solid var(--accent);' : ''}${groupBorder}${statusStyle(row.status)}">${row.status}</td>
+                <td ${tdStyle}>${reasonHtml(row.reason)}</td>
             </tr>`;
         }).join('');
     }).join('');
@@ -281,7 +284,6 @@ function renderTable(roster, targetMap, auditTrail) {
 document.getElementById('expMaster').onclick = () => {
     const wb = XLSX.utils.book_new();
     const ws = {};
-
     const HEADER_BG = '21262D';
     const ALT_BG    = '161B22';
     const WHITE     = 'FFFFFF';
@@ -293,7 +295,6 @@ document.getElementById('expMaster').onclick = () => {
     function dStyle(alt, muted) {
         return { fill: { fgColor: { rgb: alt ? ALT_BG : '0D1117' } }, font: { color: { rgb: muted ? GREY : WHITE }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
     }
-
     function setCell(r, c, v, style) {
         const addr = XLSX.utils.encode_cell({ r, c });
         ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
@@ -322,16 +323,12 @@ document.getElementById('expMaster').onclick = () => {
 document.getElementById('expBase').onclick = () => {
     const bases = ['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'];
     const baseNames = { ANC: 'Anchorage', SEA: 'Seattle', LAX: 'Los Angeles', SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland' };
-
     const wb = XLSX.utils.book_new();
 
-    // Styles (xlsx.full.min supports cell styles via !cellStyles)
-    const GREEN_DARK  = '1A5E1A'; // dark green header bg
-    const GREEN_MID   = '2EA84B'; // mid green rows
-    const GREEN_LIGHT = 'D6F0DB'; // light green alt rows
-    const BLUE_DARK   = '0D3D6B'; // dark blue header bg
-    const BLUE_MID    = '1565C0'; // mid blue rows
-    const BLUE_LIGHT  = 'D0E4F7'; // light blue alt rows
+    const GREEN_DARK  = '1A5E1A';
+    const GREEN_LIGHT = 'D6F0DB';
+    const BLUE_DARK   = '0D3D6B';
+    const BLUE_LIGHT  = 'D0E4F7';
     const WHITE       = 'FFFFFF';
 
     function cellStyle(bgHex, bold, color) {
@@ -355,48 +352,31 @@ document.getElementById('expBase').onclick = () => {
         const foPilots = lastResults.filter(p => p.currentKey === foKey).sort((a, b) => a.sen - b.sen);
         if (caPilots.length === 0 && foPilots.length === 0) return;
 
-        const caCap = lastTargetMap[caKey] || 0;
-        const foCap = lastTargetMap[foKey] || 0;
+        const caCap   = lastTargetMap[caKey] || 0;
+        const foCap   = lastTargetMap[foKey] || 0;
         const maxRows = Math.max(caPilots.length, foPilots.length);
-
-        const ws = {};
-        const range = { s: { r: 0, c: 0 }, e: { r: maxRows + 3, c: 7 } };
+        const ws      = {};
+        const range   = { s: { r: 0, c: 0 }, e: { r: maxRows + 3, c: 7 } };
 
         function setCell(r, c, v, style) {
             const addr = XLSX.utils.encode_cell({ r, c });
             ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
         }
 
-        // Row 0: big bold centered base name — left half green, right half blue
-        const bigNameStyleGreen = {
-            fill: { fgColor: { rgb: GREEN_DARK } },
-            font: { bold: true, color: { rgb: WHITE }, name: 'Arial', sz: 28 },
-            alignment: { horizontal: 'center', vertical: 'center' }
-        };
-        const bigNameStyleBlue = {
-            fill: { fgColor: { rgb: BLUE_DARK } },
-            font: { bold: true, color: { rgb: WHITE }, name: 'Arial', sz: 28 },
-            alignment: { horizontal: 'center', vertical: 'center' }
-        };
-        const fullBaseName = (baseNames[base] || base).toUpperCase();
-        setCell(0, 0, fullBaseName, bigNameStyleGreen);
-        setCell(0, 1, '', bigNameStyleGreen);
-        setCell(0, 2, '', bigNameStyleGreen);
-        setCell(0, 3, '', bigNameStyleGreen);
-        setCell(0, 4, fullBaseName, bigNameStyleBlue);
-        setCell(0, 5, '', bigNameStyleBlue);
-        setCell(0, 6, '', bigNameStyleBlue);
-        setCell(0, 7, '', bigNameStyleBlue);
+        const bigGreen = { fill: { fgColor: { rgb: GREEN_DARK } }, font: { bold: true, color: { rgb: WHITE }, name: 'Arial', sz: 28 }, alignment: { horizontal: 'center', vertical: 'center' } };
+        const bigBlue  = { fill: { fgColor: { rgb: BLUE_DARK  } }, font: { bold: true, color: { rgb: WHITE }, name: 'Arial', sz: 28 }, alignment: { horizontal: 'center', vertical: 'center' } };
+        const fullName = (baseNames[base] || base).toUpperCase();
 
-        // Row 1: "737 BaseName" subtitle
-        const titleStyle = cellStyle(GREEN_DARK, true, WHITE);
-        const titleStyleBlue = cellStyle(BLUE_DARK, true, WHITE);
-        setCell(1, 0, `737 ${baseNames[base] || base}`, titleStyle);
-        for (let c = 1; c <= 3; c++) setCell(1, c, '', titleStyle);
-        setCell(1, 4, `737 ${baseNames[base] || base}`, titleStyleBlue);
-        for (let c = 5; c <= 7; c++) setCell(1, c, '', titleStyleBlue);
+        [0,1,2,3].forEach(c => setCell(0, c, c === 0 ? fullName : '', bigGreen));
+        [4,5,6,7].forEach(c => setCell(0, c, c === 4 ? fullName : '', bigBlue));
 
-        // Row 2: column headers
+        const tG = cellStyle(GREEN_DARK, true, WHITE);
+        const tB = cellStyle(BLUE_DARK,  true, WHITE);
+        setCell(1, 0, `737 ${baseNames[base] || base}`, tG);
+        [1,2,3].forEach(c => setCell(1, c, '', tG));
+        setCell(1, 4, `737 ${baseNames[base] || base}`, tB);
+        [5,6,7].forEach(c => setCell(1, c, '', tB));
+
         setCell(2, 0, 'BPL #',             cellStyle(GREEN_DARK, true));
         setCell(2, 1, 'CAPTAIN NAME',       cellStyle(GREEN_DARK, true));
         setCell(2, 2, 'SEN #',             cellStyle(GREEN_DARK, true));
@@ -406,35 +386,26 @@ document.getElementById('expBase').onclick = () => {
         setCell(2, 6, 'SEN #',             cellStyle(BLUE_DARK,  true));
         setCell(2, 7, String(foCap),        cellStyle(BLUE_DARK,  true));
 
-        // Data rows starting at row 3
         for (let i = 0; i < maxRows; i++) {
-            const r = i + 3;
+            const r     = i + 3;
             const isAlt = i % 2 === 1;
-            const caBg = isAlt ? GREEN_LIGHT : WHITE;
-            const foBg = isAlt ? BLUE_LIGHT  : WHITE;
-            const caColor = '1A3A1A';
-            const foColor = '0D2A4A';
-
-            const ca = caPilots[i];
-            const fo = foPilots[i];
-
-            setCell(r, 0, ca ? i + 1    : '', cellStyle(caBg, false, caColor));
-            setCell(r, 1, ca ? ca.name  : '', cellStyle(caBg, false, caColor));
-            setCell(r, 2, ca ? ca.sen   : '', cellStyle(caBg, false, caColor));
-            setCell(r, 3, '',                 cellStyle(caBg, false, caColor));
-            setCell(r, 4, fo ? i + 1    : '', cellStyle(foBg, false, foColor));
-            setCell(r, 5, fo ? fo.name  : '', cellStyle(foBg, false, foColor));
-            setCell(r, 6, fo ? fo.sen   : '', cellStyle(foBg, false, foColor));
-            setCell(r, 7, '',                 cellStyle(foBg, false, foColor));
+            const caBg  = isAlt ? GREEN_LIGHT : WHITE;
+            const foBg  = isAlt ? BLUE_LIGHT  : WHITE;
+            const ca    = caPilots[i];
+            const fo    = foPilots[i];
+            setCell(r, 0, ca ? i + 1   : '', cellStyle(caBg, false, '1A3A1A'));
+            setCell(r, 1, ca ? ca.name : '', cellStyle(caBg, false, '1A3A1A'));
+            setCell(r, 2, ca ? ca.sen  : '', cellStyle(caBg, false, '1A3A1A'));
+            setCell(r, 3, '',                cellStyle(caBg, false, '1A3A1A'));
+            setCell(r, 4, fo ? i + 1   : '', cellStyle(foBg, false, '0D2A4A'));
+            setCell(r, 5, fo ? fo.name : '', cellStyle(foBg, false, '0D2A4A'));
+            setCell(r, 6, fo ? fo.sen  : '', cellStyle(foBg, false, '0D2A4A'));
+            setCell(r, 7, '',                cellStyle(foBg, false, '0D2A4A'));
         }
 
-        ws['!ref'] = XLSX.utils.encode_range(range);
-        ws['!cols'] = [
-            { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 },
-            { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 }
-        ];
+        ws['!ref']  = XLSX.utils.encode_range(range);
+        ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 28 }, { wch: 8 }, { wch: 6 }];
         ws['!rows'] = [{ hpt: 48 }, { hpt: 20 }, { hpt: 18 }];
-
         XLSX.utils.book_append_sheet(wb, ws, base);
     });
 
@@ -444,7 +415,6 @@ document.getElementById('expBase').onclick = () => {
 document.getElementById('expLog').onclick = () => {
     const wb = XLSX.utils.book_new();
     const ws = {};
-
     const HEADER_BG = '21262D';
     const WHITE     = 'FFFFFF';
     const GREY      = '8B949E';
@@ -467,19 +437,18 @@ document.getElementById('expLog').onclick = () => {
     lastResults.forEach(p => { pilotMap[p.sen] = p; });
 
     lastAuditTrail.forEach((entry, i) => {
-        const r = i + 1;
+        const r   = i + 1;
         const alt = i % 2 === 1;
-        const p = pilotMap[entry.sen];
+        const p   = pilotMap[entry.sen];
         const from = (entry.from || (p ? p.orig : '')).replace('-', ' ');
-        const to   = (entry.to || '').replace('-', ' ');
+        const to   = (entry.to  || '').replace('-', ' ');
         const note = (entry.reason || '').replace('\n', ' ');
         const vals = [entry.sen, entry.name, from, to, note];
         vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4)));
     });
 
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastAuditTrail.length, c: 4 } });
+    ws['!ref']  = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastAuditTrail.length, c: 4 } });
     ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 90 }];
-
     XLSX.utils.book_append_sheet(wb, ws, 'Transition Log');
     XLSX.writeFile(wb, 'transition_log.xlsx', { cellStyles: true });
 };
