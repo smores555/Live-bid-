@@ -206,6 +206,8 @@ function renderTable(roster, targetMap, auditTrail) {
             ...failedPrefs.map(fp => fp.loop || 0)
         ])].sort((a, b) => a - b);
 
+        const rows = [];
+
         // If no reductions at all, just do denied rows then final awarded
         if (reductionEvents.length === 0) {
             failedPrefs.forEach(fp => {
