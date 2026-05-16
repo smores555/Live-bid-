@@ -403,7 +403,7 @@ function runBidEngine(data, deltaMap) {
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
             p.moveLog          = log;
-            p.failedPrefs      = failedPrefs; // stored directly on pilot — always accessible
+            p.failedPrefs      = [...(p.failedPrefs || []), ...failedPrefs]; // accumulate across loops
 
             if (newSeat !== p.currentKey) {
                 const prevKey = p.currentKey; // capture BEFORE updating
