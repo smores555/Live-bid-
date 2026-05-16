@@ -198,9 +198,9 @@ function renderTable(roster, targetMap, auditTrail) {
             failedByLoop[l].push(fp);
         });
 
-        // Build chronological interleaved event rows, deduping only consecutive identical events
-        // This preserves genuine second cycles (reduction→prefs→award→reduction→prefs again)
-        // while collapsing hundreds of loop-identical duplicate rows from the engine
+        // Build chronological interleaved event rows
+        // Within each cycle (between genuine re-hold events), show each unique
+        // event only once. A re-hold resets the seen set so the next cycle shows again.
         function buildChronologicalRows() {
             const events = [];
             reductionEvents.forEach(re => events.push({ loop: re.loop, order: 0, type: 'reduction', re }));
@@ -211,46 +211,36 @@ function renderTable(roster, targetMap, auditTrail) {
             const raw = [];
             events.forEach(ev => {
                 if (ev.type === 'reduction') {
-                    raw.push({ prefNum: 'X', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(ev.re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${ev.re.minSen}.`, _sig: `R|${ev.re.fromKey}|${ev.re.minSen}` });
+                    raw.push({ type: 'reduction', prefNum: 'X', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(ev.re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${ev.re.minSen}.` });
                 } else if (ev.type === 'hold') {
                     const he = ev.he;
-                    raw.push({ prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(he.key), status: 'Awarded', reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.', _sig: `H|${he.key}` });
+                    raw.push({ type: 'hold', prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(he.key), status: 'Awarded', reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.' });
                 } else {
                     const fp = ev.fp;
-                    raw.push({ prefNum: fp.order, fromPos: fmt(p.orig) || '—', toPos: fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '', _sig: `P|${fp.order}|${fp.targetKey}|${fp.reason}` });
+                    raw.push({ type: 'pref', prefNum: fp.order, fromPos: fmt(p.orig) || '—', toPos: fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' });
                 }
             });
 
-            // Dedupe: collapse repeated cycles of the same sig pattern.
-            // Strategy: keep a row only if its sig hasn't appeared since the last
-            // "different" event broke the run. This handles R,A,R,A,R,A -> R,A.
-            const seen = new Set();
-            const seenOrder = [];
+            // Dedupe: within each cycle (reset on hold), only show each unique event once
             const deduped = [];
-            for (let i = 0; i < raw.length; i++) {
-                const sig = raw[i]._sig;
-                // If we've seen this sig before and the pattern since last seeing it
-                // is identical (same cycle repeating), skip it
-                if (seen.has(sig)) {
-                    // Find where we last saw this sig
-                    const lastIdx = seenOrder.lastIndexOf(sig);
-                    const cycleSince = seenOrder.slice(lastIdx + 1);
-                    const cycleCurrent = raw.slice(i - cycleSince.length, i).map(r => r._sig);
-                    const isRepeat = cycleSince.length > 0 &&
-                        cycleSince.join(',') === cycleCurrent.join(',');
-                    if (isRepeat) continue;
+            let seenInCycle = new Set();
+            for (const row of raw) {
+                if (row.type === 'hold') {
+                    deduped.push(row);
+                    seenInCycle = new Set();
+                } else {
+                    const sig = `${row.type}|${row.status}|${row.toPos}|${row.reason}`;
+                    if (!seenInCycle.has(sig)) {
+                        seenInCycle.add(sig);
+                        deduped.push(row);
+                    }
                 }
-                seen.add(sig);
-                seenOrder.push(sig);
-                const row = { ...raw[i] };
-                delete row._sig;
-                deduped.push(row);
             }
+            deduped.forEach(r => delete r.type);
             return deduped;
         }
 
         const rows = buildChronologicalRows();
-
                 // ── Final awarded / displaced row ────────────────────────────────────
         if (log) {
             const finalKey = p.currentKey;
