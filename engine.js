@@ -165,28 +165,21 @@ function runBidEngine(data, deltaMap) {
 
             const forcedOut = isForceDisplacedFrom(p, p.orig);
 
-            // Record a Reduction event every time the pilot is force-displaced.
-            // Always use p.orig as fromKey so the log reflects their true home position,
-            // not whatever temporary cascade position they may currently occupy.
+            // Every time this pilot is force-displaced, record a Reduction event
+            // (can happen multiple times across cascade loops)
             if (forcedOut) {
-                const cap = targetMap[p.orig] || 0;
+                const cap = targetMap[p.currentKey] || 0;
                 let boundaryPilot = null;
                 let count = 0;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.orig) {
+                    if (other.currentKey === p.currentKey) {
                         count++;
                         if (count === cap) { boundaryPilot = other; break; }
                     }
                 }
                 const minSen = boundaryPilot ? boundaryPilot.sen : cap;
-                // Only push if this is a new reduction event (not same as last logged)
-                const lastRe = p.reductionEvents[p.reductionEvents.length - 1];
-                const lastHold = p.reHoldEvents[p.reHoldEvents.length - 1];
-                const sinceLastHold = !lastHold || (lastRe && lastRe.loop > lastHold.loop);
-                if (!lastRe || !sinceLastHold) {
-                    p.reductionEvents.push({ fromKey: p.orig, minSen, loop: loops });
-                }
+                p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
             }
 
             // ── STEP A: Work through submitted preferences ──────────────────
@@ -437,13 +430,7 @@ function runBidEngine(data, deltaMap) {
 
                 // If pilot was force-displaced but successfully re-held, record it
                 if (forcedOut && awarded) {
-                    // Only push if this is a new hold (not same position as last logged hold)
-                    const lastHold = p.reHoldEvents[p.reHoldEvents.length - 1];
-                    const lastRe   = p.reductionEvents[p.reductionEvents.length - 1];
-                    const sinceLastRe = !lastRe || (lastHold && lastHold.loop > lastRe.loop);
-                    if (!lastHold || !sinceLastRe) {
-                        p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
-                    }
+                    p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
                 }
             }
         }
