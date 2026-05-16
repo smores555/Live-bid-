@@ -198,9 +198,10 @@ function renderTable(roster, targetMap, auditTrail) {
             failedByLoop[l].push(fp);
         });
 
-        // Build chronological interleaved event rows
-        // Within each cycle (between genuine re-hold events), show each unique
-        // event only once. A re-hold resets the seen set so the next cycle shows again.
+        // Build chronological interleaved event rows.
+        // Dedupe: within each cycle, show each unique event only once.
+        // A "subsequently displaced" awarded pref resets the seen set so the
+        // next reduction+denied cycle shows again correctly.
         function buildChronologicalRows() {
             const events = [];
             reductionEvents.forEach(re => events.push({ loop: re.loop, order: 0, type: 'reduction', re }));
@@ -221,19 +222,18 @@ function renderTable(roster, targetMap, auditTrail) {
                 }
             });
 
-            // Dedupe: within each cycle (reset on hold), only show each unique event once
+            // Dedupe: track seen sigs, reset after any awarded row (hold or displaced pref)
+            // so genuine second cycles still appear
             const deduped = [];
             let seenInCycle = new Set();
             for (const row of raw) {
-                if (row.type === 'hold') {
+                const sig = `${row.type}|${row.status}|${row.toPos}|${row.reason}`;
+                const isAwarded = row.status === 'Awarded';
+                if (!seenInCycle.has(sig)) {
+                    seenInCycle.add(sig);
                     deduped.push(row);
-                    seenInCycle = new Set();
-                } else {
-                    const sig = `${row.type}|${row.status}|${row.toPos}|${row.reason}`;
-                    if (!seenInCycle.has(sig)) {
-                        seenInCycle.add(sig);
-                        deduped.push(row);
-                    }
+                    // Reset after any awarded row so next reduction cycle can show again
+                    if (isAwarded) seenInCycle = new Set();
                 }
             }
             deduped.forEach(r => delete r.type);
