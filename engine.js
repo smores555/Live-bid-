@@ -296,8 +296,14 @@ function runBidEngine(data, deltaMap) {
             }
 
             // ── STEP C: Force / Section-24 displacement fallback ────────────
+            // Contract order:
+            //   1st  — same domicile, same status (origBase-origStatus)
+            //   2nd  — other domiciles, same status
+            //   3rd  — same domicile, next lower status (FO)
+            //   4th  — other domiciles, next lower status (FO)
             if (!awarded) {
                 const cascadeOptions = [
+                    `${origBase}-${origStatus}`,
                     ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
                         .filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
                     `${origBase}-FO`,
