@@ -269,9 +269,13 @@ function runBidEngine(data, deltaMap) {
             }
 
             // ── STEP B: No pref awarded — try holding at orig base ──────────
+            // Per contract: if displaced/reduced, pilot first tries to remain at
+            // their current base/seat. If there is an open vacancy they can land
+            // there even if they are force-displaced (vacancy absorbs the extra body).
             if (!awarded) {
-                const cap = targetMap[p.orig] || 0;
-                let rank  = 1;
+                const cap      = targetMap[p.orig] || 0;
+                const vacAtOrig = getVac(p.orig);
+                let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
                     if (other.currentKey === p.orig) rank++;
@@ -279,10 +283,15 @@ function runBidEngine(data, deltaMap) {
                 const selfBid  = p.prefs.find(pr => pr.targetKey === p.orig);
                 const bplLimit = selfBid ? selfBid.bpl : 9999;
 
-                if (rank <= bplLimit && rank <= cap) {
+                // Normal hold: fits within cap and BPL
+                // Vacancy hold: force-displaced but a vacancy exists at orig — land there
+                const canHold = (rank <= bplLimit && rank <= cap) ||
+                                (forcedOut && vacAtOrig > 0 && rank <= bplLimit);
+
+                if (canHold) {
                     newSeat = p.orig;
                     awarded = true;
-                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut: false };
+                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut };
                 }
             }
 
