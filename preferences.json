@@ -8113,12 +8113,6 @@
         "order": 2,
         "bid": "CA LAX",
         "bpl_min": 0
-      },{
-        "order": 3,
-        "bid": "CA SAN",
-        "bpl_min": 0
-      }
-    ]
   },
   "pil671": {
     "sen": 671,
