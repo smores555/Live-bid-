@@ -198,41 +198,55 @@ function renderTable(roster, targetMap, auditTrail) {
             failedByLoop[l].push(fp);
         });
 
-        // Build chronological interleaved event rows.
-        // Since failedPrefs now accumulates across all loops, we just need to
-        // dedupe consecutive identical events.
+        // Build chronological rows.
+        // failedPrefs is the LAST loop's pref attempts (engine overwrites each loop).
+        // reductionEvents accumulates one entry per genuine displacement cycle.
+        // Strategy: show reduction events, then show the pref set once, then final award.
         function buildChronologicalRows() {
-            const events = [];
-            reductionEvents.forEach(re => events.push({ loop: re.loop, order: 0, type: 'reduction', re }));
-            (p.reHoldEvents || []).forEach(he => events.push({ loop: he.loop, order: 2, type: 'hold', he }));
-            failedPrefs.forEach(fp => events.push({ loop: fp.loop || 0, order: 1, type: 'pref', fp }));
-            events.sort((a, b) => a.loop - b.loop || a.order - b.order);
+            // Dedupe reductionEvents by fromKey+minSen (keep unique displacement events)
+            const uniqueReductions = reductionEvents.filter((re, i, arr) =>
+                i === 0 || !(re.fromKey === arr[i-1].fromKey && re.minSen === arr[i-1].minSen)
+            );
 
-            const raw = [];
-            events.forEach(ev => {
-                if (ev.type === 'reduction') {
-                    raw.push({ type: 'reduction', prefNum: 'X', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(ev.re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${ev.re.minSen}.` });
-                } else if (ev.type === 'hold') {
-                    const he = ev.he;
-                    raw.push({ type: 'hold', prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(he.key), status: 'Awarded', reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.' });
-                } else {
-                    const fp = ev.fp;
-                    raw.push({ type: 'pref', prefNum: fp.order, fromPos: fmt(p.orig) || '—', toPos: fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' });
-                }
+            const rows = [];
+
+            // Show each unique reduction
+            uniqueReductions.forEach(re => {
+                rows.push({
+                    prefNum: 'X',
+                    fromPos: fmt(p.orig) || '—',
+                    toPos: '737 ' + fmt(re.fromKey),
+                    status: 'Reduction',
+                    reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${re.minSen}.`
+                });
             });
 
-            // Dedupe consecutive identical rows only
-            const deduped = raw.filter((row, i, arr) => {
-                if (i === 0) return true;
-                const sig     = `${row.type}|${row.status}|${row.toPos}|${row.reason}`;
-                const prevSig = `${arr[i-1].type}|${arr[i-1].status}|${arr[i-1].toPos}|${arr[i-1].reason}`;
-                return sig !== prevSig;
+            // Show re-hold events (genuine position changes between reductions)
+            (p.reHoldEvents || []).forEach(he => {
+                rows.push({
+                    prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—',
+                    fromPos: fmt(p.orig) || '—',
+                    toPos: '737 ' + fmt(he.key),
+                    status: 'Awarded',
+                    reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.'
+                });
             });
-            deduped.forEach(r => delete r.type);
-            return deduped;
+
+            // Show failed prefs once (last loop's set — most accurate final values)
+            failedPrefs.forEach(fp => {
+                rows.push({
+                    prefNum: fp.order,
+                    fromPos: fmt(p.orig) || '—',
+                    toPos: fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
+                    status: 'Denied',
+                    reason: fp.reason || ''
+                });
+            });
+
+            return rows;
         }
 
-        const rows = buildChronologicalRows();                // ── Final awarded / displaced row ────────────────────────────────────
+        const rows = buildChronologicalRows();               // ── Final awarded / displaced row ────────────────────────────────────
         if (log) {
             const finalKey = p.currentKey;
             let prefNum, fromPos, toPos, status, reason;
@@ -358,40 +372,59 @@ document.getElementById('expMaster').onclick = () => {
     }
     function fmtKey(key) { return (key || '').replace(/-/g, ' '); }
 
-    // Re-use the same row-building logic as renderTable, always using p.orig for fromPos
+    // Build rows for XLSX using same chronological + consecutive-dedup logic as renderTable
     function buildXlsxRows(p) {
         const log             = p.moveLog;
         const reductionEvents = p.reductionEvents || [];
-        const failedPrefs = (p.failedPrefs || []).filter((fp, i, arr) =>
-            i === 0 || !(fp.order === arr[i-1].order && fp.targetKey === arr[i-1].targetKey && fp.reason === arr[i-1].reason)
-        );
+        const failedPrefs     = p.failedPrefs || [];
         const auditBySen      = {};
         lastAuditTrail.forEach(e => { if (!auditBySen[e.sen]) auditBySen[e.sen] = []; auditBySen[e.sen].push(e); });
         const auditEntries    = auditBySen[p.sen] || [];
 
-        const failedByLoop = {};
-        failedPrefs.forEach(fp => { const l = fp.loop || 0; if (!failedByLoop[l]) failedByLoop[l] = []; failedByLoop[l].push(fp); });
-        const reductionByLoop = {};
-        reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
-        const holdByLoop = {};
-        (p.reHoldEvents || []).forEach(he => { const nextRe = reductionEvents.find(r => r.loop > he.loop); if (nextRe) holdByLoop[nextRe.loop] = he; });
+        function fmtKey(key) { return (key || '').replace(/-/g, ' '); }
+        function buildHoldReason(l) {
+            if (!l) return 'Remain in current position.';
+            if (l.step === 'A' && l.stayed) return 'Remain in current position.';
+            if (l.step === 'B') return 'Remain in current position.';
+            if (l.step === 'A' && l.prefOrder) return `Awarded Pref #${l.prefOrder} — subsequently displaced by senior pilot.`;
+            return 'Remain in current position.';
+        }
 
-        const allLoops = [...new Set([...reductionEvents.map(r => r.loop), ...failedPrefs.map(fp => fp.loop || 0)])].sort((a, b) => a - b);
-        const origPos  = fmtKey(p.orig);
-        const rows     = [];
+        const events = [];
+        reductionEvents.forEach(re => events.push({ loop: re.loop, order: 0, type: 'reduction', re }));
+        (p.reHoldEvents || []).forEach(he => events.push({ loop: he.loop, order: 2, type: 'hold', he }));
+        failedPrefs.forEach(fp => events.push({ loop: fp.loop || 0, order: 1, type: 'pref', fp }));
+        events.sort((a, b) => a.loop - b.loop || a.order - b.order);
 
-        if (reductionEvents.length === 0) {
-            failedPrefs.forEach(fp => rows.push({ prefNum: fp.order, fromPos: origPos, toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' }));
-        } else {
-            allLoops.forEach(loop => {
-                const re   = reductionByLoop[loop];
-                const fps  = failedByLoop[loop] || [];
-                const hold = holdByLoop[loop];
-                if (re)   rows.push({ prefNum: 'X', fromPos: origPos, toPos: '737 ' + fmtKey(re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${re.minSen}.` });
-                fps.forEach(fp => rows.push({ prefNum: fp.order, fromPos: origPos, toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' }));
-                if (hold) rows.push({ prefNum: hold.log ? (hold.log.prefOrder || hold.log.step || '—') : '—', fromPos: origPos, toPos: '737 ' + fmtKey(hold.key), status: 'Awarded', reason: 'Remain in current position.' });
-            });
-            Object.keys(failedByLoop).forEach(loop => { if (!reductionByLoop[loop]) failedByLoop[loop].forEach(fp => rows.push({ prefNum: fp.order, fromPos: origPos, toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' })); });
+        const raw = [];
+        events.forEach(ev => {
+            if (ev.type === 'reduction') {
+                raw.push({ type: 'reduction', prefNum: 'X', fromPos: fmtKey(p.orig), toPos: '737 ' + fmtKey(ev.re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${ev.re.minSen}.` });
+            } else if (ev.type === 'hold') {
+                const he = ev.he;
+                raw.push({ type: 'hold', prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—', fromPos: fmtKey(p.orig), toPos: '737 ' + fmtKey(he.key), status: 'Awarded', reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.' });
+            } else {
+                const fp = ev.fp;
+                raw.push({ type: 'pref', prefNum: fp.order, fromPos: fmtKey(p.orig), toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' });
+            }
+        });
+
+        // Dedupe by type|status|toPos — keep last occurrence per segment (between holds)
+        const xlsxSegments = [];
+        let xlsxCurrent = [];
+        for (const row of raw) {
+            if (row.type === 'hold') { xlsxSegments.push(xlsxCurrent); xlsxSegments.push([row]); xlsxCurrent = []; }
+            else xlsxCurrent.push(row);
+        }
+        xlsxSegments.push(xlsxCurrent);
+        const rows = [];
+        for (const seg of xlsxSegments) {
+            if (seg.length === 1 && seg[0] && seg[0].type === 'hold') {
+                const r = { ...seg[0] }; delete r.type; rows.push(r); continue;
+            }
+            const seen = new Map();
+            for (const row of seg) seen.set(`${row.type}|${row.status}|${row.toPos}`, row);
+            for (const row of seen.values()) { const r = { ...row }; delete r.type; rows.push(r); }
         }
 
         // Final awarded row
@@ -400,11 +433,11 @@ document.getElementById('expMaster').onclick = () => {
             const lastAudit = auditEntries.length ? auditEntries[auditEntries.length - 1] : null;
             const fromPos   = fmtKey(lastAudit ? lastAudit.from : p.orig) || '—';
             let prefNum, toPos, status, reason;
-            if (finalKey === 'UNASSIGNED')          { prefNum = '—'; toPos = 'UNASSIGNED'; status = p.wasSelfDisplaced ? 'BPL Fail' : 'Displaced'; reason = p.awardedReason; }
-            else if (log.step === 'B')               { prefNum = '—'; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = 'Remain in current position.'; }
-            else if (log.step === 'A' && log.stayed) { prefNum = log.prefOrder; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = 'Remain in current position.'; }
-            else if (log.step === 'A' || log.step === 'C') { prefNum = log.prefOrder || '—'; toPos = '737 ' + fmtKey(log.toKey || finalKey); status = 'Awarded'; reason = p.awardedReason; }
-            else                                     { prefNum = '—'; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = p.awardedReason; }
+            if (finalKey === 'UNASSIGNED')               { prefNum = '—'; toPos = 'UNASSIGNED'; status = p.wasSelfDisplaced ? 'BPL Fail' : 'Displaced'; reason = p.awardedReason; }
+            else if (log.step === 'B')                    { prefNum = '—'; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = 'Remain in current position.'; }
+            else if (log.step === 'A' && log.stayed)      { prefNum = log.prefOrder; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = 'Remain in current position.'; }
+            else if (log.step === 'A' || log.step === 'C'){ prefNum = log.prefOrder || '—'; toPos = '737 ' + fmtKey(log.toKey || finalKey); status = 'Awarded'; reason = p.awardedReason; }
+            else                                          { prefNum = '—'; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = p.awardedReason; }
             rows.push({ prefNum, fromPos, toPos, status, reason });
         } else {
             rows.push({ prefNum: '—', fromPos: fmtKey(p.orig), toPos: '737 ' + fmtKey(p.currentKey), status: 'Awarded', reason: 'Remain in current position.' });
