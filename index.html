@@ -195,29 +195,35 @@ function renderTable(roster, targetMap, auditTrail) {
             failedByLoop[l].push(fp);
         });
 
-        // Get the set of loops that had reductions
+        // Deduplicate reductionEvents — collapse consecutive identical fromKey+minSen into one
+        const dedupedReductions = reductionEvents.filter((re, i, arr) =>
+            i === 0 || !(re.fromKey === arr[i-1].fromKey && re.minSen === arr[i-1].minSen)
+        );
+        // Deduplicate reHoldEvents — collapse consecutive identical key into one
+        const dedupedHolds = (p.reHoldEvents || []).filter((he, i, arr) =>
+            i === 0 || he.key !== arr[i-1].key
+        );
+        // Re-index deduped reductions sequentially
         const reductionByLoop = {};
-        reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
-
-        // Build hold events map by the loop of the NEXT reduction
-        // holdEvents are recorded when a force-displaced pilot successfully re-holds
+        dedupedReductions.forEach((re, i) => { reductionByLoop[i] = re; });
+        // Map deduped holds to the next deduped reduction index
         const holdByLoop = {};
-        const holdEvents = p.reHoldEvents || [];
-        holdEvents.forEach(he => {
-            const nextRe = reductionEvents.find(r => r.loop > he.loop);
-            if (nextRe) holdByLoop[nextRe.loop] = he;
+        dedupedHolds.forEach(he => {
+            const nextRe  = dedupedReductions.find(r => r.loop > he.loop);
+            const nextIdx = dedupedReductions.indexOf(nextRe);
+            if (nextRe) holdByLoop[nextIdx] = he;
         });
 
         // Get all loops in order that had activity
         const allLoops = [...new Set([
-            ...reductionEvents.map(r => r.loop),
+            ...Object.keys(reductionByLoop).map(Number),
             ...failedPrefs.map(fp => fp.loop || 0)
         ])].sort((a, b) => a - b);
 
         const rows = [];
 
         // If no reductions at all, just do denied rows then final awarded
-        if (reductionEvents.length === 0) {
+        if (dedupedReductions.length === 0) {
             failedPrefs.forEach(fp => {
                 rows.push({
                     prefNum: fp.order,
