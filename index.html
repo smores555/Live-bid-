@@ -221,9 +221,31 @@ function renderTable(roster, targetMap, auditTrail) {
                 }
             });
 
-            // Only remove a row if identical to the immediately preceding row
-            const deduped = raw.filter((row, i) => i === 0 || row._sig !== raw[i-1]._sig);
-            deduped.forEach(r => delete r._sig);
+            // Dedupe: collapse repeated cycles of the same sig pattern.
+            // Strategy: keep a row only if its sig hasn't appeared since the last
+            // "different" event broke the run. This handles R,A,R,A,R,A -> R,A.
+            const seen = new Set();
+            const seenOrder = [];
+            const deduped = [];
+            for (let i = 0; i < raw.length; i++) {
+                const sig = raw[i]._sig;
+                // If we've seen this sig before and the pattern since last seeing it
+                // is identical (same cycle repeating), skip it
+                if (seen.has(sig)) {
+                    // Find where we last saw this sig
+                    const lastIdx = seenOrder.lastIndexOf(sig);
+                    const cycleSince = seenOrder.slice(lastIdx + 1);
+                    const cycleCurrent = raw.slice(i - cycleSince.length, i).map(r => r._sig);
+                    const isRepeat = cycleSince.length > 0 &&
+                        cycleSince.join(',') === cycleCurrent.join(',');
+                    if (isRepeat) continue;
+                }
+                seen.add(sig);
+                seenOrder.push(sig);
+                const row = { ...raw[i] };
+                delete row._sig;
+                deduped.push(row);
+            }
             return deduped;
         }
 
