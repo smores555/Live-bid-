@@ -184,7 +184,10 @@ function renderTable(roster, targetMap, auditTrail) {
         // Final loop: Reduction (if any) → Denied rows → final Awarded/Displaced
 
         const reductionEvents = p.reductionEvents || [];
-        const failedPrefs     = p.failedPrefs || [];
+        // Deduplicate failedPrefs — collapse consecutive identical order+targetKey+reason into one
+        const failedPrefs = (p.failedPrefs || []).filter((fp, i, arr) =>
+            i === 0 || !(fp.order === arr[i-1].order && fp.targetKey === arr[i-1].targetKey && fp.reason === arr[i-1].reason)
+        );
         const auditEntries    = auditBySen[p.sen] || [];
 
         // Group failedPrefs by loop number
@@ -195,103 +198,38 @@ function renderTable(roster, targetMap, auditTrail) {
             failedByLoop[l].push(fp);
         });
 
-        // Deduplicate reductionEvents — collapse consecutive identical fromKey+minSen into one
-        const dedupedReductions = reductionEvents.filter((re, i, arr) =>
-            i === 0 || !(re.fromKey === arr[i-1].fromKey && re.minSen === arr[i-1].minSen)
-        );
-        // Deduplicate reHoldEvents — collapse consecutive identical key into one
-        const dedupedHolds = (p.reHoldEvents || []).filter((he, i, arr) =>
-            i === 0 || he.key !== arr[i-1].key
-        );
-        // Re-index deduped reductions sequentially
-        const reductionByLoop = {};
-        dedupedReductions.forEach((re, i) => { reductionByLoop[i] = re; });
-        // Map deduped holds to the next deduped reduction index
-        const holdByLoop = {};
-        dedupedHolds.forEach(he => {
-            const nextRe  = dedupedReductions.find(r => r.loop > he.loop);
-            const nextIdx = dedupedReductions.indexOf(nextRe);
-            if (nextRe) holdByLoop[nextIdx] = he;
-        });
+        // Build chronological interleaved event rows, deduping only consecutive identical events
+        // This preserves genuine second cycles (reduction→prefs→award→reduction→prefs again)
+        // while collapsing hundreds of loop-identical duplicate rows from the engine
+        function buildChronologicalRows() {
+            const events = [];
+            reductionEvents.forEach(re => events.push({ loop: re.loop, order: 0, type: 'reduction', re }));
+            (p.reHoldEvents || []).forEach(he => events.push({ loop: he.loop, order: 2, type: 'hold', he }));
+            failedPrefs.forEach(fp => events.push({ loop: fp.loop || 0, order: 1, type: 'pref', fp }));
+            events.sort((a, b) => a.loop - b.loop || a.order - b.order);
 
-        // Get all loops in order that had activity
-        const allLoops = [...new Set([
-            ...Object.keys(reductionByLoop).map(Number),
-            ...failedPrefs.map(fp => fp.loop || 0)
-        ])].sort((a, b) => a - b);
-
-        const rows = [];
-
-        // If no reductions at all, just do denied rows then final awarded
-        if (dedupedReductions.length === 0) {
-            failedPrefs.forEach(fp => {
-                rows.push({
-                    prefNum: fp.order,
-                    fromPos: fmt(p.orig) || '—',
-                    toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                    status:  'Denied',
-                    reason:  fp.reason || ''
-                });
-            });
-        } else {
-            // Interleave: for each loop that had a reduction, show:
-            // 1. Reduction row
-            // 2. Denied rows for that loop
-            // 3. Intermediate hold row (if they temporarily re-held)
-            allLoops.forEach(loop => {
-                const re   = reductionByLoop[loop];
-                const fps  = failedByLoop[loop] || [];
-                const hold = holdByLoop[loop];
-
-                if (re) {
-                    rows.push({
-                        prefNum: 'X',
-                        fromPos: fmt(p.orig) || '—',
-                        toPos:   '737 ' + fmt(re.fromKey),
-                        status:  'Reduction',
-                        reason:  `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${re.minSen}.`
-                    });
-                }
-
-                fps.forEach(fp => {
-                    rows.push({
-                        prefNum: fp.order,
-                        fromPos: fmt(p.orig) || '—',
-                        toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                        status:  'Denied',
-                        reason:  fp.reason || ''
-                    });
-                });
-
-                // Intermediate hold: pilot re-held their position temporarily
-                if (hold) {
-                    rows.push({
-                        prefNum: hold.log ? (hold.log.prefOrder || hold.log.step || '—') : '—',
-                        fromPos: fmt(p.orig) || '—',
-                        toPos:   '737 ' + fmt(hold.key),
-                        status:  'Awarded',
-                        reason:  hold.log ? buildHoldReason(hold.log) : 'Remain in current position.'
-                    });
+            const raw = [];
+            events.forEach(ev => {
+                if (ev.type === 'reduction') {
+                    raw.push({ prefNum: 'X', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(ev.re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${ev.re.minSen}.`, _sig: `R|${ev.re.fromKey}|${ev.re.minSen}` });
+                } else if (ev.type === 'hold') {
+                    const he = ev.he;
+                    raw.push({ prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(he.key), status: 'Awarded', reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.', _sig: `H|${he.key}` });
+                } else {
+                    const fp = ev.fp;
+                    raw.push({ prefNum: fp.order, fromPos: fmt(p.orig) || '—', toPos: fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '', _sig: `P|${fp.order}|${fp.targetKey}|${fp.reason}` });
                 }
             });
 
-            // Any failed prefs from loops with no reduction (shouldn't normally happen, but guard)
-            Object.keys(failedByLoop).forEach(loop => {
-                if (!reductionByLoop[loop]) {
-                    failedByLoop[loop].forEach(fp => {
-                        rows.push({
-                            prefNum: fp.order,
-                            fromPos: fmt(p.orig) || '—',
-                            toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                            status:  'Denied',
-                            reason:  fp.reason || ''
-                        });
-                    });
-                }
-            });
+            // Only remove a row if identical to the immediately preceding row
+            const deduped = raw.filter((row, i) => i === 0 || row._sig !== raw[i-1]._sig);
+            deduped.forEach(r => delete r._sig);
+            return deduped;
         }
 
-        // ── Final awarded / displaced row ────────────────────────────────────
+        const rows = buildChronologicalRows();
+
+                // ── Final awarded / displaced row ────────────────────────────────────
         if (log) {
             const finalKey = p.currentKey;
             let prefNum, fromPos, toPos, status, reason;
@@ -421,7 +359,9 @@ document.getElementById('expMaster').onclick = () => {
     function buildXlsxRows(p) {
         const log             = p.moveLog;
         const reductionEvents = p.reductionEvents || [];
-        const failedPrefs     = p.failedPrefs || [];
+        const failedPrefs = (p.failedPrefs || []).filter((fp, i, arr) =>
+            i === 0 || !(fp.order === arr[i-1].order && fp.targetKey === arr[i-1].targetKey && fp.reason === arr[i-1].reason)
+        );
         const auditBySen      = {};
         lastAuditTrail.forEach(e => { if (!auditBySen[e.sen]) auditBySen[e.sen] = []; auditBySen[e.sen].push(e); });
         const auditEntries    = auditBySen[p.sen] || [];
