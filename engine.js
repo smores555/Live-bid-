@@ -403,7 +403,7 @@ function runBidEngine(data, deltaMap) {
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
             p.moveLog          = log;
-            p.failedPrefs      = [...(p.failedPrefs || []), ...failedPrefs]; // accumulate across loops
+            p.failedPrefs = failedPrefs; // overwrite each loop — display dedupes by pref order+target
 
             if (newSeat !== p.currentKey) {
                 const prevKey = p.currentKey; // capture BEFORE updating
