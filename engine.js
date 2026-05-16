@@ -163,7 +163,7 @@ function runBidEngine(data, deltaMap) {
             let failedPrefs  = [];
             const [origBase, origStatus] = p.orig.split('-');
 
-            const forcedOut = isForceDisplacedFrom(p, p.currentKey);
+            const forcedOut = isForceDisplacedFrom(p, p.orig);
 
             // Every time this pilot is force-displaced, record a Reduction event
             // (can happen multiple times across cascade loops)
