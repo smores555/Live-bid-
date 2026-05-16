@@ -180,7 +180,13 @@ function runBidEngine(data, deltaMap) {
                     }
                 }
                 const minSen = boundaryPilot ? boundaryPilot.sen : cap;
-                p.reductionEvents.push({ fromKey: p.orig, minSen, loop: loops });
+                // Only push if this is a new reduction event (not same as last logged)
+                const lastRe = p.reductionEvents[p.reductionEvents.length - 1];
+                const lastHold = p.reHoldEvents[p.reHoldEvents.length - 1];
+                const sinceLastHold = !lastHold || (lastRe && lastRe.loop > lastHold.loop);
+                if (!lastRe || !sinceLastHold) {
+                    p.reductionEvents.push({ fromKey: p.orig, minSen, loop: loops });
+                }
             }
 
             // ── STEP A: Work through submitted preferences ──────────────────
@@ -431,7 +437,13 @@ function runBidEngine(data, deltaMap) {
 
                 // If pilot was force-displaced but successfully re-held, record it
                 if (forcedOut && awarded) {
-                    p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
+                    // Only push if this is a new hold (not same position as last logged hold)
+                    const lastHold = p.reHoldEvents[p.reHoldEvents.length - 1];
+                    const lastRe   = p.reductionEvents[p.reductionEvents.length - 1];
+                    const sinceLastRe = !lastRe || (lastHold && lastHold.loop > lastRe.loop);
+                    if (!lastHold || !sinceLastRe) {
+                        p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
+                    }
                 }
             }
         }
