@@ -165,21 +165,22 @@ function runBidEngine(data, deltaMap) {
 
             const forcedOut = isForceDisplacedFrom(p, p.orig);
 
-            // Every time this pilot is force-displaced, record a Reduction event
-            // (can happen multiple times across cascade loops)
+            // Record a Reduction event every time the pilot is force-displaced.
+            // Always use p.orig as fromKey so the log reflects their true home position,
+            // not whatever temporary cascade position they may currently occupy.
             if (forcedOut) {
-                const cap = targetMap[p.currentKey] || 0;
+                const cap = targetMap[p.orig] || 0;
                 let boundaryPilot = null;
                 let count = 0;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.currentKey) {
+                    if (other.currentKey === p.orig) {
                         count++;
                         if (count === cap) { boundaryPilot = other; break; }
                     }
                 }
                 const minSen = boundaryPilot ? boundaryPilot.sen : cap;
-                p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
+                p.reductionEvents.push({ fromKey: p.orig, minSen, loop: loops });
             }
 
             // ── STEP A: Work through submitted preferences ──────────────────
