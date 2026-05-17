@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,7 +184,10 @@ function renderTable(roster, targetMap, auditTrail) {
         // Final loop: Reduction (if any) → Denied rows → final Awarded/Displaced
 
         const reductionEvents = p.reductionEvents || [];
-        const failedPrefs     = p.failedPrefs || [];
+        // Deduplicate failedPrefs — collapse consecutive identical order+targetKey+reason into one
+        const failedPrefs = (p.failedPrefs || []).filter((fp, i, arr) =>
+            i === 0 || !(fp.order === arr[i-1].order && fp.targetKey === arr[i-1].targetKey && fp.reason === arr[i-1].reason)
+        );
         const auditEntries    = auditBySen[p.sen] || [];
 
         // Group failedPrefs by loop number
@@ -196,97 +198,41 @@ function renderTable(roster, targetMap, auditTrail) {
             failedByLoop[l].push(fp);
         });
 
-        // Get the set of loops that had reductions
-        const reductionByLoop = {};
-        reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
+        // Build chronological interleaved event rows.
+        // Since failedPrefs now accumulates across all loops, we just need to
+        // dedupe consecutive identical events.
+        function buildChronologicalRows() {
+            const events = [];
+            reductionEvents.forEach(re => events.push({ loop: re.loop, order: 0, type: 'reduction', re }));
+            (p.reHoldEvents || []).forEach(he => events.push({ loop: he.loop, order: 2, type: 'hold', he }));
+            failedPrefs.forEach(fp => events.push({ loop: fp.loop || 0, order: 1, type: 'pref', fp }));
+            events.sort((a, b) => a.loop - b.loop || a.order - b.order);
 
-        // Build hold events map by the loop of the NEXT reduction
-        // holdEvents are recorded when a force-displaced pilot successfully re-holds
-        const holdByLoop = {};
-        const holdEvents = p.reHoldEvents || [];
-        holdEvents.forEach(he => {
-            const nextRe = reductionEvents.find(r => r.loop > he.loop);
-            if (nextRe) holdByLoop[nextRe.loop] = he;
-        });
-
-        // Get all loops in order that had activity
-        const allLoops = [...new Set([
-            ...reductionEvents.map(r => r.loop),
-            ...failedPrefs.map(fp => fp.loop || 0)
-        ])].sort((a, b) => a - b);
-
-        const rows = [];
-
-        // If no reductions at all, just do denied rows then final awarded
-        if (reductionEvents.length === 0) {
-            failedPrefs.forEach(fp => {
-                rows.push({
-                    prefNum: fp.order,
-                    fromPos: fmt(fp.fromKey) || '—',
-                    toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                    status:  'Denied',
-                    reason:  fp.reason || ''
-                });
-            });
-        } else {
-            // Interleave: for each loop that had a reduction, show:
-            // 1. Reduction row
-            // 2. Denied rows for that loop
-            // 3. Intermediate hold row (if they temporarily re-held)
-            allLoops.forEach(loop => {
-                const re   = reductionByLoop[loop];
-                const fps  = failedByLoop[loop] || [];
-                const hold = holdByLoop[loop];
-
-                if (re) {
-                    rows.push({
-                        prefNum: 'X',
-                        fromPos: fmt(re.fromKey) || '—',
-                        toPos:   '737 ' + fmt(re.fromKey),
-                        status:  'Reduction',
-                        reason:  `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${re.minSen}.`
-                    });
-                }
-
-                fps.forEach(fp => {
-                    rows.push({
-                        prefNum: fp.order,
-                        fromPos: fmt(fp.fromKey) || '—',
-                        toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                        status:  'Denied',
-                        reason:  fp.reason || ''
-                    });
-                });
-
-                // Intermediate hold: pilot re-held their position temporarily
-                if (hold) {
-                    rows.push({
-                        prefNum: hold.log ? (hold.log.prefOrder || hold.log.step || '—') : '—',
-                        fromPos: fmt(hold.key) || '—',
-                        toPos:   '737 ' + fmt(hold.key),
-                        status:  'Awarded',
-                        reason:  hold.log ? buildHoldReason(hold.log) : 'Remain in current position.'
-                    });
+            const raw = [];
+            events.forEach(ev => {
+                if (ev.type === 'reduction') {
+                    raw.push({ type: 'reduction', prefNum: 'X', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(ev.re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${ev.re.minSen}.` });
+                } else if (ev.type === 'hold') {
+                    const he = ev.he;
+                    raw.push({ type: 'hold', prefNum: he.log ? (he.log.prefOrder || he.log.step || '—') : '—', fromPos: fmt(p.orig) || '—', toPos: '737 ' + fmt(he.key), status: 'Awarded', reason: he.log ? buildHoldReason(he.log) : 'Remain in current position.' });
+                } else {
+                    const fp = ev.fp;
+                    raw.push({ type: 'pref', prefNum: fp.order, fromPos: fmt(p.orig) || '—', toPos: fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' });
                 }
             });
 
-            // Any failed prefs from loops with no reduction (shouldn't normally happen, but guard)
-            Object.keys(failedByLoop).forEach(loop => {
-                if (!reductionByLoop[loop]) {
-                    failedByLoop[loop].forEach(fp => {
-                        rows.push({
-                            prefNum: fp.order,
-                            fromPos: fmt(fp.fromKey) || '—',
-                            toPos:   fp.targetKey ? ('737 ' + fmt(fp.targetKey)) : '737 —',
-                            status:  'Denied',
-                            reason:  fp.reason || ''
-                        });
-                    });
-                }
+            // Dedupe consecutive identical rows only
+            const deduped = raw.filter((row, i, arr) => {
+                if (i === 0) return true;
+                const sig     = `${row.type}|${row.status}|${row.toPos}|${row.reason}`;
+                const prevSig = `${arr[i-1].type}|${arr[i-1].status}|${arr[i-1].toPos}|${arr[i-1].reason}`;
+                return sig !== prevSig;
             });
+            deduped.forEach(r => delete r.type);
+            return deduped;
         }
 
-        // ── Final awarded / displaced row ────────────────────────────────────
+        const rows = buildChronologicalRows();                // ── Final awarded / displaced row ────────────────────────────────────
         if (log) {
             const finalKey = p.currentKey;
             let prefNum, fromPos, toPos, status, reason;
@@ -387,36 +333,114 @@ document.getElementById('expMaster').onclick = () => {
     const ALT_BG    = '161B22';
     const WHITE     = 'FFFFFF';
     const GREY      = '8B949E';
+    const GREEN     = '3FB950';
+    const RED       = 'F85149';
+    const YELLOW    = 'FFD33D';
+    const PURPLE    = 'BC8CFF';
 
     function hStyle() {
         return { fill: { fgColor: { rgb: HEADER_BG } }, font: { bold: true, color: { rgb: '58A6FF' }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center' } };
     }
-    function dStyle(alt, muted) {
-        return { fill: { fgColor: { rgb: alt ? ALT_BG : '0D1117' } }, font: { color: { rgb: muted ? GREY : WHITE }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
+    function dStyle(alt, muted, statusColor) {
+        const fontColor = statusColor || (muted ? GREY : WHITE);
+        return { fill: { fgColor: { rgb: alt ? ALT_BG : '0D1117' } }, font: { bold: !!statusColor, color: { rgb: fontColor }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
     }
     function setCell(r, c, v, style) {
         const addr = XLSX.utils.encode_cell({ r, c });
         ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
     }
+    function statusColor(status) {
+        if (status === 'Awarded')   return GREEN;
+        if (status === 'Denied')    return RED;
+        if (status === 'Reduction') return YELLOW;
+        if (status === 'Displaced' || status === 'BPL Fail') return PURPLE;
+        return null;
+    }
+    function fmtKey(key) { return (key || '').replace(/-/g, ' '); }
 
-    const headers = ["Seniority", "Name", "Awarded Position", "Final Rank", "Award Path", "Original Position"];
+    // Re-use the same row-building logic as renderTable, always using p.orig for fromPos
+    function buildXlsxRows(p) {
+        const log             = p.moveLog;
+        const reductionEvents = p.reductionEvents || [];
+        const failedPrefs = (p.failedPrefs || []).filter((fp, i, arr) =>
+            i === 0 || !(fp.order === arr[i-1].order && fp.targetKey === arr[i-1].targetKey && fp.reason === arr[i-1].reason)
+        );
+        const auditBySen      = {};
+        lastAuditTrail.forEach(e => { if (!auditBySen[e.sen]) auditBySen[e.sen] = []; auditBySen[e.sen].push(e); });
+        const auditEntries    = auditBySen[p.sen] || [];
+
+        const failedByLoop = {};
+        failedPrefs.forEach(fp => { const l = fp.loop || 0; if (!failedByLoop[l]) failedByLoop[l] = []; failedByLoop[l].push(fp); });
+        const reductionByLoop = {};
+        reductionEvents.forEach(re => { reductionByLoop[re.loop] = re; });
+        const holdByLoop = {};
+        (p.reHoldEvents || []).forEach(he => { const nextRe = reductionEvents.find(r => r.loop > he.loop); if (nextRe) holdByLoop[nextRe.loop] = he; });
+
+        const allLoops = [...new Set([...reductionEvents.map(r => r.loop), ...failedPrefs.map(fp => fp.loop || 0)])].sort((a, b) => a - b);
+        const origPos  = fmtKey(p.orig);
+        const rows     = [];
+
+        if (reductionEvents.length === 0) {
+            failedPrefs.forEach(fp => rows.push({ prefNum: fp.order, fromPos: origPos, toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' }));
+        } else {
+            allLoops.forEach(loop => {
+                const re   = reductionByLoop[loop];
+                const fps  = failedByLoop[loop] || [];
+                const hold = holdByLoop[loop];
+                if (re)   rows.push({ prefNum: 'X', fromPos: origPos, toPos: '737 ' + fmtKey(re.fromKey), status: 'Reduction', reason: `Seniority is not high enough to hold position due to reductions. Minimum position seniority is ${re.minSen}.` });
+                fps.forEach(fp => rows.push({ prefNum: fp.order, fromPos: origPos, toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' }));
+                if (hold) rows.push({ prefNum: hold.log ? (hold.log.prefOrder || hold.log.step || '—') : '—', fromPos: origPos, toPos: '737 ' + fmtKey(hold.key), status: 'Awarded', reason: 'Remain in current position.' });
+            });
+            Object.keys(failedByLoop).forEach(loop => { if (!reductionByLoop[loop]) failedByLoop[loop].forEach(fp => rows.push({ prefNum: fp.order, fromPos: origPos, toPos: fp.targetKey ? ('737 ' + fmtKey(fp.targetKey)) : '737 —', status: 'Denied', reason: fp.reason || '' })); });
+        }
+
+        // Final awarded row
+        if (log) {
+            const finalKey  = p.currentKey;
+            const lastAudit = auditEntries.length ? auditEntries[auditEntries.length - 1] : null;
+            const fromPos   = fmtKey(lastAudit ? lastAudit.from : p.orig) || '—';
+            let prefNum, toPos, status, reason;
+            if (finalKey === 'UNASSIGNED')          { prefNum = '—'; toPos = 'UNASSIGNED'; status = p.wasSelfDisplaced ? 'BPL Fail' : 'Displaced'; reason = p.awardedReason; }
+            else if (log.step === 'B')               { prefNum = '—'; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = 'Remain in current position.'; }
+            else if (log.step === 'A' && log.stayed) { prefNum = log.prefOrder; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = 'Remain in current position.'; }
+            else if (log.step === 'A' || log.step === 'C') { prefNum = log.prefOrder || '—'; toPos = '737 ' + fmtKey(log.toKey || finalKey); status = 'Awarded'; reason = p.awardedReason; }
+            else                                     { prefNum = '—'; toPos = '737 ' + fmtKey(finalKey); status = 'Awarded'; reason = p.awardedReason; }
+            rows.push({ prefNum, fromPos, toPos, status, reason });
+        } else {
+            rows.push({ prefNum: '—', fromPos: fmtKey(p.orig), toPos: '737 ' + fmtKey(p.currentKey), status: 'Awarded', reason: 'Remain in current position.' });
+        }
+        return rows;
+    }
+
+    const headers = ["Seniority", "Name", "From", "To", "Pref #", "Status", "Notes", "Original Position"];
     headers.forEach((h, c) => setCell(0, c, h, hStyle()));
 
-    lastResults.forEach((p, i) => {
-        const r = i + 1;
-        const alt = i % 2 === 1;
+    let rowIdx = 1;
+    lastResults.forEach((p, pilotIdx) => {
+        const alt  = pilotIdx % 2 === 1;
+        const rows = buildXlsxRows(p);
         let finalRank = 0;
         if (p.currentKey !== "UNASSIGNED") lastResults.forEach(other => { if (other.sen <= p.sen && other.currentKey === p.currentKey) finalRank++; });
-        const cap = lastTargetMap[p.currentKey] || 0;
+        const cap     = lastTargetMap[p.currentKey] || 0;
         const rankStr = p.currentKey === "UNASSIGNED" ? '' : `${finalRank} / ${cap}`;
-        const rawReason = (p.awardedReason || '').replace('(retirement / system reduction)', '').replace('\n', ' ').replace(/\s+/g, ' ').trim();
-        const fullReason = rawReason;
-        const vals = [p.sen, p.name, p.currentKey.replace('-', ' '), rankStr, fullReason, p.orig.replace('-', ' ')];
-        vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4)));
+
+        rows.forEach((row, i) => {
+            const isLast = i === rows.length - 1;
+            const sc     = statusColor(row.status);
+            setCell(rowIdx, 0, i === 0 ? p.sen  : '',  dStyle(alt, false));
+            setCell(rowIdx, 1, i === 0 ? p.name : '',  dStyle(alt, false));
+            setCell(rowIdx, 2, row.fromPos,             dStyle(alt, false));
+            setCell(rowIdx, 3, row.toPos,               dStyle(alt, false));
+            setCell(rowIdx, 4, String(row.prefNum),     dStyle(alt, false));
+            setCell(rowIdx, 5, row.status,              dStyle(alt, false, sc));
+            setCell(rowIdx, 6, (row.reason || '').replace('\n', ' ').replace(/\s+/g, ' ').trim(), dStyle(alt, true));
+            setCell(rowIdx, 7, isLast ? p.orig.replace('-', ' ') : '', dStyle(alt, false));
+            rowIdx++;
+        });
     });
 
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastResults.length, c: 5 } });
-    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 80 }, { wch: 14 }];
+    ws['!ref']  = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx - 1, c: 7 } });
+    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 12 }, { wch: 16 }, { wch: 7 }, { wch: 11 }, { wch: 90 }, { wch: 14 }];
     ws['!rows'] = [{ hpt: 18 }];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Master Awards');
