@@ -179,7 +179,13 @@ function runBidEngine(data, deltaMap) {
                         if (count === cap) { boundaryPilot = other; break; }
                     }
                 }
-                const minSen = boundaryPilot ? boundaryPilot.sen : cap;
+                if (!boundaryPilot) {
+                    for (const other of bidders) {
+                        if (other.sen >= p.sen) break;
+                        if (other.currentKey === p.currentKey) boundaryPilot = other;
+                    }
+                }
+                const minSen = boundaryPilot ? boundaryPilot.sen : p.sen;
                 const alreadyRecorded = p.reductionEvents.some(e => e.fromKey === p.currentKey);
                 if (!alreadyRecorded) p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
             }
@@ -203,6 +209,18 @@ function runBidEngine(data, deltaMap) {
                     vacancyOk = getVac(targetKey) > 0 || (junior !== null && p.sen < junior.sen);
                 } else {
                     vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
+                }
+
+                if (rank > pr.bpl) {
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl', loop: loops });
+                } else if (rank > cap) {
+                    const vac = getVac(targetKey);
+                    const msg = vac <= 0
+                        ? `Requested position has 0 vacancy and cannot accept additional pilots.`
+                        : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
+                } else if (isMovingIn && !vacancyOk) {
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
                 }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
@@ -257,19 +275,6 @@ function runBidEngine(data, deltaMap) {
                         }
                     }
                     break;
-                } else {
-                    // Only record failure if the pref was genuinely not awarded
-                    if (rank > pr.bpl) {
-                        failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl', loop: loops });
-                    } else if (rank > cap) {
-                        const vac = getVac(targetKey);
-                        const msg = vac <= 0
-                            ? `Requested position has 0 vacancy and cannot accept additional pilots.`
-                            : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
-                        failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
-                    } else if (isMovingIn && !vacancyOk) {
-                        failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
-                    }
                 }
             }
 
