@@ -152,6 +152,7 @@ function runBidEngine(data, deltaMap) {
     while (cascade) {
         cascade = false;
         loops++;
+        const bumpedThisLoop = new Set();
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
@@ -179,7 +180,8 @@ function runBidEngine(data, deltaMap) {
                     }
                 }
                 const minSen = boundaryPilot ? boundaryPilot.sen : cap;
-                p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
+                const alreadyRecorded = p.reductionEvents.some(e => e.fromKey === p.currentKey);
+                if (!alreadyRecorded) p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
             }
 
             // ── STEP A: Work through submitted preferences ──────────────────
@@ -226,8 +228,10 @@ function runBidEngine(data, deltaMap) {
 
                         if (forcedOut && !hasVac) {
                             bumpedPilot = mostJuniorAt(targetKey, p.sen);
+                            if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
                             if (bumpedPilot) {
                                 bumpedPilot.isForceDisplaced = true;
+                                bumpedThisLoop.add(bumpedPilot.sen);
                             }
                             log = {
                                 step: 'A',
@@ -340,8 +344,10 @@ function runBidEngine(data, deltaMap) {
 
                             if (forcedOut && !hasVac) {
                                 bumpedPilot = mostJuniorAt(targetKey, p.sen);
+                                if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
                                 if (bumpedPilot) {
                                     bumpedPilot.isForceDisplaced = true;
+                                    bumpedThisLoop.add(bumpedPilot.sen);
                                 }
                                 log = {
                                     step: 'C',
