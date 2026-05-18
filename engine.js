@@ -169,12 +169,12 @@ function runBidEngine(data, deltaMap) {
             // Every time this pilot is force-displaced, record a Reduction event
             // (can happen multiple times across cascade loops)
             if (forcedOut) {
-                const cap = targetMap[p.currentKey] || 0;
+                const cap = targetMap[p.orig] || 0;
                 let boundaryPilot = null;
                 let count = 0;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.currentKey) {
+                    if (other.currentKey === p.orig) {
                         count++;
                         if (count === cap) { boundaryPilot = other; break; }
                     }
@@ -182,12 +182,12 @@ function runBidEngine(data, deltaMap) {
                 if (!boundaryPilot) {
                     for (const other of bidders) {
                         if (other.sen >= p.sen) break;
-                        if (other.currentKey === p.currentKey) boundaryPilot = other;
+                        if (other.currentKey === p.orig) boundaryPilot = other;
                     }
                 }
                 const minSen = boundaryPilot ? boundaryPilot.sen : p.sen;
-                const alreadyRecorded = p.reductionEvents.some(e => e.fromKey === p.currentKey);
-                if (!alreadyRecorded) p.reductionEvents.push({ fromKey: p.currentKey, minSen, loop: loops });
+                const alreadyRecorded = p.reductionEvents.some(e => e.fromKey === p.orig);
+                if (!alreadyRecorded) p.reductionEvents.push({ fromKey: p.orig, minSen, loop: loops });
             }
 
             // ── STEP A: Work through submitted preferences ──────────────────
