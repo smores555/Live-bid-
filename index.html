@@ -64,7 +64,7 @@
         <button id="runBtn" class="btn">RUN MASTER POSITION BID</button>
         <button id="expBase" class="btn">XLSX: BASE LIST</button>
         <button id="expMaster" class="btn">XLSX: MASTER AWARDS</button>
-        <button id="expLog" class="btn">XLSX: TRANSITION LOG</button>
+        <button id="expLog" class="btn">XLSX: TRANSACTION LOG</button>
         <div style="flex-grow:1"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn">LOOKUP</button>
@@ -540,44 +540,103 @@ document.getElementById('expBase').onclick = () => {
 };
 
 document.getElementById('expLog').onclick = () => {
-    const wb = XLSX.utils.book_new();
-    const ws = {};
+    const wb       = XLSX.utils.book_new();
+    const ws       = {};
     const HEADER_BG = '21262D';
     const WHITE     = 'FFFFFF';
     const GREY      = '8B949E';
+    const GREEN_FG  = '3FB950';
+    const RED_FG    = 'F85149';
 
     function hStyle() {
         return { fill: { fgColor: { rgb: HEADER_BG } }, font: { bold: true, color: { rgb: '58A6FF' }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center' } };
     }
-    function dStyle(alt, muted) {
-        return { fill: { fgColor: { rgb: alt ? '161B22' : '0D1117' } }, font: { color: { rgb: muted ? GREY : WHITE }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
+    function dStyle(alt) {
+        return { fill: { fgColor: { rgb: alt ? '161B22' : '0D1117' } }, font: { color: { rgb: WHITE }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
+    }
+    function statusStyle(alt, status) {
+        let color = WHITE;
+        if (status === 'Awarded')  color = GREEN_FG;
+        else if (status === 'Denied' || status === 'Displaced') color = RED_FG;
+        else if (status === 'No Bid') color = GREY;
+        return { fill: { fgColor: { rgb: alt ? '161B22' : '0D1117' } }, font: { bold: true, color: { rgb: color }, name: 'Arial', sz: 10 }, alignment: { horizontal: 'left', vertical: 'center' } };
     }
     function setCell(r, c, v, style) {
         const addr = XLSX.utils.encode_cell({ r, c });
         ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s: style };
     }
+    function fmtPos(key) {
+        if (!key || key === 'UNASSIGNED') return key || '';
+        return '737 ' + key.replace('-', ' ');
+    }
 
-    const headers = ["Seniority", "Name", "From", "To", "Transition Note"];
+    // Columns match company format: Transaction_ID, Seniority, Pilot Name,
+    // Starting Position, Bid Position, Bid Preference, Award Status, Award Note
+    const headers = ["Transaction_ID", "Seniority", "Pilot Name", "Starting Position", "Bid Position", "Bid Preference", "Award Status", "Award Note"];
     headers.forEach((h, c) => setCell(0, c, h, hStyle()));
 
-    const pilotMap = {};
-    lastResults.forEach(p => { pilotMap[p.sen] = p; });
+    let txId    = 0;
+    let rowIdx  = 1;
 
-    lastAuditTrail.forEach((entry, i) => {
-        const r   = i + 1;
-        const alt = i % 2 === 1;
-        const p   = pilotMap[entry.sen];
-        const from = (entry.from || (p ? p.orig : '')).replace('-', ' ');
-        const to   = (entry.to  || '').replace('-', ' ');
-        const note = (entry.reason || '').replace('\n', ' ');
-        const vals = [entry.sen, entry.name, from, to, note];
-        vals.forEach((v, c) => setCell(r, c, v, dStyle(alt, c === 4)));
+    lastResults.forEach(p => {
+        const origPos  = fmtPos(p.orig);
+        const finalPos = fmtPos(p.currentKey);
+        const hasPrefs = p.prefs && p.prefs.length > 0;
+
+        // No-bid pilots: single row, no pref attempts
+        if (!hasPrefs && p.currentKey === p.orig && !p.isForceDisplaced) {
+            const alt  = rowIdx % 2 === 1;
+            const vals = [txId++, p.sen, p.name, origPos, origPos, 1, 'No Bid', 'Not allowed to bid. Remain in current position.'];
+            vals.forEach((v, c) => {
+                if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, 'No Bid'));
+                else         setCell(rowIdx, c, v, dStyle(alt));
+            });
+            rowIdx++;
+            return;
+        }
+
+        // One row per denied preference (deduplicated)
+        const seenPrefs = new Set();
+        (p.failedPrefs || []).forEach(fp => {
+            const sig = `${fp.order}|${fp.targetKey}|${fp.reason}`;
+            if (seenPrefs.has(sig)) return;
+            seenPrefs.add(sig);
+            const alt    = rowIdx % 2 === 1;
+            const bidPos = fmtPos(fp.targetKey) || '—';
+            const vals   = [txId++, p.sen, p.name, origPos, bidPos, fp.order, 'Denied', fp.reason || ''];
+            vals.forEach((v, c) => {
+                if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, 'Denied'));
+                else         setCell(rowIdx, c, v, dStyle(alt));
+            });
+            rowIdx++;
+        });
+
+        // Final awarded / displaced row
+        const log    = p.moveLog;
+        const alt    = rowIdx % 2 === 1;
+        let   status = p.isUnassigned ? 'Displaced' : 'Awarded';
+        let   bidPos = p.isUnassigned ? 'UNASSIGNED' : finalPos;
+        let   prefNum = p.awardedPrefNum !== 'N/A' ? p.awardedPrefNum : 1;
+        let   note   = (p.awardedReason || '').replace(/\n/g, ' ');
+
+        if (log && (log.step === 'A' || log.step === 'C') && log.toKey) {
+            bidPos  = fmtPos(log.toKey);
+            prefNum = log.prefOrder || prefNum;
+        }
+
+        const vals = [txId++, p.sen, p.name, origPos, bidPos, prefNum, status, note];
+        vals.forEach((v, c) => {
+            if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, status));
+            else         setCell(rowIdx, c, v, dStyle(alt));
+        });
+        rowIdx++;
     });
 
-    ws['!ref']  = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastAuditTrail.length, c: 4 } });
-    ws['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 90 }];
-    XLSX.utils.book_append_sheet(wb, ws, 'Transition Log');
-    XLSX.writeFile(wb, 'transition_log.xlsx', { cellStyles: true });
+    ws['!ref']  = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx - 1, c: 7 } });
+    ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 26 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 90 }];
+    ws['!rows'] = [{ hpt: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Transaction Log');
+    XLSX.writeFile(wb, 'transaction_log.xlsx', { cellStyles: true });
 };
 </script>
 </body>
