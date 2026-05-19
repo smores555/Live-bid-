@@ -490,11 +490,12 @@ function runBidEngine(data, deltaMap) {
     });
 
     // ── BUILD FINAL AWARDED REASON STRINGS ───────────────────────────────────
+    // Use the vacancy snapshots captured at move time (log.vacToBefore / log.vacFromBefore)
+    // rather than the post-run final vacancy, so notes reflect true state when move occurred.
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
-        const finalVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
-        p.awardedReason = buildReasonFromLog(log, finalVac);
+        p.awardedReason = buildReasonFromLog(log);
     });
 
     return { roster: bidders, loops, auditTrail, targetMap };
