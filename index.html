@@ -65,6 +65,7 @@
         <button id="expBase" class="btn">XLSX: BASE LIST</button>
         <button id="expMaster" class="btn">XLSX: MASTER AWARDS</button>
         <button id="expLog" class="btn">XLSX: TRANSACTION LOG</button>
+        <button id="expLogCSV" class="btn">CSV: TRANSACTION LOG</button>
         <div style="flex-grow:1"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn">LOOKUP</button>
@@ -655,6 +656,30 @@ document.getElementById('expLog').onclick = () => {
     ws['!rows'] = [{ hpt: 18 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Transaction Log');
     XLSX.writeFile(wb, 'transaction_log.xlsx', { cellStyles: true });
+};
+
+document.getElementById('expLogCSV').onclick = () => {
+    // Export bidTransactions as CSV (much smaller than XLSX)
+    let csv = "Transaction_ID,Seniority,Pilot Name,Starting Position,Bid Position,Bid Preference,Award Status,Award Note\n";
+    
+    let txId = 0;
+    if (lastResults.bidTransactions && lastResults.bidTransactions.length > 0) {
+        lastResults.bidTransactions.forEach(tx => {
+            const startPos = tx.startingPosition ? '737 ' + tx.startingPosition.replace('-', ' ') : '';
+            const bidPos = tx.bidPosition ? '737 ' + tx.bidPosition.replace('-', ' ') : '';
+            const note = (tx.awardNote || '').replace(/"/g, '""');
+            csv += `${txId++},"${tx.sen}","${tx.name}","${startPos}","${bidPos}",1,"${tx.awardStatus}","${note}"\n`;
+        });
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "transaction_log.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 </script>
 </body>
