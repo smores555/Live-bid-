@@ -212,85 +212,99 @@ function runBidEngine(data, deltaMap) {
                     vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
                 }
 
-                if (rank > pr.bpl) {
-                    const denialMsg = `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`;
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: denialMsg, status: 'Denied', denialType: 'bpl', loop: loops });
-                    bidTransactions.push({ sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey, awardStatus: 'Denied', awardNote: denialMsg });
-                } else if (rank > cap) {
-                    const vac = getVac(targetKey);
-                    const msg = vac <= 0
-                        ? `Requested position has 0 vacancy and cannot accept additional pilots.`
-                        : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
-                    bidTransactions.push({ sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey, awardStatus: 'Denied', awardNote: msg });
-                } else if (isMovingIn && !vacancyOk) {
-                    const denialMsg = `Requested position has 0 vacancy and cannot accept additional pilots.`;
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: denialMsg, status: 'Denied', loop: loops });
-                    bidTransactions.push({ sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey, awardStatus: 'Denied', awardNote: denialMsg });
-                }
-
-                if (rank <= pr.bpl && rank <= cap && vacancyOk) {
-                    newSeat = targetKey;
-                    prefNum = pr.order;
-                    awarded = true;
-
-                    if (isMovingIn) {
-                        const hasVac = getVac(targetKey) > 0;
-                        let bumpedPilot = null;
-
-                        if (forcedOut && !hasVac) {
-                            bumpedPilot = mostJuniorAt(targetKey, p.sen);
-                            if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
-                            if (bumpedPilot) {
-                                bumpedPilot.isForceDisplaced = true;
-                                bumpedThisLoop.add(bumpedPilot.sen);
-                            }
-                            log = {
-                                step: 'A',
-                                prefOrder: pr.order,
-                                fromKey: p.currentKey,
-                                toKey: targetKey,
-                                vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
-                                source: bumpedPilot
-                                    ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
-                                    : { type: 'vacancy', label: 'retirement / system reduction' },
-                                displacementBump: !!bumpedPilot,
-                                bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
-                                forcedOut
-                            };
-                        } else {
-                            const src = consumeSlot(targetKey);
-                            log = {
-                                step: 'A',
-                                prefOrder: pr.order,
-                                fromKey: p.currentKey,
-                                toKey: targetKey,
-                                vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
-                                source: src,
-                                displacementBump: false,
-                                forcedOut
-                            };
-                        }
-                    } else {
-                        if (p.orig === targetKey) {
-                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut };
-                        } else {
-                            log = p.moveLog;
-                        }
+                // ← REFACTORED: Check if this preference can be awarded
+                const canBeAwarded = rank <= pr.bpl && rank <= cap && vacancyOk;
+                
+                if (!canBeAwarded) {
+                    // ← LOG DENIAL: Figure out why it failed
+                    let denialMsg = '';
+                    if (rank > pr.bpl) {
+                        denialMsg = `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`;
+                    } else if (rank > cap) {
+                        const vac = getVac(targetKey);
+                        denialMsg = vac <= 0
+                            ? `Requested position has 0 vacancy and cannot accept additional pilots.`
+                            : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
+                    } else if (isMovingIn && !vacancyOk) {
+                        denialMsg = `Requested position has 0 vacancy and cannot accept additional pilots.`;
                     }
-                    // ← NEW: Log this awarded preference
+                    
+                    // Add to both tracking systems
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: denialMsg, status: 'Denied', loop: loops });
                     bidTransactions.push({
                         sen: p.sen,
                         name: p.name,
                         startingPosition: p.orig,
                         bidPosition: targetKey,
-                        awardStatus: 'Awarded',
-                        awardNote: log.stayed ? 'Remain in current position.' : 'Awarded preference'
+                        awardStatus: 'Denied',
+                        awardNote: denialMsg
                     });
-                    break;
+                    // Continue to next preference
+                    continue;
                 }
+
+                // ← PREFERENCE AWARDED
+                newSeat = targetKey;
+                prefNum = pr.order;
+                awarded = true;
+
+                if (isMovingIn) {
+                    const hasVac = getVac(targetKey) > 0;
+                    let bumpedPilot = null;
+
+                    if (forcedOut && !hasVac) {
+                        bumpedPilot = mostJuniorAt(targetKey, p.sen);
+                        if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
+                        if (bumpedPilot) {
+                            bumpedPilot.isForceDisplaced = true;
+                            bumpedThisLoop.add(bumpedPilot.sen);
+                        }
+                        log = {
+                            step: 'A',
+                            prefOrder: pr.order,
+                            fromKey: p.currentKey,
+                            toKey: targetKey,
+                            vacFromBefore: getVac(p.currentKey),
+                            vacToBefore: getVac(targetKey),
+                            source: bumpedPilot
+                                ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
+                                : { type: 'vacancy', label: 'retirement / system reduction' },
+                            displacementBump: !!bumpedPilot,
+                            bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
+                            forcedOut
+                        };
+                    } else {
+                        const src = consumeSlot(targetKey);
+                        log = {
+                            step: 'A',
+                            prefOrder: pr.order,
+                            fromKey: p.currentKey,
+                            toKey: targetKey,
+                            vacFromBefore: getVac(p.currentKey),
+                            vacToBefore: getVac(targetKey),
+                            source: src,
+                            displacementBump: false,
+                            forcedOut
+                        };
+                    }
+                } else {
+                    if (p.orig === targetKey) {
+                        log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut };
+                    } else {
+                        log = p.moveLog;
+                    }
+                }
+                
+                // ← LOG AWARD
+                bidTransactions.push({
+                    sen: p.sen,
+                    name: p.name,
+                    startingPosition: p.orig,
+                    bidPosition: targetKey,
+                    awardStatus: 'Awarded',
+                    awardNote: log.stayed ? 'Remain in current position.' : 'Awarded preference'
+                });
+                break;
             }
 
             // ── STEP B: No pref awarded — try holding at orig base ──────────
