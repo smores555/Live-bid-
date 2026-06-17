@@ -146,37 +146,26 @@ function runBidEngine(data, deltaMap) {
         return junior;
     }
 
-    // ── PHASE 1: PROCESS VACANCIES (don't allow displacements yet) ────────────
-    let phase = 1;
+    // ── MAIN CASCADE LOOP ────────────────────────────────────────────────────
     let cascade = true;
     let loops   = 0;
 
-    while (phase <= 2) {
-        // In Phase 1: Only award to vacancies, no displacements
-        // In Phase 2: Allow displacements via cascade
-        const allowDisplacements = (phase === 2);
-        
-        cascade = true;
-        while (cascade) {
-            cascade = false;
-            loops++;
-            const bumpedThisLoop = new Set();
+    while (cascade) {
+        cascade = false;
+        loops++;
+        const bumpedThisLoop = new Set();
 
-            for (let i = 0; i < bidders.length; i++) {
-                const p = bidders[i];
-                
-                // Skip pilots already awarded in phase 1 (unless phase 2 and they're forced out)
-                if (p.moved && !p.isUnassigned && phase === 1) continue;
-                
-                let awarded      = false;
-                let newSeat      = null;
-                let log          = null;
-                let prefNum      = "N/A";
-                let selfDisp     = false;
-                let failedPrefs  = [];
-                const [origBase, origStatus] = p.orig.split('-');
+        for (let i = 0; i < bidders.length; i++) {
+            const p = bidders[i];
+            let awarded      = false;
+            let newSeat      = null;
+            let log          = null;
+            let prefNum      = "N/A";
+            let selfDisp     = false;
+            let failedPrefs  = [];
+            const [origBase, origStatus] = p.orig.split('-');
 
-                const forcedOut = isForceDisplacedFrom(p, p.orig);
+            const forcedOut = isForceDisplacedFrom(p, p.orig);
 
             // Every time this pilot is force-displaced, record a Reduction event
             // (can happen multiple times across cascade loops)
@@ -224,12 +213,7 @@ function runBidEngine(data, deltaMap) {
                 }
 
                 // ← REFACTORED: Check if this preference can be awarded
-                let canBeAwarded = rank <= pr.bpl && rank <= cap && vacancyOk;
-                
-                // ← PHASE 1: Deny displacements (only award to actual vacancies)
-                if (!allowDisplacements && isMovingIn && canBeAwarded && !vacancyOk) {
-                    canBeAwarded = false;
-                }
+                const canBeAwarded = rank <= pr.bpl && rank <= cap && vacancyOk;
                 
                 if (!canBeAwarded) {
                     // ← LOG DENIAL: Figure out why it failed
@@ -268,8 +252,7 @@ function runBidEngine(data, deltaMap) {
                     const hasVac = getVac(targetKey) > 0;
                     let bumpedPilot = null;
 
-                    // ← PHASE 1: Only award if there's a vacancy; skip displacement bumping
-                    if (allowDisplacements && forcedOut && !hasVac) {
+                    if (forcedOut && !hasVac) {
                         bumpedPilot = mostJuniorAt(targetKey, p.sen);
                         if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
                         if (bumpedPilot) {
@@ -376,8 +359,7 @@ function runBidEngine(data, deltaMap) {
             //   2nd  — other domiciles, same status
             //   3rd  — same domicile, next lower status (FO)
             //   4th  — other domiciles, next lower status (FO)
-            // ← PHASE 1: Skip this step; only run in Phase 2
-            if (!awarded && allowDisplacements) {
+            if (!awarded) {
                 const cascadeOptions = [
                     `${origBase}-${origStatus}`,
                     ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
@@ -472,7 +454,7 @@ function runBidEngine(data, deltaMap) {
                         break;
                     }
                 }
-            }  // ← End of Phase 1 check for Step C
+            }
 
             // ── STEP D: Truly unassigned ─────────────────────────────────────
             if (!awarded) {
@@ -532,12 +514,6 @@ function runBidEngine(data, deltaMap) {
             }
         }
         if (loops > 10000) break;
-        
-        // ← PHASE TRANSITION: Move to Phase 2 when Phase 1 is done
-        if (!cascade && phase === 1) {
-            phase = 2;
-            cascade = true;  // Start Phase 2
-        }
     }
 
     // ── BUILD REASON STRING FROM A LOG OBJECT ────────────────────────────────
