@@ -117,10 +117,38 @@ function renderCapacities() {
     document.getElementById('capGrid').innerHTML = store.caps.map(c => `<div class="cap-cell"><label>${c.base} ${c.seat} (Cap: ${c.startCapacity})</label><input type="number" id="delta-${c.base}-${c.seat}" value="${c.delta || 0}"></div>`).join('');
 }
 
+// Calculate starting vacancies from capacities and current headcount
+function calculateStartingVacancies(roster, capacities) {
+    const startingVacancies = {};
+    const currentCounts = {};
+    
+    // Count current pilots at each position
+    roster.forEach(p => {
+        if (p.current && p.current.equip === '737') {
+            const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
+            currentCounts[key] = (currentCounts[key] || 0) + 1;
+        }
+    });
+    
+    // Calculate vacancy = capacity - current count
+    capacities.forEach(c => {
+        const key = `${c.base}-${c.seat}`.toUpperCase();
+        const capacity = c.startCapacity;
+        const current = currentCounts[key] || 0;
+        const vacancy = capacity - current;
+        startingVacancies[key] = vacancy;
+    });
+    
+    return startingVacancies;
+}
+
 document.getElementById('runBtn').onclick = () => {
     const deltas = {};
     store.caps.forEach(c => { const el = document.getElementById(`delta-${c.base}-${c.seat}`); if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0; });
-    const result = runBidEngine(store, deltas);
+    
+    // Calculate starting vacancies and pass to engine
+    const startingVacancies = calculateStartingVacancies(store.roster, store.caps);
+    const result = runBidEngine(store, deltas, startingVacancies);
     lastResults = result.roster;
     lastTargetMap = result.targetMap;
     lastAuditTrail = result.auditTrail;
