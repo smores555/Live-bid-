@@ -1,3 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>737 Master Bid Control - True Top-Down Displacement</title>
+    
+    <script src="engine.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        :root { --bg: #0b0e14; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --green: #3fb950; --red: #f85149; --yellow: #ffd33d; --purple: #bc8cff; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+        .cap-cell { display: flex; flex-direction: column; font-size: 0.7rem; }
+        .cap-cell input { background: #0d1117; border: 1px solid var(--border); color: #4ade80; padding: 5px; border-radius: 4px; font-weight: bold; }
+        .toolbar { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+        .dash-container { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .dash-box { background: #1a1d23; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
+        .dash-title { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; }
+        .unassigned-item { background: #1b122a; border-left: 4px solid var(--purple); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        .disp-item { background: #2a2612; border-left: 4px solid var(--yellow); padding: 8px; margin-bottom: 8px; font-size: 0.75rem; color: #eee; }
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
+        th { background: #21262d; color: var(--accent); text-align: left; padding: 12px; font-size: 0.8rem; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; vertical-align: middle; }
+        .award-reason { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; font-style: italic; }
+        .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 900; margin-left: 5px; text-transform: uppercase; display: inline-block; }
+        .tag-red { background: var(--red); color: white; }
+        .tag-yellow { background: var(--yellow); color: #000; }
+        .rank-badge { background: #30363d; padding: 3px 7px; border-radius: 4px; color: #4ade80; font-weight: bold; font-size: 0.85rem; border: 1px solid #444; }
+    </style>
 </head>
 <body>
 
