@@ -11,6 +11,7 @@
 
 function runBidEngine(data, deltaMap, startingVacancies) {
     const auditTrail = [];
+    const bidTransactions = [];  // ← NEW: Log every bid attempt
     const is737 = (p) => p.current && p.current.equip === "737";
 
     // ── FIXED PILOT EXCLUSION LOGIC ──────────────────────────────────────────
@@ -231,14 +232,31 @@ function runBidEngine(data, deltaMap, startingVacancies) {
 
                 if (rank > pr.bpl) {
                     failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl', loop: loops });
+                    // ← NEW: Log this denied bid
+                    bidTransactions.push({
+                        sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey,
+                        awardStatus: 'Denied',
+                        awardNote: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`
+                    });
                 } else if (rank > cap) {
                     const vac = getVac(targetKey);
                     const msg = vac <= 0
                         ? `Requested position has ${vac} vacancy and cannot accept additional pilots.`
                         : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
                     failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
+                    // ← NEW: Log this denied bid
+                    bidTransactions.push({
+                        sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey,
+                        awardStatus: 'Denied', awardNote: msg
+                    });
                 } else if (isMovingIn && !vacancyOk) {
                     failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has ${getVac(targetKey)} vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
+                    // ← NEW: Log this denied bid
+                    bidTransactions.push({
+                        sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey,
+                        awardStatus: 'Denied',
+                        awardNote: `Requested position has ${getVac(targetKey)} vacancy and cannot accept additional pilots.`
+                    });
                 }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
@@ -293,6 +311,11 @@ function runBidEngine(data, deltaMap, startingVacancies) {
                             log = p.moveLog;
                         }
                     }
+                    // ← NEW: Log this awarded preference
+                    bidTransactions.push({
+                        sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey,
+                        awardStatus: 'Awarded', awardNote: buildReasonFromLog(log)
+                    });
                     break;
                 }
             }
@@ -316,6 +339,11 @@ function runBidEngine(data, deltaMap, startingVacancies) {
                     newSeat = p.orig;
                     awarded = true;
                     log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut };
+                    // ← NEW: Log Step B award
+                    bidTransactions.push({
+                        sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: p.orig,
+                        awardStatus: 'Awarded', awardNote: 'Remain in current position.'
+                    });
                 }
             }
 
@@ -394,6 +422,11 @@ function runBidEngine(data, deltaMap, startingVacancies) {
                         } else {
                             log = p.moveLog;
                         }
+                        // ← NEW: Log Step C award
+                        bidTransactions.push({
+                            sen: p.sen, name: p.name, startingPosition: p.orig, bidPosition: targetKey,
+                            awardStatus: 'Awarded', awardNote: buildReasonFromLog(log)
+                        });
                         break;
                     }
                 }
@@ -507,5 +540,5 @@ function runBidEngine(data, deltaMap, startingVacancies) {
         p.awardedReason = buildReasonFromLog(log);
     });
 
-    return { roster: bidders, loops, auditTrail, targetMap, finalVacancies: vacancies };
+    return { roster: bidders, loops, auditTrail, bidTransactions, targetMap, finalVacancies: vacancies };
 }
