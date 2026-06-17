@@ -258,6 +258,16 @@ function runBidEngine(data, deltaMap) {
                         if (bumpedPilot) {
                             bumpedPilot.isForceDisplaced = true;
                             bumpedThisLoop.add(bumpedPilot.sen);
+                            
+                            // ← NEW: Log that this pilot got displaced
+                            bidTransactions.push({
+                                sen: bumpedPilot.sen,
+                                name: bumpedPilot.name,
+                                startingPosition: bumpedPilot.orig,
+                                bidPosition: bumpedPilot.currentKey,
+                                awardStatus: 'Displaced',
+                                awardNote: `Could not hold base with seniority. Displaced by ${p.sen} - ${p.name}.`
+                            });
                         }
                         log = {
                             step: 'A',
@@ -392,6 +402,16 @@ function runBidEngine(data, deltaMap) {
                                 if (bumpedPilot) {
                                     bumpedPilot.isForceDisplaced = true;
                                     bumpedThisLoop.add(bumpedPilot.sen);
+                                    
+                                    // ← NEW: Log Step C displacement
+                                    bidTransactions.push({
+                                        sen: bumpedPilot.sen,
+                                        name: bumpedPilot.name,
+                                        startingPosition: bumpedPilot.orig,
+                                        bidPosition: bumpedPilot.currentKey,
+                                        awardStatus: 'Displaced',
+                                        awardNote: `Could not hold base with seniority. Displaced by ${p.sen} - ${p.name}.`
+                                    });
                                 }
                                 log = {
                                     step: 'C',
