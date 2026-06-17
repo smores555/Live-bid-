@@ -149,11 +149,20 @@ function runBidEngine(data, deltaMap) {
     // ── MAIN CASCADE LOOP ────────────────────────────────────────────────────
     let cascade = true;
     let loops   = 0;
+    let previousSlots = {};  // ← Track who occupied each slot in previous loop
 
     while (cascade) {
         cascade = false;
         loops++;
         const bumpedThisLoop = new Set();
+        
+        // ← NEW: Snapshot current slot occupancy before processing preferences
+        const slotsBeforeLoop = {};
+        for (const p of bidders) {
+            if (!p.moved && p.currentKey === p.orig) continue;  // Skip unawarded
+            if (!slotsBeforeLoop[p.currentKey]) slotsBeforeLoop[p.currentKey] = [];
+            slotsBeforeLoop[p.currentKey].push({ sen: p.sen, name: p.name });
+        }
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
@@ -342,13 +351,17 @@ function runBidEngine(data, deltaMap) {
                     awarded = true;
                     log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut };
                     // ← NEW: Log Step B award
+                    // Check if this is a re-award after displacement
+                    const wasRecentlyDisplaced = bidTransactions.some(tx =>
+                        tx.sen === p.sen && tx.awardStatus === 'Displaced' && tx.bidPosition === p.orig
+                    );
                     bidTransactions.push({
                         sen: p.sen,
                         name: p.name,
                         startingPosition: p.orig,
                         bidPosition: p.orig,
                         awardStatus: 'Awarded',
-                        awardNote: 'Remain in current position.'
+                        awardNote: wasRecentlyDisplaced ? 'Re-awarded to original position after displacement.' : 'Remain in current position.'
                     });
                 }
             }
@@ -443,13 +456,19 @@ function runBidEngine(data, deltaMap) {
                             log = p.moveLog;
                         }
                         // ← NEW: Log Step C award
+                        // Check if this is a re-award after displacement
+                        const wasDisplaced = bidTransactions.some(tx =>
+                            tx.sen === p.sen && tx.awardStatus === 'Displaced'
+                        );
                         bidTransactions.push({
                             sen: p.sen,
                             name: p.name,
                             startingPosition: p.orig,
                             bidPosition: targetKey,
                             awardStatus: 'Awarded',
-                            awardNote: 'Section 24 Displacement — awarded to cascade position'
+                            awardNote: wasDisplaced ? 
+                                `Re-awarded via Section 24 Displacement cascade to ${targetKey}.` :
+                                'Section 24 Displacement — awarded to cascade position'
                         });
                         break;
                     }
@@ -513,6 +532,40 @@ function runBidEngine(data, deltaMap) {
                 }
             }
         }
+        
+        // ← NEW: Check for displacements after preferences are processed
+        // If a pilot lost their slot, log them as displaced
+        for (const slotKey of Object.keys(slotsBeforeLoop)) {
+            const whoWasHere = slotsBeforeLoop[slotKey];
+            const whoIsHereNow = bidders.filter(p => p.currentKey === slotKey && p.moved);
+            
+            for (const prevOccupant of whoWasHere) {
+                const stillHere = whoIsHereNow.some(p => p.sen === prevOccupant.sen);
+                if (!stillHere) {
+                    // ← This pilot lost their slot - log displacement
+                    const displacedPilot = bidders.find(p => p.sen === prevOccupant.sen);
+                    if (displacedPilot && !displacedPilot.isUnassigned && displacedPilot.currentKey !== slotKey) {
+                        // Only log if not already logged
+                        const alreadyLogged = bidTransactions.some(tx => 
+                            tx.sen === displacedPilot.sen && 
+                            tx.bidPosition === slotKey && 
+                            tx.awardStatus === 'Displaced'
+                        );
+                        if (!alreadyLogged && displacedPilot.isForceDisplaced) {
+                            bidTransactions.push({
+                                sen: displacedPilot.sen,
+                                name: displacedPilot.name,
+                                startingPosition: displacedPilot.orig,
+                                bidPosition: slotKey,
+                                awardStatus: 'Displaced',
+                                awardNote: `Could not hold base with seniority. Lost position in cascade.`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
         if (loops > 10000) break;
     }
 
