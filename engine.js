@@ -1,12 +1,15 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Displacement Chain Update)
- * Logic Update: Force-displaced pilots do not need a vacancy to land.
- * They bump the most junior pilot at their preferred base (where they
- * outrank the junior-most). That bumped pilot inherits displacement rights
- * and cascades the same way. Voluntary preference failures still require
- * vacancies as before.
+ * AIRLINE BID ENGINE - COMPANY-MATCHING EDITION
+ * 
+ * Key fixes:
+ * 1. Uses ACTUAL starting vacancy counts from company data (not computed)
+ * 2. Tracks vacancy changes in REAL-TIME as bids are awarded
+ * 3. Outputs 73G equipment prefix to match company format
+ * 4. Shows BPL calculations inline in Award Notes
+ * 5. Records who was actually displaced (proffered from seniority#)
  */
-function runBidEngine(data, deltaMap) {
+
+function runBidEngine(data, deltaMap, startingVacancies) {
     const auditTrail = [];
     const is737 = (p) => p.current && p.current.equip === "737";
 
@@ -27,7 +30,7 @@ function runBidEngine(data, deltaMap) {
 
     function keyLabel(key) {
         const [base, seat] = (key || '').split('-');
-        return `${base} ${seat}`;
+        return `73G ${base} ${seat}`;  // ADD 73G PREFIX
     }
 
     function posLabel(key) {
@@ -35,6 +38,19 @@ function runBidEngine(data, deltaMap) {
         return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
     }
 
+    // ── VACANCY TRACKING: Use ACTUAL starting numbers from company ────────────
+    // startingVacancies is a map like { 'ANC-CA': 2, 'SEA-FO': 1, ... }
+    let vacancies = { ...startingVacancies };  // COPY to avoid mutation
+    
+    function getVac(key) {
+        return vacancies[key] || 0;
+    }
+
+    function setVac(key, newCount) {
+        vacancies[key] = newCount;
+    }
+
+    // ── SLOT SOURCES: Track who vacated each position ────────────────────────
     let slotSources = {};
 
     function consumeSlot(key) {
@@ -51,38 +67,41 @@ function runBidEngine(data, deltaMap) {
 
     function fmtSource(src) {
         if (!src) return 'Source unknown.';
-        if (src.type === 'pilot') return `Proffered from Sen #${src.sen} - ${src.name}.`;
+        if (src.type === 'pilot') return `Proffered from ${src.sen} - ${src.name}.`;
         return `Open position available (${src.label}).`;
     }
 
     // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
-    let liveHeadcount = {};
+    let currentCounts = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
-        liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
+        currentCounts[key] = (currentCounts[key] || 0) + 1;
     });
 
     let targetMap = {};
-    Object.keys(liveHeadcount).forEach(key => {
-        targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
+    Object.keys(currentCounts).forEach(key => {
+        targetMap[key] = currentCounts[key] + (deltaMap[key] || 0);
     });
-    data.caps.forEach(c => {
-        const key = `${c.base}-${c.seat}`.toUpperCase();
-        if (targetMap[key] === undefined) {
-            targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+    
+    if (data.caps) {
+        data.caps.forEach(c => {
+            const key = `${c.base}-${c.seat}`.toUpperCase();
+            if (targetMap[key] === undefined) {
+                targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
+            }
+        });
+    }
+
+    // Initialize slot sources for pre-existing vacancies
+    Object.keys(vacancies).forEach(key => {
+        const vac = vacancies[key];
+        if (vac > 0) {
+            if (!slotSources[key]) slotSources[key] = [];
+            for (let i = 0; i < vac; i++) {
+                slotSources[key].push({ type: 'vacancy', label: 'retirement / system reduction' });
+            }
         }
     });
-
-    Object.keys(targetMap).forEach(key => {
-        const preExisting = (targetMap[key] || 0) - (liveHeadcount[key] || 0);
-        slotSources[key] = [];
-        for (let i = 0; i < preExisting; i++) {
-            slotSources[key].push({ type: 'vacancy', label: 'retirement / system reduction' });
-        }
-    });
-
-    let currentCounts = { ...liveHeadcount };
-    const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
 
     // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
     const bidders = activeBidders.map(p => {
@@ -166,8 +185,7 @@ function runBidEngine(data, deltaMap) {
 
             const forcedOut = isForceDisplacedFrom(p, p.orig);
 
-            // Every time this pilot is force-displaced, record a Reduction event
-            // (can happen multiple times across cascade loops)
+            // Record reduction events when pilot is forced out
             if (forcedOut) {
                 const cap = targetMap[p.orig] || 0;
                 let boundaryPilot = null;
@@ -216,11 +234,11 @@ function runBidEngine(data, deltaMap) {
                 } else if (rank > cap) {
                     const vac = getVac(targetKey);
                     const msg = vac <= 0
-                        ? `Requested position has 0 vacancy and cannot accept additional pilots.`
+                        ? `Requested position has ${vac} vacancy and cannot accept additional pilots.`
                         : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
                     failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
                 } else if (isMovingIn && !vacancyOk) {
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has ${getVac(targetKey)} vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
                 }
 
                 if (rank <= pr.bpl && rank <= cap && vacancyOk) {
@@ -229,7 +247,8 @@ function runBidEngine(data, deltaMap) {
                     awarded = true;
 
                     if (isMovingIn) {
-                        const hasVac = getVac(targetKey) > 0;
+                        const vacBefore = getVac(targetKey);
+                        const hasVac = vacBefore > 0;
                         let bumpedPilot = null;
 
                         if (forcedOut && !hasVac) {
@@ -245,7 +264,7 @@ function runBidEngine(data, deltaMap) {
                                 fromKey: p.currentKey,
                                 toKey: targetKey,
                                 vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
+                                vacToBefore: vacBefore,
                                 source: bumpedPilot
                                     ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
                                     : { type: 'vacancy', label: 'retirement / system reduction' },
@@ -261,7 +280,7 @@ function runBidEngine(data, deltaMap) {
                                 fromKey: p.currentKey,
                                 toKey: targetKey,
                                 vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
+                                vacToBefore: vacBefore,
                                 source: src,
                                 displacementBump: false,
                                 forcedOut
@@ -279,9 +298,6 @@ function runBidEngine(data, deltaMap) {
             }
 
             // ── STEP B: No pref awarded — try holding at orig base ──────────
-            // Per contract: if displaced/reduced, pilot first tries to remain at
-            // their current base/seat. If there is an open vacancy they can land
-            // there even if they are force-displaced (vacancy absorbs the extra body).
             if (!awarded) {
                 const cap      = targetMap[p.orig] || 0;
                 const vacAtOrig = getVac(p.orig);
@@ -293,8 +309,6 @@ function runBidEngine(data, deltaMap) {
                 const selfBid  = p.prefs.find(pr => pr.targetKey === p.orig);
                 const bplLimit = selfBid ? selfBid.bpl : 9999;
 
-                // Normal hold: fits within cap and BPL
-                // Vacancy hold: force-displaced but a vacancy exists at orig — land there
                 const canHold = (rank <= bplLimit && rank <= cap) ||
                                 (forcedOut && vacAtOrig > 0 && rank <= bplLimit);
 
@@ -306,11 +320,6 @@ function runBidEngine(data, deltaMap) {
             }
 
             // ── STEP C: Force / Section-24 displacement fallback ────────────
-            // Contract order:
-            //   1st  — same domicile, same status (origBase-origStatus)
-            //   2nd  — other domiciles, same status
-            //   3rd  — same domicile, next lower status (FO)
-            //   4th  — other domiciles, next lower status (FO)
             if (!awarded) {
                 const cascadeOptions = [
                     `${origBase}-${origStatus}`,
@@ -345,7 +354,8 @@ function runBidEngine(data, deltaMap) {
                         awarded = true;
 
                         if (isMovingIn) {
-                            const hasVac = getVac(targetKey) > 0;
+                            const vacBefore = getVac(targetKey);
+                            const hasVac = vacBefore > 0;
                             let bumpedPilot = null;
 
                             if (forcedOut && !hasVac) {
@@ -360,7 +370,7 @@ function runBidEngine(data, deltaMap) {
                                     fromKey: p.currentKey,
                                     toKey: targetKey,
                                     vacFromBefore: getVac(p.currentKey),
-                                    vacToBefore: getVac(targetKey),
+                                    vacToBefore: vacBefore,
                                     source: bumpedPilot
                                         ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
                                         : { type: 'vacancy', label: 'retirement / system reduction' },
@@ -375,7 +385,7 @@ function runBidEngine(data, deltaMap) {
                                     fromKey: p.currentKey,
                                     toKey: targetKey,
                                     vacFromBefore: getVac(p.currentKey),
-                                    vacToBefore: getVac(targetKey),
+                                    vacToBefore: vacBefore,
                                     source: src,
                                     displacementBump: false,
                                     forcedOut
@@ -415,17 +425,20 @@ function runBidEngine(data, deltaMap) {
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
             p.moveLog          = log;
-            p.failedPrefs = failedPrefs; // overwrite each loop — display dedupes by pref order+target
+            p.failedPrefs = failedPrefs;
 
             if (newSeat !== p.currentKey) {
-                const prevKey = p.currentKey; // capture BEFORE updating
+                const prevKey = p.currentKey;
 
+                // UPDATE VACANCIES IN REAL-TIME
                 if (p.currentKey !== "UNASSIGNED") {
                     releaseSlot(p.currentKey, p.sen, p.name);
                     currentCounts[p.currentKey]--;
+                    setVac(p.currentKey, getVac(p.currentKey) + 1);  // Release increases vacancy
                 }
                 if (newSeat !== "UNASSIGNED") {
                     currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
+                    setVac(newSeat, getVac(newSeat) - 1);  // Consume decreases vacancy
                 }
 
                 p.currentKey   = newSeat;
@@ -440,7 +453,6 @@ function runBidEngine(data, deltaMap) {
                 p.moved        = (p.currentKey !== p.orig);
                 p.isUnassigned = (p.currentKey === "UNASSIGNED");
 
-                // If pilot was force-displaced but successfully re-held, record it
                 if (forcedOut && awarded) {
                     p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
                 }
@@ -450,18 +462,17 @@ function runBidEngine(data, deltaMap) {
     }
 
     // ── BUILD REASON STRING FROM A LOG OBJECT ────────────────────────────────
-    function buildReasonFromLog(log, finalVacFn) {
+    function buildReasonFromLog(log) {
         if (!log) return "No bid data.";
-        const finalVac = finalVacFn || ((key) => (targetMap[key] || 0) - (currentCounts[key] || 0));
+        
         const bumpNote = (log.displacementBump && log.bumpedSen)
             ? ` Bumped Sen #${log.bumpedSen} (displacement chain).`
             : '';
-        const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
 
         if (log.step === 'A' && !log.stayed) {
-            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line1 = `Awarded Pref #${log.prefOrder} — ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
             const line2 = log.displacementBump
-                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                ? `Displacement move — no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
                 : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             return line1 + '\n' + line2;
         } else if (log.step === 'A' && log.stayed) {
@@ -469,16 +480,16 @@ function runBidEngine(data, deltaMap) {
         } else if (log.step === 'B') {
             return `Remain in current position.`;
         } else if (log.step === 'C') {
-            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
+            const line1 = `Section 24 Displacement — ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
             const line2 = log.displacementBump
-                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
+                ? `Displacement move — no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
                 : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             return line1 + '\n' + line2;
         } else if (log.step === 'D') {
             if (log.selfDisp) {
-                return `BPL Failure \u2014 Rank ${log.bplRank} exceeds BPL limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                return `Bid request does not meet BPL requirement. Requested BPL = ${log.bplLimit}. BPL if awarded = ${log.bplRank}.`;
             } else {
-                return `Displaced: No position available \u2014 system-wide reduction. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
+                return `Displaced: No position available — system-wide reduction. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
             }
         }
         return "No bid data.";
@@ -490,13 +501,11 @@ function runBidEngine(data, deltaMap) {
     });
 
     // ── BUILD FINAL AWARDED REASON STRINGS ───────────────────────────────────
-    // Use the vacancy snapshots captured at move time (log.vacToBefore / log.vacFromBefore)
-    // rather than the post-run final vacancy, so notes reflect true state when move occurred.
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
         p.awardedReason = buildReasonFromLog(log);
     });
 
-    return { roster: bidders, loops, auditTrail, targetMap };
+    return { roster: bidders, loops, auditTrail, targetMap, finalVacancies: vacancies };
 }
