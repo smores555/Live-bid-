@@ -8,7 +8,6 @@
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
-    const bidTransactions = [];  // ← NEW: Track all bid attempts
     const is737 = (p) => p.current && p.current.equip === "737";
 
     // ── FIXED PILOT EXCLUSION LOGIC ──────────────────────────────────────────
@@ -149,20 +148,11 @@ function runBidEngine(data, deltaMap) {
     // ── MAIN CASCADE LOOP ────────────────────────────────────────────────────
     let cascade = true;
     let loops   = 0;
-    let previousSlots = {};  // ← Track who occupied each slot in previous loop
 
     while (cascade) {
         cascade = false;
         loops++;
         const bumpedThisLoop = new Set();
-        
-        // ← NEW: Snapshot current slot occupancy before processing preferences
-        const slotsBeforeLoop = {};
-        for (const p of bidders) {
-            if (!p.moved && p.currentKey === p.orig) continue;  // Skip unawarded
-            if (!slotsBeforeLoop[p.currentKey]) slotsBeforeLoop[p.currentKey] = [];
-            slotsBeforeLoop[p.currentKey].push({ sen: p.sen, name: p.name });
-        }
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
@@ -221,109 +211,71 @@ function runBidEngine(data, deltaMap) {
                     vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
                 }
 
-                // ← REFACTORED: Check if this preference can be awarded
-                const canBeAwarded = rank <= pr.bpl && rank <= cap && vacancyOk;
-                
-                if (!canBeAwarded) {
-                    // ← LOG DENIAL: Figure out why it failed
-                    let denialMsg = '';
-                    if (rank > pr.bpl) {
-                        denialMsg = `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`;
-                    } else if (rank > cap) {
-                        const vac = getVac(targetKey);
-                        denialMsg = vac <= 0
-                            ? `Requested position has 0 vacancy and cannot accept additional pilots.`
-                            : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
-                    } else if (isMovingIn && !vacancyOk) {
-                        denialMsg = `Requested position has 0 vacancy and cannot accept additional pilots.`;
-                    }
-                    
-                    // Add to both tracking systems
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: denialMsg, status: 'Denied', loop: loops });
-                    bidTransactions.push({
-                        sen: p.sen,
-                        name: p.name,
-                        startingPosition: p.orig,
-                        bidPosition: targetKey,
-                        awardStatus: 'Denied',
-                        awardNote: denialMsg
-                    });
-                    // Continue to next preference
-                    continue;
+                if (rank > pr.bpl) {
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl', loop: loops });
+                } else if (rank > cap) {
+                    const vac = getVac(targetKey);
+                    const msg = vac <= 0
+                        ? `Requested position has 0 vacancy and cannot accept additional pilots.`
+                        : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
+                } else if (isMovingIn && !vacancyOk) {
+                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
                 }
 
-                // ← PREFERENCE AWARDED
-                newSeat = targetKey;
-                prefNum = pr.order;
-                awarded = true;
+                if (rank <= pr.bpl && rank <= cap && vacancyOk) {
+                    newSeat = targetKey;
+                    prefNum = pr.order;
+                    awarded = true;
 
-                if (isMovingIn) {
-                    const hasVac = getVac(targetKey) > 0;
-                    let bumpedPilot = null;
+                    if (isMovingIn) {
+                        const hasVac = getVac(targetKey) > 0;
+                        let bumpedPilot = null;
 
-                    if (forcedOut && !hasVac) {
-                        bumpedPilot = mostJuniorAt(targetKey, p.sen);
-                        if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
-                        if (bumpedPilot) {
-                            bumpedPilot.isForceDisplaced = true;
-                            bumpedThisLoop.add(bumpedPilot.sen);
-                            
-                            // ← NEW: Log that this pilot got displaced
-                            bidTransactions.push({
-                                sen: bumpedPilot.sen,
-                                name: bumpedPilot.name,
-                                startingPosition: bumpedPilot.orig,
-                                bidPosition: bumpedPilot.currentKey,
-                                awardStatus: 'Displaced',
-                                awardNote: `Could not hold base with seniority. Displaced by ${p.sen} - ${p.name}.`
-                            });
+                        if (forcedOut && !hasVac) {
+                            bumpedPilot = mostJuniorAt(targetKey, p.sen);
+                            if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
+                            if (bumpedPilot) {
+                                bumpedPilot.isForceDisplaced = true;
+                                bumpedThisLoop.add(bumpedPilot.sen);
+                            }
+                            log = {
+                                step: 'A',
+                                prefOrder: pr.order,
+                                fromKey: p.currentKey,
+                                toKey: targetKey,
+                                vacFromBefore: getVac(p.currentKey),
+                                vacToBefore: getVac(targetKey),
+                                source: bumpedPilot
+                                    ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
+                                    : { type: 'vacancy', label: 'retirement / system reduction' },
+                                displacementBump: !!bumpedPilot,
+                                bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
+                                forcedOut
+                            };
+                        } else {
+                            const src = consumeSlot(targetKey);
+                            log = {
+                                step: 'A',
+                                prefOrder: pr.order,
+                                fromKey: p.currentKey,
+                                toKey: targetKey,
+                                vacFromBefore: getVac(p.currentKey),
+                                vacToBefore: getVac(targetKey),
+                                source: src,
+                                displacementBump: false,
+                                forcedOut
+                            };
                         }
-                        log = {
-                            step: 'A',
-                            prefOrder: pr.order,
-                            fromKey: p.currentKey,
-                            toKey: targetKey,
-                            vacFromBefore: getVac(p.currentKey),
-                            vacToBefore: getVac(targetKey),
-                            source: bumpedPilot
-                                ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
-                                : { type: 'vacancy', label: 'retirement / system reduction' },
-                            displacementBump: !!bumpedPilot,
-                            bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
-                            forcedOut
-                        };
                     } else {
-                        const src = consumeSlot(targetKey);
-                        log = {
-                            step: 'A',
-                            prefOrder: pr.order,
-                            fromKey: p.currentKey,
-                            toKey: targetKey,
-                            vacFromBefore: getVac(p.currentKey),
-                            vacToBefore: getVac(targetKey),
-                            source: src,
-                            displacementBump: false,
-                            forcedOut
-                        };
+                        if (p.orig === targetKey) {
+                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut };
+                        } else {
+                            log = p.moveLog;
+                        }
                     }
-                } else {
-                    if (p.orig === targetKey) {
-                        log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut };
-                    } else {
-                        log = p.moveLog;
-                    }
+                    break;
                 }
-                
-                // ← LOG AWARD
-                bidTransactions.push({
-                    sen: p.sen,
-                    name: p.name,
-                    startingPosition: p.orig,
-                    bidPosition: targetKey,
-                    awardStatus: 'Awarded',
-                    awardNote: log.stayed ? 'Remain in current position.' : 'Awarded preference'
-                });
-                break;
             }
 
             // ── STEP B: No pref awarded — try holding at orig base ──────────
@@ -350,19 +302,6 @@ function runBidEngine(data, deltaMap) {
                     newSeat = p.orig;
                     awarded = true;
                     log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut };
-                    // ← NEW: Log Step B award
-                    // Check if this is a re-award after displacement
-                    const wasRecentlyDisplaced = bidTransactions.some(tx =>
-                        tx.sen === p.sen && tx.awardStatus === 'Displaced' && tx.bidPosition === p.orig
-                    );
-                    bidTransactions.push({
-                        sen: p.sen,
-                        name: p.name,
-                        startingPosition: p.orig,
-                        bidPosition: p.orig,
-                        awardStatus: 'Awarded',
-                        awardNote: wasRecentlyDisplaced ? 'Re-awarded to original position after displacement.' : 'Remain in current position.'
-                    });
                 }
             }
 
@@ -415,16 +354,6 @@ function runBidEngine(data, deltaMap) {
                                 if (bumpedPilot) {
                                     bumpedPilot.isForceDisplaced = true;
                                     bumpedThisLoop.add(bumpedPilot.sen);
-                                    
-                                    // ← NEW: Log Step C displacement
-                                    bidTransactions.push({
-                                        sen: bumpedPilot.sen,
-                                        name: bumpedPilot.name,
-                                        startingPosition: bumpedPilot.orig,
-                                        bidPosition: bumpedPilot.currentKey,
-                                        awardStatus: 'Displaced',
-                                        awardNote: `Could not hold base with seniority. Displaced by ${p.sen} - ${p.name}.`
-                                    });
                                 }
                                 log = {
                                     step: 'C',
@@ -455,21 +384,6 @@ function runBidEngine(data, deltaMap) {
                         } else {
                             log = p.moveLog;
                         }
-                        // ← NEW: Log Step C award
-                        // Check if this is a re-award after displacement
-                        const wasDisplaced = bidTransactions.some(tx =>
-                            tx.sen === p.sen && tx.awardStatus === 'Displaced'
-                        );
-                        bidTransactions.push({
-                            sen: p.sen,
-                            name: p.name,
-                            startingPosition: p.orig,
-                            bidPosition: targetKey,
-                            awardStatus: 'Awarded',
-                            awardNote: wasDisplaced ? 
-                                `Re-awarded via Section 24 Displacement cascade to ${targetKey}.` :
-                                'Section 24 Displacement — awarded to cascade position'
-                        });
                         break;
                     }
                 }
@@ -532,40 +446,6 @@ function runBidEngine(data, deltaMap) {
                 }
             }
         }
-        
-        // ← NEW: Check for displacements after preferences are processed
-        // If a pilot lost their slot, log them as displaced
-        for (const slotKey of Object.keys(slotsBeforeLoop)) {
-            const whoWasHere = slotsBeforeLoop[slotKey];
-            const whoIsHereNow = bidders.filter(p => p.currentKey === slotKey && p.moved);
-            
-            for (const prevOccupant of whoWasHere) {
-                const stillHere = whoIsHereNow.some(p => p.sen === prevOccupant.sen);
-                if (!stillHere) {
-                    // ← This pilot lost their slot - log displacement
-                    const displacedPilot = bidders.find(p => p.sen === prevOccupant.sen);
-                    if (displacedPilot && !displacedPilot.isUnassigned && displacedPilot.currentKey !== slotKey) {
-                        // Only log if not already logged
-                        const alreadyLogged = bidTransactions.some(tx => 
-                            tx.sen === displacedPilot.sen && 
-                            tx.bidPosition === slotKey && 
-                            tx.awardStatus === 'Displaced'
-                        );
-                        if (!alreadyLogged && displacedPilot.isForceDisplaced) {
-                            bidTransactions.push({
-                                sen: displacedPilot.sen,
-                                name: displacedPilot.name,
-                                startingPosition: displacedPilot.orig,
-                                bidPosition: slotKey,
-                                awardStatus: 'Displaced',
-                                awardNote: `Could not hold base with seniority. Lost position in cascade.`
-                            });
-                        }
-                    }
-                }
-            }
-        }
-        
         if (loops > 10000) break;
     }
 
@@ -618,5 +498,5 @@ function runBidEngine(data, deltaMap) {
         p.awardedReason = buildReasonFromLog(log);
     });
 
-    return { roster: bidders, loops, auditTrail, bidTransactions, targetMap };
+    return { roster: bidders, loops, auditTrail, targetMap };
 }
