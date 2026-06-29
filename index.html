@@ -65,7 +65,6 @@
         <button id="expBase" class="btn">XLSX: BASE LIST</button>
         <button id="expMaster" class="btn">XLSX: MASTER AWARDS</button>
         <button id="expLog" class="btn">XLSX: TRANSACTION LOG</button>
-        <button id="expLogCSV" class="btn">CSV: TRANSACTION LOG</button>
         <div style="flex-grow:1"></div>
         <input type="number" id="lookupInput" style="padding:10px; background:#0d1117; color:white; border:1px solid var(--border); border-radius:6px; width:120px;" placeholder="Sen #">
         <button id="lookupBtn" class="btn">LOOKUP</button>
@@ -123,7 +122,6 @@ document.getElementById('runBtn').onclick = () => {
     store.caps.forEach(c => { const el = document.getElementById(`delta-${c.base}-${c.seat}`); if (el) deltas[`${c.base}-${c.seat}`.toUpperCase()] = parseInt(el.value) || 0; });
     const result = runBidEngine(store, deltas);
     lastResults = result.roster;
-    lastResults.bidTransactions = result.bidTransactions;  // ← NEW: Store bidTransactions
     lastTargetMap = result.targetMap;
     lastAuditTrail = result.auditTrail;
     renderTable(lastResults, lastTargetMap, lastAuditTrail);
@@ -569,8 +567,7 @@ document.getElementById('expLog').onclick = () => {
     }
     function fmtPos(key) {
         if (!key || key === 'UNASSIGNED') return key || '';
-        if (key.includes('-')) return '737 ' + key.replace('-', ' ');
-        return key;
+        return '737 ' + key.replace('-', ' ');
     }
 
     // Columns match company format: Transaction_ID, Seniority, Pilot Name,
@@ -581,105 +578,65 @@ document.getElementById('expLog').onclick = () => {
     let txId    = 0;
     let rowIdx  = 1;
 
-    // ← NEW: Use bidTransactions instead of lastResults
-    if (lastResults.bidTransactions && lastResults.bidTransactions.length > 0) {
-        lastResults.bidTransactions.forEach(tx => {
-            const alt    = rowIdx % 2 === 1;
-            const bidPos = fmtPos(tx.bidPosition);
-            const startPos = fmtPos(tx.startingPosition);
-            const vals   = [txId++, tx.sen, tx.name, startPos, bidPos, 1, tx.awardStatus, tx.awardNote];
+    lastResults.forEach(p => {
+        const origPos  = fmtPos(p.orig);
+        const finalPos = fmtPos(p.currentKey);
+        const hasPrefs = p.prefs && p.prefs.length > 0;
+
+        // No-bid pilots: single row, no pref attempts
+        if (!hasPrefs && p.currentKey === p.orig && !p.isForceDisplaced) {
+            const alt  = rowIdx % 2 === 1;
+            const vals = [txId++, p.sen, p.name, origPos, origPos, 1, 'No Bid', 'Not allowed to bid. Remain in current position.'];
             vals.forEach((v, c) => {
-                if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, tx.awardStatus));
+                if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, 'No Bid'));
+                else         setCell(rowIdx, c, v, dStyle(alt));
+            });
+            rowIdx++;
+            return;
+        }
+
+        // One row per denied preference (deduplicated)
+        const seenPrefs = new Set();
+        (p.failedPrefs || []).forEach(fp => {
+            const sig = `${fp.order}|${fp.targetKey}|${fp.reason}`;
+            if (seenPrefs.has(sig)) return;
+            seenPrefs.add(sig);
+            const alt    = rowIdx % 2 === 1;
+            const bidPos = fmtPos(fp.targetKey) || '—';
+            const vals   = [txId++, p.sen, p.name, origPos, bidPos, fp.order, 'Denied', fp.reason || ''];
+            vals.forEach((v, c) => {
+                if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, 'Denied'));
                 else         setCell(rowIdx, c, v, dStyle(alt));
             });
             rowIdx++;
         });
-    } else {
-        // Fallback to old logic if bidTransactions not available
-        lastResults.forEach(p => {
-            const origPos  = fmtPos(p.orig);
-            const finalPos = fmtPos(p.currentKey);
-            const hasPrefs = p.prefs && p.prefs.length > 0;
 
-            // No-bid pilots: single row, no pref attempts
-            if (!hasPrefs && p.currentKey === p.orig && !p.isForceDisplaced) {
-                const alt  = rowIdx % 2 === 1;
-                const vals = [txId++, p.sen, p.name, origPos, origPos, 1, 'No Bid', 'Not allowed to bid. Remain in current position.'];
-                vals.forEach((v, c) => {
-                    if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, 'No Bid'));
-                    else         setCell(rowIdx, c, v, dStyle(alt));
-                });
-                rowIdx++;
-                return;
-            }
+        // Final awarded / displaced row
+        const log    = p.moveLog;
+        const alt    = rowIdx % 2 === 1;
+        let   status = p.isUnassigned ? 'Displaced' : 'Awarded';
+        let   bidPos = p.isUnassigned ? 'UNASSIGNED' : finalPos;
+        let   prefNum = p.awardedPrefNum !== 'N/A' ? p.awardedPrefNum : 1;
+        let   note   = (p.awardedReason || '').replace(/\n/g, ' ');
 
-            // One row per denied preference (deduplicated)
-            const seenPrefs = new Set();
-            (p.failedPrefs || []).forEach(fp => {
-                const sig = `${fp.order}|${fp.targetKey}|${fp.reason}`;
-                if (seenPrefs.has(sig)) return;
-                seenPrefs.add(sig);
-                const alt    = rowIdx % 2 === 1;
-                const bidPos = fmtPos(fp.targetKey) || '—';
-                const vals   = [txId++, p.sen, p.name, origPos, bidPos, fp.order, 'Denied', fp.reason || ''];
-                vals.forEach((v, c) => {
-                    if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, 'Denied'));
-                    else         setCell(rowIdx, c, v, dStyle(alt));
-                });
-                rowIdx++;
-            });
+        if (log && (log.step === 'A' || log.step === 'C') && log.toKey) {
+            bidPos  = fmtPos(log.toKey);
+            prefNum = log.prefOrder || prefNum;
+        }
 
-            // Final awarded / displaced row
-            const log    = p.moveLog;
-            const alt    = rowIdx % 2 === 1;
-            let   status = p.isUnassigned ? 'Displaced' : 'Awarded';
-            let   bidPos = p.isUnassigned ? 'UNASSIGNED' : finalPos;
-            let   prefNum = p.awardedPrefNum !== 'N/A' ? p.awardedPrefNum : 1;
-            let   note   = (p.awardedReason || '').replace(/\n/g, ' ');
-
-            if (log && (log.step === 'A' || log.step === 'C') && log.toKey) {
-                bidPos  = fmtPos(log.toKey);
-                prefNum = log.prefOrder || prefNum;
-            }
-
-            const vals = [txId++, p.sen, p.name, origPos, bidPos, prefNum, status, note];
-            vals.forEach((v, c) => {
-                if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, status));
-                else         setCell(rowIdx, c, v, dStyle(alt));
-            });
-            rowIdx++;
+        const vals = [txId++, p.sen, p.name, origPos, bidPos, prefNum, status, note];
+        vals.forEach((v, c) => {
+            if (c === 6) setCell(rowIdx, c, v, statusStyle(alt, status));
+            else         setCell(rowIdx, c, v, dStyle(alt));
         });
-    }
+        rowIdx++;
+    });
 
     ws['!ref']  = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx - 1, c: 7 } });
     ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 26 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 90 }];
     ws['!rows'] = [{ hpt: 18 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Transaction Log');
     XLSX.writeFile(wb, 'transaction_log.xlsx', { cellStyles: true });
-};
-
-document.getElementById('expLogCSV').onclick = () => {
-    // Export bidTransactions as CSV (much smaller than XLSX)
-    let csv = "Transaction_ID,Seniority,Pilot Name,Starting Position,Bid Position,Bid Preference,Award Status,Award Note\n";
-    
-    let txId = 0;
-    if (lastResults.bidTransactions && lastResults.bidTransactions.length > 0) {
-        lastResults.bidTransactions.forEach(tx => {
-            const startPos = tx.startingPosition ? '737 ' + tx.startingPosition.replace('-', ' ') : '';
-            const bidPos = tx.bidPosition ? '737 ' + tx.bidPosition.replace('-', ' ') : '';
-            const note = (tx.awardNote || '').replace(/"/g, '""');
-            csv += `${txId++},"${tx.sen}","${tx.name}","${startPos}","${bidPos}",1,"${tx.awardStatus}","${note}"\n`;
-        });
-    }
-    
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "transaction_log.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 };
 </script>
 </body>
