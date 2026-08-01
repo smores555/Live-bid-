@@ -8,55 +8,55 @@
   {
     "base": "ANC",
     "seat": "FO",
-    "startCapacity": 149,
+    "startCapacity": 152,
     "delta": 0
   },
   {
     "base": "LAX",
     "seat": "CA",
-    "startCapacity": 225,
+    "startCapacity": 272,
     "delta": -45
   },
   {
     "base": "LAX",
     "seat": "FO",
-    "startCapacity": 204,
+    "startCapacity": 230,
     "delta": -26
   },
   {
     "base": "PDX",
     "seat": "CA",
-    "startCapacity": 230,
+    "startCapacity": 231,
     "delta": 0
   },
   {
     "base": "PDX",
     "seat": "FO",
-    "startCapacity": 227,
+    "startCapacity": 228,
     "delta": 0
   },
   {
     "base": "SEA",
     "seat": "CA",
-    "startCapacity": 770,
+    "startCapacity": 758,
     "delta": 12
   },
   {
     "base": "SEA",
     "seat": "FO",
-    "startCapacity": 684,
+    "startCapacity": 693,
     "delta": 0
   },
   {
     "base": "SFO",
     "seat": "CA",
-    "startCapacity": 179,
+    "startCapacity": 211,
     "delta": -37
   },
   {
     "base": "SFO",
     "seat": "FO",
-    "startCapacity": 170,
+    "startCapacity": 194,
     "delta": -23
   },
   {
