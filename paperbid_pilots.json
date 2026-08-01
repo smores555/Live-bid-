@@ -1,0 +1,326 @@
+[
+  {
+    "sen": 77,
+    "pil": "DAY, SCOTT B.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 81,
+    "pil": "FARRELL, CHRISTOPHER P.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 96,
+    "pil": "MARTIN, CHRISTOPHER M.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 138,
+    "pil": "RUBIN, SCOTT D.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 167,
+    "pil": "FRANK, MARK J.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 183,
+    "pil": "SEVERNS, JEFFREY M.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 230,
+    "pil": "METS, DAVID M.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 253,
+    "pil": "LIMES, RONALD L.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 265,
+    "pil": "EYRE, BRIAN P.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 268,
+    "pil": "DOYEL, JOHN M.",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
+    "sen": 308,
+    "pil": "VANORNUM, ANDREW S.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 339,
+    "pil": "PEYTON, BRET A.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 502,
+    "pil": "WILHELM, DAVID",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 576,
+    "pil": "STUMPH, ROBERT S.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 581,
+    "pil": "THIELE, JULIE A.",
+    "base": "ANC",
+    "seat": "CA"
+  },
+  {
+    "sen": 628,
+    "pil": "GABRELCIK, KIMBERLY",
+    "base": "SFO",
+    "seat": "CA"
+  },
+  {
+    "sen": 758,
+    "pil": "BACHMAN, GRANT",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 859,
+    "pil": "SWOVELAND II, WILLIAM E.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 906,
+    "pil": "METZGAR, CHARLES J.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 914,
+    "pil": "PULLIS, KATHARINE",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 926,
+    "pil": "FETTIG, JEFFREY R.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 987,
+    "pil": "WALTERS, TERRY A.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 990,
+    "pil": "RICHARDS, DANIEL C.",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1023,
+    "pil": "ALBRIGHT, JUSTIN",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1028,
+    "pil": "NELSON, ADAM B.",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1068,
+    "pil": "NOURI, KAMYAR",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1104,
+    "pil": "WERTZ, GREGORY",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1146,
+    "pil": "STRELINGER, AUSTIN",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1153,
+    "pil": "O'DONOGHUE, RONAN",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
+    "sen": 1291,
+    "pil": "SITES, JON",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1320,
+    "pil": "BEACHLER, BRAD",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1494,
+    "pil": "MATTHEWS, RICHARD",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1536,
+    "pil": "YOUNG, ISRAEL",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1786,
+    "pil": "COYLE, ANDREW",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1896,
+    "pil": "OZOLIN, CHELSEA",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 1968,
+    "pil": "ULRICH, GREGORY",
+    "base": "ANC",
+    "seat": "FO"
+  },
+  {
+    "sen": 2062,
+    "pil": "CAVE, MALLORY",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2089,
+    "pil": "MEYER, RYAN",
+    "base": "SFO",
+    "seat": "CA"
+  },
+  {
+    "sen": 2112,
+    "pil": "SAMSON, TOM",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 2125,
+    "pil": "TOWNES, LEWIS D",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 2212,
+    "pil": "WEST, BRANDON",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2373,
+    "pil": "BLAIR-ZINGER, CHANDLER",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2386,
+    "pil": "HARRISON, MICHAEL",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2447,
+    "pil": "MENDEZ, JASON",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2537,
+    "pil": "CAREY, CHRISTOPHER",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 2569,
+    "pil": "PHILLIPS, DAYLAN",
+    "base": "LAX",
+    "seat": "FO"
+  },
+  {
+    "sen": 2609,
+    "pil": "CHUNG, DARIN",
+    "base": "PDX",
+    "seat": "FO"
+  },
+  {
+    "sen": 2811,
+    "pil": "FULTON, MICHAEL",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 3017,
+    "pil": "WILLIAMS, MITCHELL",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 3080,
+    "pil": "WILLIAMS, JAMES",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 3185,
+    "pil": "KELLY, KEVIN",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 3219,
+    "pil": "GREENE, ALAN",
+    "base": "SFO",
+    "seat": "FO"
+  },
+  {
+    "sen": 3268,
+    "pil": "KNILL, VICTOR (CHOPPER)",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 3299,
+    "pil": "BAKKE, MICHAEL (MIKE)",
+    "base": "LAX",
+    "seat": "FO"
+  }
+]
