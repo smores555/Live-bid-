@@ -270,7 +270,7 @@ function renderStats() {
 
 function renderOpenPositions() {
   var order = ['SEA-CA', 'SEA-FO', 'PDX-CA', 'PDX-FO', 'ANC-CA', 'ANC-FO',
-               'LAX-CA', 'LAX-FO', 'SFO-CA', 'SFO-FO'];
+               'LAX-CA', 'LAX-FO', 'SFO-CA', 'SFO-FO', 'SAN-CA', 'SAN-FO'];
   var open = order.filter(function (k) { return result.positions[k].open > 0; });
 
   if (!open.length) {
