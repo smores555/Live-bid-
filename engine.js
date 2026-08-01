@@ -23,6 +23,9 @@
  *     improve everyone's BPL below them, which can re-qualify a preference
  *     that was BPL-denied earlier. When the upgrade is to the base the
  *     pilot already sits in, the vacancy is "proffered from self".
+ *     The reverse also holds: an ARRIVAL degrades BPL for everyone junior at
+ *     that base/seat, and a BPL-conditional award that no longer qualifies is
+ *     revoked — the pilot re-walks from below the pulled preference.
  *
  *   Phase 2 — Reduction and displacement (CBA 24.E)
  *     Holding your own seat needs no vacancy, so a shrinking base can end
@@ -300,11 +303,15 @@ function runBidEngine(data, deltaMap, options) {
   var deniedAt = {};
   Object.keys(VALID).forEach(function (k) { deniedAt[k] = []; });
 
-  function walkPreferences(p) {
+  // minOrder: when a BPL-conditional award is revoked, the pilot re-walks
+  // from the preference BELOW the one that was pulled. Omit for a fresh walk.
+  function walkPreferences(p, minOrder) {
     var startPos = fmtPos(p.orig);
 
     for (var i = 0; i < p.prefs.length; i++) {
       var pr = p.prefs[i], key = pr.key;
+
+      if (minOrder && pr.order <= minOrder) continue;
 
       if (!key) {
         emit(p, startPos, null, pr.order, 'Denied',
@@ -335,6 +342,7 @@ function runBidEngine(data, deltaMap, options) {
         var res = award(p, key, pr.order, src);
         emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
         if (res.origin) proffer(res.origin);
+        if (!p.isPaper && res.origin !== key) bplRecheck(key, p.sen);
         return true;
       }
 
@@ -376,6 +384,46 @@ function runBidEngine(data, deltaMap, options) {
       var res = award(best, key, bestOrder, src);
       emit(best, fmtPos(best.orig), fmtPos(key), bestOrder, 'Awarded', res.note);
       if (res.origin && res.origin !== key) proffer(res.origin);
+      if (!best.isPaper && res.origin !== key) bplRecheck(key, best.sen);
+    }
+  }
+
+  // A pilot just ENTERED `key`. Every on-manning pilot junior to them there
+  // slipped one BPL slot. An award already granted on a BPL-conditional
+  // preference may no longer qualify — it is revoked and the pilot re-walks
+  // from below that preference. proffer() above handles the improving
+  // direction (a departure re-qualifies a denied bid); this is the same rule
+  // running the other way, which Phase 1 was previously missing.
+  function bplRecheck(key, entrantSen) {
+    for (var guard = 0; guard < 20000; guard++) {
+      var victim = null, victimPref = null;
+      var held = holdersAsc(key);
+
+      for (var i = 0; i < held.length && !victim; i++) {
+        if (held[i] <= entrantSen) continue;
+        var q = bySen[held[i]];
+        if (!q || !q.processed || q.awardOrder === null || q.loc !== key) continue;
+        for (var j = 0; j < q.prefs.length; j++) {
+          var pr = q.prefs[j];
+          if (pr.order !== q.awardOrder || pr.key !== key) continue;
+          if (pr.bpl && bpl(q, key) > pr.bpl) { victim = q; victimPref = pr; }
+          break;
+        }
+      }
+
+      if (!victim) return;
+
+      emit(victim, fmtPos(victim.orig), fmtPos(key), victimPref.order, 'Denied',
+           'Bid request does not meet BPL requirement. Requested BPL = ' +
+           victimPref.bpl + '. BPL if awarded = ' + bpl(victim, key) + '.');
+      deniedAt[key].push(victim);
+      victim.awardOrder = null;
+
+      if (!walkPreferences(victim, victimPref.order)) {
+        victim.awardOrder = victimPref.order;
+        emit(victim, fmtPos(victim.orig), fmtPos(key), victimPref.order, 'Awarded',
+             'No further preferences were available. Remain in current position.');
+      }
     }
   }
 
