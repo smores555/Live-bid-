@@ -117,6 +117,18 @@
 
   <div class="stats" id="stats"></div>
 
+  <div class="card" id="openPositionsCard" style="display:none;">
+    <h2>Open positions</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Position</th><th>Cap</th><th>Filled</th><th>Open</th><th>Min seniority</th>
+        </tr>
+      </thead>
+      <tbody id="openPositionsBody"></tbody>
+    </table>
+  </div>
+
   <div class="card" style="padding:0; overflow:hidden;">
     <table>
       <thead>
@@ -218,6 +230,7 @@ $('runBtn').onclick = function () {
     $('runBtn').disabled = false;
     $('runBtn').textContent = 'Run bid';
     renderStats();
+    renderOpenPositions();
     shown = pageSize;
     renderTable();
   }, 20);
@@ -239,6 +252,26 @@ function renderStats() {
   $('stats').innerHTML = cells.map(function (c) {
     return '<div class="stat"><span class="n" style="color:' + (c[2] || 'var(--text)') +
            '">' + c[1] + '</span><span class="l">' + c[0] + '</span></div>';
+  }).join('');
+}
+
+function renderOpenPositions() {
+  var order = ['SEA-CA', 'SEA-FO', 'PDX-CA', 'PDX-FO', 'ANC-CA', 'ANC-FO',
+               'LAX-CA', 'LAX-FO', 'SFO-CA', 'SFO-FO'];
+  var open = order.filter(function (k) { return result.positions[k].open > 0; });
+
+  if (!open.length) {
+    $('openPositionsCard').style.display = 'none';
+    return;
+  }
+  $('openPositionsCard').style.display = 'block';
+  $('openPositionsBody').innerHTML = open.map(function (k) {
+    var p = result.positions[k];
+    return '<tr><td class="pos">737 ' + k.replace('-', ' ') + '</td>' +
+           '<td class="pref">' + p.cap + '</td>' +
+           '<td class="pref">' + p.filled + '</td>' +
+           '<td class="pref" style="color:var(--green);font-weight:600">' + p.open + '</td>' +
+           '<td class="pref">' + (p.minSeniority || '—') + '</td></tr>';
   }).join('');
 }
 
@@ -342,14 +375,13 @@ $('expMaster').onclick = function () {
   var rows = [['Seniority', 'Pilot Name', 'Starting Position', 'Awarded Position',
                'Pref #', 'BPL', 'Result', 'Award Note']];
 
-  var ranks = {};
-  result.roster.forEach(function (p) {
-    if (!p.currentKey) return;
-    ranks[p.currentKey] = (ranks[p.currentKey] || 0) + 1;
-    p._bpl = ranks[p.currentKey];
+  var bplRank = {};
+  Object.keys(result.positions).forEach(function (key) {
+    result.positions[key].holders.forEach(function (h, i) { bplRank[h.sen] = i + 1; });
   });
 
   result.roster.forEach(function (p) {
+    p._bpl = bplRank[p.sen] || '';
     rows.push([
       p.sen, p.name,
       p.orig ? '737 ' + p.orig.replace('-', ' ') : 'N/A',
@@ -366,29 +398,39 @@ $('expMaster').onclick = function () {
 };
 
 // ── Base lists — one sheet per base, CA and FO side by side ───────────────
+// Each column is padded out to full capacity with VACANCY rows, BPL number
+// continuing straight on from the last awarded pilot, so an empty slot's
+// base/seat and rank are as visible as a filled one.
+function bplColumn(key) {
+  var p = result.positions[key];
+  var rows = p.holders.map(function (h, i) { return [i + 1, h.name, h.sen]; });
+  for (var i = p.filled; i < p.cap; i++) rows.push([i + 1, 'VACANCY', '']);
+  return rows;
+}
+
 $('expBase').onclick = function () {
   var baseNames = { ANC: 'Anchorage', SEA: 'Seattle', LAX: 'Los Angeles',
                     SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland' };
   var wb = XLSX.utils.book_new();
 
   ['SEA', 'PDX', 'ANC', 'LAX', 'SFO', 'SAN'].forEach(function (base) {
-    var ca = result.roster.filter(function (p) { return p.currentKey === base + '-CA'; })
-                          .sort(function (a, b) { return a.sen - b.sen; });
-    var fo = result.roster.filter(function (p) { return p.currentKey === base + '-FO'; })
-                          .sort(function (a, b) { return a.sen - b.sen; });
+    var caKey = base + '-CA', foKey = base + '-FO';
+    if (!result.positions[caKey] && !result.positions[foKey]) return;
+    var ca = result.positions[caKey] ? bplColumn(caKey) : [];
+    var fo = result.positions[foKey] ? bplColumn(foKey) : [];
     if (!ca.length && !fo.length) return;
 
     var rows = [
       ['737 ' + (baseNames[base] || base).toUpperCase(), '', '', '', '', ''],
-      ['Captain  (cap ' + (result.targetMap[base + '-CA'] || 0) + ')', '', '',
-       'First Officer  (cap ' + (result.targetMap[base + '-FO'] || 0) + ')', '', ''],
+      ['Captain  (cap ' + (result.targetMap[caKey] || 0) + ', ' +
+        (result.positions[caKey] ? result.positions[caKey].open : 0) + ' open)', '', '',
+       'First Officer  (cap ' + (result.targetMap[foKey] || 0) + ', ' +
+        (result.positions[foKey] ? result.positions[foKey].open : 0) + ' open)', '', ''],
       ['BPL', 'Name', 'Sen', 'BPL', 'Name', 'Sen']
     ];
     for (var i = 0; i < Math.max(ca.length, fo.length); i++) {
-      rows.push([
-        ca[i] ? i + 1 : '', ca[i] ? ca[i].name : '', ca[i] ? ca[i].sen : '',
-        fo[i] ? i + 1 : '', fo[i] ? fo[i].name : '', fo[i] ? fo[i].sen : ''
-      ]);
+      var c = ca[i] || ['', '', ''], f = fo[i] || ['', '', ''];
+      rows.push([c[0], c[1], c[2], f[0], f[1], f[2]]);
     }
     XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, [6, 28, 8, 6, 28, 8]), base);
   });
