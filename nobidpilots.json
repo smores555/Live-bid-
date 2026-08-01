@@ -372,6 +372,12 @@
     "seat": "CA"
   },
   {
+    "sen": 516,
+    "pil": "SKRIVSETH, KRISTOPHER J.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 517,
     "pil": "FRANCIS, MARK",
     "base": "LAX",
@@ -633,6 +639,12 @@
     "sen": 915,
     "pil": "MAHONEY, PATRICK",
     "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 919,
+    "pil": "FRANKLIN, DAVID",
+    "base": "SFO",
     "seat": "CA"
   },
   {
