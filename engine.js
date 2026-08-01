@@ -23,6 +23,9 @@
  *     improve everyone's BPL below them, which can re-qualify a preference
  *     that was BPL-denied earlier. When the upgrade is to the base the
  *     pilot already sits in, the vacancy is "proffered from self".
+ *     The reverse also holds: an ARRIVAL degrades BPL for everyone junior at
+ *     that base/seat, and a BPL-conditional award that no longer qualifies is
+ *     revoked — the pilot re-walks from below the pulled preference.
  *
  *   Phase 2 — Reduction and displacement (CBA 24.E)
  *     Holding your own seat needs no vacancy, so a shrinking base can end
@@ -300,11 +303,15 @@ function runBidEngine(data, deltaMap, options) {
   var deniedAt = {};
   Object.keys(VALID).forEach(function (k) { deniedAt[k] = []; });
 
-  function walkPreferences(p) {
+  // minOrder: when a BPL-conditional award is revoked, the pilot re-walks
+  // from the preference BELOW the one that was pulled. Omit for a fresh walk.
+  function walkPreferences(p, minOrder) {
     var startPos = fmtPos(p.orig);
 
     for (var i = 0; i < p.prefs.length; i++) {
       var pr = p.prefs[i], key = pr.key;
+
+      if (minOrder && pr.order <= minOrder) continue;
 
       if (!key) {
         emit(p, startPos, null, pr.order, 'Denied',
@@ -335,6 +342,7 @@ function runBidEngine(data, deltaMap, options) {
         var res = award(p, key, pr.order, src);
         emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
         if (res.origin) proffer(res.origin);
+        if (!p.isPaper && res.origin !== key) bplRecheck(key, p.sen);
         return true;
       }
 
@@ -376,7 +384,82 @@ function runBidEngine(data, deltaMap, options) {
       var res = award(best, key, bestOrder, src);
       emit(best, fmtPos(best.orig), fmtPos(key), bestOrder, 'Awarded', res.note);
       if (res.origin && res.origin !== key) proffer(res.origin);
+      if (!best.isPaper && res.origin !== key) bplRecheck(key, best.sen);
     }
+  }
+
+  // Does q's CURRENT award at `key` still satisfy its BPL condition?
+  // Returns the offending preference, or null.
+  function bplFails(q, key) {
+    if (!q || !q.processed || q.awardOrder === null || q.loc !== key) return null;
+    for (var j = 0; j < q.prefs.length; j++) {
+      var pr = q.prefs[j];
+      if (pr.order !== q.awardOrder || pr.key !== key) continue;
+      return (pr.bpl && bpl(q, key) > pr.bpl) ? pr : null;
+    }
+    return null;
+  }
+
+  // Pull a BPL-conditional award that no longer qualifies and send the pilot
+  // back down their list from below the preference that was pulled.
+  function revoke(q, pr, key) {
+    emit(q, fmtPos(q.orig), fmtPos(key), pr.order, 'Denied',
+         'Bid request does not meet BPL requirement. Requested BPL = ' + pr.bpl +
+         '. BPL if awarded = ' + bpl(q, key) + '.');
+    deniedAt[key].push(q);
+    q.awardOrder = null;
+
+    if (!walkPreferences(q, pr.order)) {
+      q.awardOrder = pr.order;
+      emit(q, fmtPos(q.orig), fmtPos(key), pr.order, 'Awarded',
+           'No further preferences were available. Remain in current position.');
+    }
+  }
+
+  // A pilot just ENTERED `key`. Every on-manning pilot junior to them there
+  // slipped one BPL slot, so an award already granted on a BPL-conditional
+  // preference may no longer qualify. proffer() above handles the improving
+  // direction (a departure re-qualifies a denied bid); this is the same rule
+  // running the other way, which Phase 1 was previously missing.
+  //
+  // BPL is re-read from live state on every pass, never cached: revoking one
+  // pilot moves them out, which shifts the standings again for everyone below
+  // — and their arrival elsewhere shifts a second base/seat. The loop reruns
+  // until the position is stable. Pass entrantSen = null to sweep every holder.
+  function bplRecheck(key, entrantSen) {
+    var changed = false;
+
+    for (var guard = 0; guard < 20000; guard++) {
+      var victim = null, victimPref = null;
+      var held = holdersAsc(key);           // re-read each pass
+
+      for (var i = 0; i < held.length && !victim; i++) {
+        if (entrantSen !== null && held[i] <= entrantSen) continue;
+        var q = bySen[held[i]];
+        var pr = bplFails(q, key);          // re-evaluated each pass
+        if (pr) { victim = q; victimPref = pr; }
+      }
+
+      if (!victim) return changed;
+      revoke(victim, victimPref, key);      // most senior failing pilot first
+      changed = true;
+    }
+    return changed;
+  }
+
+  // Global fixed point. A revocation at one base/seat lands the pilot at
+  // another, which can tip a pilot there over their own BPL limit, which can
+  // in turn free a slot back at the first. Sweep every position repeatedly
+  // until a full pass changes nothing.
+  function bplSweep() {
+    for (var pass = 0; pass < 200; pass++) {
+      var changed = false;
+      Object.keys(VALID).sort().forEach(function (k) {
+        if (bplRecheck(k, null)) changed = true;
+      });
+      if (!changed) return pass;
+    }
+    return -1;   // did not converge
   }
 
   pilots.forEach(function (p) {
@@ -398,6 +481,13 @@ function runBidEngine(data, deltaMap, options) {
     }
     p.processed = true;
   });
+
+  // Global sweep, OFF by default. bplRecheck() on arrival is the rule the
+  // company actually applies; this sweep re-tests every holder against
+  // end-of-Phase-1 state with no entrant floor, which over-fires — it pulled
+  // sen 1353 (held at exactly his requested BPL, no senior arrival after his
+  // award) and cascaded through five more. Enable only to investigate.
+  var bplPasses = opts.bplGlobalSweep === true ? bplSweep() : null;
 
   var phase1Count = transactions.length;
   var vacAfterPhase1 = {};
@@ -593,6 +683,7 @@ function runBidEngine(data, deltaMap, options) {
       pilots: pilots.length,
       transactions: transactions.length,
       phase1Transactions: phase1Count,
+      bplSweepPasses: bplPasses,
       cascadeLoops: loops,
       awarded: transactions.filter(function (r) { return r.status === 'Awarded'; }).length,
       denied: transactions.filter(function (r) { return r.status === 'Denied'; }).length,
