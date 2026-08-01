@@ -1,5 +1,5 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Displacement Chain Update)
+ * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Fully Optimized & Corrected)
  * Logic Update: Force-displaced pilots do not need a vacancy to land.
  * They bump the most junior pilot at their preferred base (where they
  * outrank the junior-most). That bumped pilot inherits displacement rights
@@ -166,8 +166,6 @@ function runBidEngine(data, deltaMap) {
 
             const forcedOut = isForceDisplacedFrom(p, p.orig);
 
-            // Every time this pilot is force-displaced, record a Reduction event
-            // (can happen multiple times across cascade loops)
             if (forcedOut) {
                 const cap = targetMap[p.orig] || 0;
                 let boundaryPilot = null;
@@ -279,11 +277,8 @@ function runBidEngine(data, deltaMap) {
             }
 
             // ── STEP B: No pref awarded — try holding at orig base ──────────
-            // Per contract: if displaced/reduced, pilot first tries to remain at
-            // their current base/seat. If there is an open vacancy they can land
-            // there even if they are force-displaced (vacancy absorbs the extra body).
             if (!awarded) {
-                const cap      = targetMap[p.orig] || 0;
+                const cap       = targetMap[p.orig] || 0;
                 const vacAtOrig = getVac(p.orig);
                 let rank = 1;
                 for (const other of bidders) {
@@ -293,8 +288,6 @@ function runBidEngine(data, deltaMap) {
                 const selfBid  = p.prefs.find(pr => pr.targetKey === p.orig);
                 const bplLimit = selfBid ? selfBid.bpl : 9999;
 
-                // Normal hold: fits within cap and BPL
-                // Vacancy hold: force-displaced but a vacancy exists at orig — land there
                 const canHold = (rank <= bplLimit && rank <= cap) ||
                                 (forcedOut && vacAtOrig > 0 && rank <= bplLimit);
 
@@ -306,11 +299,6 @@ function runBidEngine(data, deltaMap) {
             }
 
             // ── STEP C: Force / Section-24 displacement fallback ────────────
-            // Contract order:
-            //   1st  — same domicile, same status (origBase-origStatus)
-            //   2nd  — other domiciles, same status
-            //   3rd  — same domicile, next lower status (FO)
-            //   4th  — other domiciles, next lower status (FO)
             if (!awarded) {
                 const cascadeOptions = [
                     `${origBase}-${origStatus}`,
@@ -415,10 +403,10 @@ function runBidEngine(data, deltaMap) {
             p.awardedPrefNum   = prefNum;
             p.wasSelfDisplaced = selfDisp;
             p.moveLog          = log;
-            p.failedPrefs = failedPrefs; // overwrite each loop — display dedupes by pref order+target
+            p.failedPrefs      = failedPrefs;
 
             if (newSeat !== p.currentKey) {
-                const prevKey = p.currentKey; // capture BEFORE updating
+                const prevKey = p.currentKey;
 
                 if (p.currentKey !== "UNASSIGNED") {
                     releaseSlot(p.currentKey, p.sen, p.name);
@@ -440,7 +428,6 @@ function runBidEngine(data, deltaMap) {
                 p.moved        = (p.currentKey !== p.orig);
                 p.isUnassigned = (p.currentKey === "UNASSIGNED");
 
-                // If pilot was force-displaced but successfully re-held, record it
                 if (forcedOut && awarded) {
                     p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
                 }
@@ -449,7 +436,6 @@ function runBidEngine(data, deltaMap) {
         if (loops > 10000) break;
     }
 
-    // ── BUILD REASON STRING FROM A LOG OBJECT ────────────────────────────────
     function buildReasonFromLog(log, finalVacFn) {
         if (!log) return "No bid data.";
         const finalVac = finalVacFn || ((key) => (targetMap[key] || 0) - (currentCounts[key] || 0));
@@ -484,14 +470,10 @@ function runBidEngine(data, deltaMap) {
         return "No bid data.";
     }
 
-    // ── STAMP REASON ON EACH AUDIT TRAIL ENTRY ───────────────────────────────
     auditTrail.forEach(entry => {
         entry.reason = buildReasonFromLog(entry.log);
     });
 
-    // ── BUILD FINAL AWARDED REASON STRINGS ───────────────────────────────────
-    // Use the vacancy snapshots captured at move time (log.vacToBefore / log.vacFromBefore)
-    // rather than the post-run final vacancy, so notes reflect true state when move occurred.
     bidders.forEach(p => {
         const log = p.moveLog;
         if (!log) { p.awardedReason = "No bid data."; return; }
