@@ -161,6 +161,19 @@ var BID_HEADER = 'Awarded May 20, 2026, Seniority based on February 5, 2026, Sen
 var BID_NOTE   = 'Anyone with N/A as their Starting or Bid Position has a Current Position ' +
                  'that no longer exists and will fall under CBA section 24.K upon their return.';
 
+// Position code mapping for exports (legacy format)
+var POS_CODES = {
+  'ANC-CA': 'CA4', 'ANC-FO': 'FA4',
+  'SEA-CA': 'CS4', 'SEA-FO': 'FS4',
+  'PDX-CA': 'CP4', 'PDX-FO': 'FP4',
+  'SFO-CA': 'CF4', 'SFO-FO': 'FF4',
+  'LAX-CA': 'CL4', 'LAX-FO': 'FL4',
+  'SAN-CA': 'CN4', 'SAN-FO': 'FN4'
+};
+
+function posCode(key) { return POS_CODES[key] || ''; }
+function posLong(key) { return key ? '737 ' + key.replace('-', ' ') : ''; }
+
 var store   = null;
 var result  = null;
 var pageSize = 250;
