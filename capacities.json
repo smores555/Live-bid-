@@ -2,8 +2,8 @@
   {
     "base": "ANC",
     "seat": "CA",
-    "startCapacity": 150,
-    "delta": 0
+    "startCapacity": 145,
+    "delta": 5
   },
   {
     "base": "ANC",
