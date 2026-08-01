@@ -65,14 +65,35 @@ function runBidEngine(data, deltaMap, options) {
   function fmtKey(key) { return key ? key.replace('-', ' ') : ''; }
   function fmtPos(key) { return key ? '737 ' + fmtKey(key) : null; }
 
-  // Bids arrive as "SEAT BASE" — e.g. "CA SAN". Anything else (CL3, CF3,
-  // FL3, FF3, blank) refers to a position that no longer exists.
+  // Position code mapping (legacy format used in older bids and some exports)
+  var POSITION_CODES = {
+    'CA4': 'ANC-CA', 'FA4': 'ANC-FO',
+    'CS4': 'SEA-CA', 'FS4': 'SEA-FO',
+    'CP4': 'PDX-CA', 'FP4': 'PDX-FO',
+    'CF4': 'SFO-CA', 'FF4': 'SFO-FO',
+    'CL4': 'LAX-CA', 'FL4': 'LAX-FO',
+    'CN4': 'SAN-CA', 'FN4': 'SAN-FO'
+  };
+
+  // Bids arrive as either:
+  //   Modern: "SEAT BASE" — e.g. "CA SAN" → key "SAN-CA"
+  //   Legacy: Position code — e.g. "CL4" → key "LAX-CA"
+  // Anything unrecognized refers to a position that no longer exists.
   function parseBid(bid) {
     if (!bid) return null;
-    var parts = String(bid).trim().split(/\s+/);
-    if (parts.length !== 2) return null;
-    var key = parts[1] + '-' + parts[0];
-    return VALID[key] ? key : null;
+    bid = String(bid).trim().toUpperCase();
+    
+    // Try legacy code first
+    if (POSITION_CODES[bid]) return POSITION_CODES[bid];
+    
+    // Try modern format
+    var parts = bid.split(/\s+/);
+    if (parts.length === 2) {
+      var key = parts[1] + '-' + parts[0];
+      if (VALID[key]) return key;
+    }
+    
+    return null;
   }
 
   // ── Input ───────────────────────────────────────────────────────────────
