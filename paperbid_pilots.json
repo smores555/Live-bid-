@@ -12,6 +12,12 @@
     "seat": "CA"
   },
   {
+    "sen": 114,
+    "pil": "MARTIN, CHRISTOPHER M.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 165,
     "pil": "RUBIN, SCOTT D.",
     "base": "SEA",
@@ -198,6 +204,12 @@
     "seat": "FO"
   },
   {
+    "sen": 1789,
+    "pil": "CORONADO, ERIC",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
     "sen": 1856,
     "pil": "COYLE, ANDREW",
     "base": "SEA",
@@ -214,6 +226,12 @@
     "pil": "JOHNSON, KYLE",
     "base": "SEA",
     "seat": "CA"
+  },
+  {
+    "sen": 1987,
+    "pil": "GORYUNOVA, OLENA",
+    "base": "LAX",
+    "seat": "FO"
   },
   {
     "sen": 2038,
@@ -264,12 +282,6 @@
     "seat": "FO"
   },
   {
-    "sen": 2463,
-    "pil": "HARRISON, MICHAEL",
-    "base": "SEA",
-    "seat": "FO"
-  },
-  {
     "sen": 2524,
     "pil": "MENDEZ, JASON",
     "base": "SEA",
@@ -307,7 +319,7 @@
   },
   {
     "sen": 2746,
-    "pil": "LEONARD, BENJAMIN",
+    "pil": "LEONARD, BENJAMIN ",
     "base": "ANC",
     "seat": "FO"
   },
