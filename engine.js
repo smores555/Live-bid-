@@ -517,6 +517,25 @@ function runBidEngine(data, deltaMap, options) {
     targetMap[k] = Object.keys(occBid[k]).length + vac[k];
   });
 
+  // Per-position roster in BPL order, with any remaining open slots appended
+  // as VACANCY rows — this is what a "who's holding this base/seat, and how
+  // many openings are left" list needs, on-manning pilots only (BPL population).
+  var positions = {};
+  Object.keys(VALID).forEach(function (key) {
+    var holders = Object.keys(occBid[key]).map(Number).sort(function (a, b) { return a - b; })
+      .map(function (sen) { return { sen: sen, name: bySen[sen].name }; });
+    var open = Math.max(0, vac[key]);
+    positions[key] = {
+      base: key.split('-')[0],
+      seat: key.split('-')[1],
+      cap: targetMap[key],
+      filled: holders.length,
+      open: open,
+      minSeniority: holders.length ? holders[holders.length - 1].sen : null,
+      holders: holders
+    };
+  });
+
   var roster = pilots.map(function (p) {
     var last = p.rows[p.rows.length - 1] || {};
     var wasDisplaced = p.rows.some(function (r) {
@@ -548,6 +567,7 @@ function runBidEngine(data, deltaMap, options) {
     targetMap: targetMap,
     currentCounts: currentCounts,
     startCounts: startCounts,
+    positions: positions,
     stats: {
       pilots: pilots.length,
       transactions: transactions.length,
