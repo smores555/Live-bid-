@@ -12,8 +12,20 @@
     "seat": "CA"
   },
   {
+    "sen": 5,
+    "pil": "MILES, MICHELLE",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 7,
     "pil": "CAGLEY, STEVEN O.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 10,
+    "pil": "GARRETT, GEOFFREY",
     "base": "SEA",
     "seat": "CA"
   },
@@ -22,6 +34,18 @@
     "pil": "LAMMERS, MICHAEL G.",
     "base": "SEA",
     "seat": "CA"
+  },
+  {
+    "sen": 15,
+    "pil": "VYSKOCIL, GLENN",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 26,
+    "pil": "LOVE, FRANK",
+    "base": "SEA",
+    "seat": "FO"
   },
   {
     "sen": 27,
@@ -39,6 +63,12 @@
     "sen": 32,
     "pil": "DUNHAM, KENNETH G.",
     "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 42,
+    "pil": "OSBORNE, J. BRYAN",
+    "base": "SEA",
     "seat": "CA"
   },
   {
@@ -84,6 +114,24 @@
     "seat": "CA"
   },
   {
+    "sen": 101,
+    "pil": "DEWEY, MARK",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
+    "sen": 116,
+    "pil": "McLAUGHLIN, CHRISTIAN",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 117,
+    "pil": "DUETTRA, MICHAEL",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
     "sen": 118,
     "pil": "ROBINSON, MARK L.",
     "base": "SEA",
@@ -120,6 +168,12 @@
     "seat": "CA"
   },
   {
+    "sen": 145,
+    "pil": "BEARD, BOBBY",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 149,
     "pil": "NADDEF, MICHAEL S.",
     "base": "PDX",
@@ -144,6 +198,12 @@
     "seat": "CA"
   },
   {
+    "sen": 202,
+    "pil": "MOFFAT, JAMES",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
     "sen": 213,
     "pil": "CARY, SCOTT A.",
     "base": "SEA",
@@ -164,6 +224,12 @@
   {
     "sen": 227,
     "pil": "HUTSON, SANDRA E.",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
+    "sen": 232,
+    "pil": "GEIGER, MICHAEL",
     "base": "PDX",
     "seat": "CA"
   },
@@ -198,6 +264,12 @@
     "seat": "CA"
   },
   {
+    "sen": 292,
+    "pil": "SOLANDROS, CHRIS",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 294,
     "pil": "PARTLOW, LEE",
     "base": "LAX",
@@ -224,6 +296,12 @@
   {
     "sen": 323,
     "pil": "SHEEHY, BRIAN",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
+    "sen": 327,
+    "pil": "FRIDLUND, JAY",
     "base": "LAX",
     "seat": "CA"
   },
@@ -258,6 +336,24 @@
     "seat": "CA"
   },
   {
+    "sen": 359,
+    "pil": "BENNER, ROE",
+    "base": "ANC",
+    "seat": "CA"
+  },
+  {
+    "sen": 369,
+    "pil": "CAWLEY, JEFFREY",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 372,
+    "pil": "QUIETT, AARON",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
     "sen": 375,
     "pil": "ROTH, DAVID L.",
     "base": "SEA",
@@ -276,9 +372,21 @@
     "seat": "CA"
   },
   {
+    "sen": 399,
+    "pil": "FELDHEIM, GREGORY",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
     "sen": 408,
     "pil": "HOFFMAN, PATTI",
     "base": "LAX",
+    "seat": "CA"
+  },
+  {
+    "sen": 421,
+    "pil": "OLSON, KURT",
+    "base": "PDX",
     "seat": "CA"
   },
   {
@@ -396,6 +504,12 @@
     "seat": "CA"
   },
   {
+    "sen": 536,
+    "pil": "KOONTZ, GREGORY",
+    "base": "LAX",
+    "seat": "CA"
+  },
+  {
     "sen": 554,
     "pil": "CORNWELL, THOMAS G.",
     "base": "SEA",
@@ -426,6 +540,18 @@
     "seat": "CA"
   },
   {
+    "sen": 630,
+    "pil": "SENIOR, MELINDA",
+    "base": "SFO",
+    "seat": "CA"
+  },
+  {
+    "sen": 632,
+    "pil": "BALL, ANTHONY",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
     "sen": 633,
     "pil": "AMICO, DENNIS M.",
     "base": "SEA",
@@ -434,6 +560,12 @@
   {
     "sen": 636,
     "pil": "WARREN, STEPHEN J.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 643,
+    "pil": "THOMPSON, GARTH",
     "base": "SEA",
     "seat": "CA"
   },
@@ -506,6 +638,12 @@
   {
     "sen": 728,
     "pil": "BAUMAN, KARL G.",
+    "base": "SEA",
+    "seat": "CA"
+  },
+  {
+    "sen": 746,
+    "pil": "SANNES, LOWELL",
     "base": "SEA",
     "seat": "CA"
   },
@@ -666,6 +804,12 @@
     "seat": "CA"
   },
   {
+    "sen": 945,
+    "pil": "FRANKLIN, DAVID",
+    "base": "SFO",
+    "seat": "CA"
+  },
+  {
     "sen": 967,
     "pil": "CARROLL, JAMES R.",
     "base": "SEA",
@@ -684,10 +828,22 @@
     "seat": "CA"
   },
   {
+    "sen": 1011,
+    "pil": "POTTER, ROY",
+    "base": "SFO",
+    "seat": "CA"
+  },
+  {
     "sen": 1015,
     "pil": "HARRILL, EDWARD",
     "base": "SFO",
     "seat": "FO"
+  },
+  {
+    "sen": 1028,
+    "pil": "JOHNSON, ANDREW",
+    "base": "SEA",
+    "seat": "CA"
   },
   {
     "sen": 1031,
@@ -888,6 +1044,12 @@
     "seat": "FO"
   },
   {
+    "sen": 1439,
+    "pil": "BENEDETTI, MICHAEL",
+    "base": "PDX",
+    "seat": "CA"
+  },
+  {
     "sen": 1443,
     "pil": "PARSONS, DAVID",
     "base": "SEA",
@@ -946,6 +1108,12 @@
     "pil": "SKENFIELD, WESLEY",
     "base": "SEA",
     "seat": "FO"
+  },
+  {
+    "sen": 1704,
+    "pil": "KOUNEEV, DIMETRY",
+    "base": "SEA",
+    "seat": "CA"
   },
   {
     "sen": 1759,
@@ -1418,6 +1586,12 @@
   {
     "sen": 3226,
     "pil": "KELLY, KEVIN",
+    "base": "SEA",
+    "seat": "FO"
+  },
+  {
+    "sen": 3234,
+    "pil": "KOGLMEIER, STEVEN",
     "base": "SEA",
     "seat": "FO"
   },
