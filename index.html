@@ -187,14 +187,14 @@ window.addEventListener('DOMContentLoaded', function () {
                   'retired_pilots.json', 'nobidpilots.json'];
 
   Promise.all(required.map(function (f) {
-    return fetch(f).then(function (r) {
+    return fetch(f, { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error(f + ' — ' + r.status);
       return r.json();
     });
   })).then(function (res) {
     // Paper bidders are optional: without the file every off-manning pilot is
     // treated as a straight no-bid, which shifts vacancy counts.
-    return fetch('paperbid_pilots.json')
+    return fetch('paperbid_pilots.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : []; })
       .catch(function () { return []; })
       .then(function (paper) {
