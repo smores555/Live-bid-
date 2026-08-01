@@ -1,16 +1,13 @@
 /**
- * AIRLINE BID ENGINE - LIVE LEDGER EDITION (Fully Optimized & Corrected)
- * Logic Update: Force-displaced pilots do not need a vacancy to land.
- * They bump the most junior pilot at their preferred base (where they
- * outrank the junior-most). That bumped pilot inherits displacement rights
- * and cascades the same way. Voluntary preference failures still require
- * vacancies as before.
+ * AIRLINE BID ENGINE - 3-PHASE SECTION 24 CASCADE EDITION
+ * Phase 1: Vacancy Fill (Positive Deltas Only)
+ * Phase 2: System Reductions (Apply Negative Deltas, Force Out Juniors)
+ * Phase 3: Displacement Rights (Section 24 Bumps & Fallbacks)
  */
 function runBidEngine(data, deltaMap) {
     const auditTrail = [];
     const is737 = (p) => p.current && p.current.equip === "737";
 
-    // ── FIXED PILOT EXCLUSION LOGIC ──────────────────────────────────────────
     const retiredSens = new Set(data.retired.map(p => p.sen || p.seniority));
     const noBidSens   = new Set(data.noBid.map(p => p.sen || p.seniority));
 
@@ -18,73 +15,39 @@ function runBidEngine(data, deltaMap) {
         is737(p) && !retiredSens.has(p.sen) && !noBidSens.has(p.sen)
     );
 
-    // ── LABEL HELPERS ────────────────────────────────────────────────────────
-    const baseNames = {
-        ANC: 'Anchorage', SEA: 'Seattle',      LAX: 'Los Angeles',
-        SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland'
-    };
+    const baseNames = { ANC: 'Anchorage', SEA: 'Seattle', LAX: 'Los Angeles', SAN: 'San Diego', SFO: 'San Francisco', PDX: 'Portland' };
     const seatNames = { CA: 'Captain', FO: 'First Officer' };
 
-    function keyLabel(key) {
-        const [base, seat] = (key || '').split('-');
-        return `${base} ${seat}`;
-    }
-
+    function keyLabel(key) { return key ? key.replace('-', ' ') : ''; }
     function posLabel(key) {
         const [base, seat] = (key || '').split('-');
         return `${baseNames[base] || base} ${seatNames[seat] || seat}`;
     }
 
-    let slotSources = {};
-
-    function consumeSlot(key) {
-        if (!slotSources[key]) slotSources[key] = [];
-        return slotSources[key].length > 0
-            ? slotSources[key].shift()
-            : { type: 'vacancy', label: 'retirement / system reduction' };
-    }
-
-    function releaseSlot(key, pilotSen, pilotName) {
-        if (!slotSources[key]) slotSources[key] = [];
-        slotSources[key].push({ type: 'pilot', sen: pilotSen, name: pilotName });
-    }
-
-    function fmtSource(src) {
-        if (!src) return 'Source unknown.';
-        if (src.type === 'pilot') return `Proffered from Sen #${src.sen} - ${src.name}.`;
-        return `Open position available (${src.label}).`;
-    }
-
-    // ── HEADCOUNT & TARGET MAP ───────────────────────────────────────────────
     let liveHeadcount = {};
     activeBidders.forEach(p => {
         const key = `${p.current.base}-${p.current.seat}`.toUpperCase();
         liveHeadcount[key] = (liveHeadcount[key] || 0) + 1;
     });
 
-    let targetMap = {};
+    let targetMap = {}; 
+    let vacMap = {};    
+    
     Object.keys(liveHeadcount).forEach(key => {
         targetMap[key] = liveHeadcount[key] + (deltaMap[key] || 0);
+        vacMap[key] = liveHeadcount[key] + Math.max(0, deltaMap[key] || 0);
     });
     data.caps.forEach(c => {
         const key = `${c.base}-${c.seat}`.toUpperCase();
         if (targetMap[key] === undefined) {
             targetMap[key] = c.startCapacity + (deltaMap[key] || 0);
-        }
-    });
-
-    Object.keys(targetMap).forEach(key => {
-        const preExisting = (targetMap[key] || 0) - (liveHeadcount[key] || 0);
-        slotSources[key] = [];
-        for (let i = 0; i < preExisting; i++) {
-            slotSources[key].push({ type: 'vacancy', label: 'retirement / system reduction' });
+            vacMap[key] = c.startCapacity + Math.max(0, deltaMap[key] || 0);
         }
     });
 
     let currentCounts = { ...liveHeadcount };
-    const getVac = (key) => (targetMap[key] || 0) - (currentCounts[key] || 0);
+    const getVac = (key, map) => (map[key] || 0) - (currentCounts[key] || 0);
 
-    // ── BUILD BIDDER LIST ────────────────────────────────────────────────────
     const bidders = activeBidders.map(p => {
         const prefData  = data.prefs['pil' + p.sen] || data.prefs[p.id] || { preferences: [] };
         const pilotOrig = `${p.current.base}-${p.current.seat}`.toUpperCase();
@@ -121,78 +84,27 @@ function runBidEngine(data, deltaMap) {
         };
     }).sort((a, b) => a.sen - b.sen);
 
-    // ── HELPER: is pilot force-displaced from their current base? ────────────
-    function isForceDisplacedFrom(pilot, key) {
-        const cap = targetMap[key] || 0;
-        let rank = 1;
-        for (const other of bidders) {
-            if (other.sen >= pilot.sen) break;
-            if (other.currentKey === key) rank++;
-        }
-        return rank > cap;
-    }
-
-    // ── HELPER: find the most junior pilot currently at a key ────────────────
     function mostJuniorAt(key, excludeSen) {
-        let junior = null;
-        for (const other of bidders) {
-            if (other.currentKey === key && other.sen !== excludeSen) {
-                if (!junior || other.sen > junior.sen) {
-                    junior = other;
-                }
-            }
+        for (let i = bidders.length - 1; i >= 0; i--) {
+            if (bidders[i].currentKey === key && bidders[i].sen !== excludeSen) return bidders[i];
         }
-        return junior;
+        return null;
     }
 
-    // ── MAIN CASCADE LOOP ────────────────────────────────────────────────────
-    let cascade = true;
-    let loops   = 0;
+    let loops = 0;
 
-    while (cascade) {
-        cascade = false;
+    // ── PHASE 1: VACANCY RUN ─────────────────────────────────────────────────
+    let cascadePhase1 = true;
+    while (cascadePhase1 && loops < 1000) {
+        cascadePhase1 = false;
         loops++;
-        const bumpedThisLoop = new Set();
 
         for (let i = 0; i < bidders.length; i++) {
             const p = bidders[i];
-            let awarded      = false;
-            let newSeat      = null;
-            let log          = null;
-            let prefNum      = "N/A";
-            let selfDisp     = false;
-            let failedPrefs  = [];
-            const [origBase, origStatus] = p.orig.split('-');
 
-            const forcedOut = isForceDisplacedFrom(p, p.orig);
-
-            if (forcedOut) {
-                const cap = targetMap[p.orig] || 0;
-                let boundaryPilot = null;
-                let count = 0;
-                for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.orig) {
-                        count++;
-                        if (count === cap) { boundaryPilot = other; break; }
-                    }
-                }
-                if (!boundaryPilot) {
-                    for (const other of bidders) {
-                        if (other.sen >= p.sen) break;
-                        if (other.currentKey === p.orig) boundaryPilot = other;
-                    }
-                }
-                const minSen = boundaryPilot ? boundaryPilot.sen : p.sen;
-                const alreadyRecorded = p.reductionEvents.some(e => e.fromKey === p.orig);
-                if (!alreadyRecorded) p.reductionEvents.push({ fromKey: p.orig, minSen, loop: loops });
-            }
-
-            // ── STEP A: Work through submitted preferences ──────────────────
             for (const pr of p.prefs) {
                 if (!pr.targetKey) continue;
-                const targetKey  = pr.targetKey;
-                const cap        = targetMap[targetKey] || 0;
+                const targetKey = pr.targetKey;
                 const isMovingIn = (p.currentKey !== targetKey);
 
                 let rank = 1;
@@ -201,283 +113,238 @@ function runBidEngine(data, deltaMap) {
                     if (other.currentKey === targetKey) rank++;
                 }
 
-                let vacancyOk;
-                if (forcedOut && isMovingIn) {
-                    const junior = mostJuniorAt(targetKey, p.sen);
-                    vacancyOk = getVac(targetKey) > 0 || (junior !== null && p.sen < junior.sen);
-                } else {
-                    vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
+                if (rank > pr.bpl || rank > vacMap[targetKey]) {
+                    p.failedPrefs.push({ order: pr.order, targetKey, reason: 'Does not meet BPL or Capacity requirement.', loop: loops });
+                    continue;
                 }
 
-                if (rank > pr.bpl) {
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Bid request does not meet BPL requirement. Requested BPL = ${pr.bpl}. BPL if awarded = ${rank}.`, status: 'Denied', denialType: 'bpl', loop: loops });
-                } else if (rank > cap) {
-                    const vac = getVac(targetKey);
-                    const msg = vac <= 0
-                        ? `Requested position has 0 vacancy and cannot accept additional pilots.`
-                        : `Seniority is not high enough to hold position. Minimum position seniority is ${cap}.`;
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: msg, status: 'Denied', loop: loops });
-                } else if (isMovingIn && !vacancyOk) {
-                    failedPrefs.push({ order: pr.order, targetKey, fromKey: p.currentKey, reason: `Requested position has 0 vacancy and cannot accept additional pilots.`, status: 'Denied', loop: loops });
+                if (isMovingIn && getVac(targetKey, vacMap) <= 0) {
+                    p.failedPrefs.push({ order: pr.order, targetKey, reason: 'Requested position has 0 vacancy and cannot accept additional pilots.', loop: loops });
+                    continue;
                 }
 
-                if (rank <= pr.bpl && rank <= cap && vacancyOk) {
-                    newSeat = targetKey;
-                    prefNum = pr.order;
-                    awarded = true;
-
-                    if (isMovingIn) {
-                        const hasVac = getVac(targetKey) > 0;
-                        let bumpedPilot = null;
-
-                        if (forcedOut && !hasVac) {
-                            bumpedPilot = mostJuniorAt(targetKey, p.sen);
-                            if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
-                            if (bumpedPilot) {
-                                bumpedPilot.isForceDisplaced = true;
-                                bumpedThisLoop.add(bumpedPilot.sen);
-                            }
-                            log = {
-                                step: 'A',
-                                prefOrder: pr.order,
-                                fromKey: p.currentKey,
-                                toKey: targetKey,
-                                vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
-                                source: bumpedPilot
-                                    ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
-                                    : { type: 'vacancy', label: 'retirement / system reduction' },
-                                displacementBump: !!bumpedPilot,
-                                bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
-                                forcedOut
-                            };
-                        } else {
-                            const src = consumeSlot(targetKey);
-                            log = {
-                                step: 'A',
-                                prefOrder: pr.order,
-                                fromKey: p.currentKey,
-                                toKey: targetKey,
-                                vacFromBefore: getVac(p.currentKey),
-                                vacToBefore: getVac(targetKey),
-                                source: src,
-                                displacementBump: false,
-                                forcedOut
-                            };
-                        }
-                    } else {
-                        if (p.orig === targetKey) {
-                            log = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut };
-                        } else {
-                            log = p.moveLog;
-                        }
-                    }
-                    break;
+                if (isMovingIn) {
+                    const prevKey = p.currentKey;
+                    currentCounts[prevKey]--;
+                    currentCounts[targetKey]++;
+                    p.currentKey = targetKey;
+                    
+                    p.moveLog = {
+                        step: 'A', prefOrder: pr.order, fromKey: prevKey, toKey: targetKey,
+                        vacFromBefore: getVac(prevKey, vacMap)-1, vacToBefore: getVac(targetKey, vacMap)+1,
+                        source: { type: 'vacancy', label: 'open vacancy' },
+                        displacementBump: false, forcedOut: false
+                    };
+                    p.awardedPrefNum = pr.order;
+                    cascadePhase1 = true;
+                    auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: prevKey, to: targetKey, log: p.moveLog });
+                } else if (p.currentKey === p.orig && !p.moveLog) {
+                    p.moveLog = { step: 'A', prefOrder: pr.order, fromKey: null, toKey: targetKey, stayed: true, forcedOut: false };
                 }
+                break;
             }
+            if (cascadePhase1) break; 
+        }
+    }
 
-            // ── STEP B: No pref awarded — try holding at orig base ──────────
-            if (!awarded) {
-                const cap       = targetMap[p.orig] || 0;
-                const vacAtOrig = getVac(p.orig);
+    // ── PHASE 2: REDUCTIONS ──────────────────────────────────────────────────
+    const overages = {};
+    Object.keys(targetMap).forEach(key => {
+        const excess = currentCounts[key] - targetMap[key];
+        if (excess > 0) overages[key] = excess;
+    });
+
+    Object.keys(overages).forEach(key => {
+        let toRemove = overages[key];
+        for (let i = bidders.length - 1; i >= 0 && toRemove > 0; i--) {
+            const p = bidders[i];
+            if (p.currentKey === key) {
+                p.isForceDisplaced = true;
+                p.reductionEvents.push({ fromKey: key, minSen: p.sen, loop: loops });
+                toRemove--;
+            }
+        }
+    });
+
+    // ── PHASE 3: DISPLACEMENT / BUMP LOOP ────────────────────────────────────
+    let cascadePhase3 = true;
+    while (cascadePhase3 && loops < 5000) {
+        cascadePhase3 = false;
+        loops++;
+
+        for (let i = 0; i < bidders.length; i++) {
+            const p = bidders[i];
+            if (!p.isForceDisplaced) continue;
+
+            let awarded = false;
+            let newSeat = null;
+            let bumpedPilot = null;
+            let log = null;
+            let prefNum = "N/A";
+
+            // Step A: Voluntary Prefs w/ Bump Rights
+            for (const pr of p.prefs) {
+                if (!pr.targetKey) continue;
+                const targetKey = pr.targetKey;
+                const isMovingIn = (p.currentKey !== targetKey);
+
                 let rank = 1;
                 for (const other of bidders) {
                     if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.orig) rank++;
+                    if (other.currentKey === targetKey) rank++;
                 }
-                const selfBid  = p.prefs.find(pr => pr.targetKey === p.orig);
+
+                const hasVac = getVac(targetKey, targetMap) > 0;
+                const junior = mostJuniorAt(targetKey, p.sen);
+                const canBump = junior !== null && p.sen < junior.sen;
+
+                if (rank > pr.bpl) {
+                    p.failedPrefs.push({ order: pr.order, targetKey, reason: 'Does not meet BPL requirement.', loop: loops });
+                    continue;
+                }
+                
+                if (!hasVac && !canBump) {
+                    p.failedPrefs.push({ order: pr.order, targetKey, reason: 'Requested position has 0 vacancy and cannot accept additional pilots.', loop: loops });
+                    continue;
+                }
+
+                newSeat = targetKey;
+                prefNum = pr.order;
+                awarded = true;
+
+                if (isMovingIn) {
+                    if (!hasVac && canBump) {
+                        bumpedPilot = junior;
+                        bumpedPilot.isForceDisplaced = true;
+                    }
+                }
+
+                log = {
+                    step: 'A', prefOrder: pr.order, fromKey: p.currentKey, toKey: targetKey,
+                    vacFromBefore: getVac(p.currentKey, targetMap), vacToBefore: getVac(targetKey, targetMap),
+                    source: bumpedPilot ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name } : { type: 'vacancy', label: 'system vacancy' },
+                    displacementBump: !!bumpedPilot, bumpedSen: bumpedPilot ? bumpedPilot.sen : null, forcedOut: true
+                };
+                break;
+            }
+
+            // Step B: Hold Orig
+            if (!awarded) {
+                const targetKey = p.orig;
+                const hasVac = getVac(targetKey, targetMap) > 0;
+                const junior = mostJuniorAt(targetKey, p.sen);
+                const canBump = junior !== null && p.sen < junior.sen;
+
+                let rank = 1;
+                for (const other of bidders) {
+                    if (other.sen >= p.sen) break;
+                    if (other.currentKey === targetKey) rank++;
+                }
+                const selfBid = p.prefs.find(pr => pr.targetKey === targetKey);
                 const bplLimit = selfBid ? selfBid.bpl : 9999;
 
-                const canHold = (rank <= bplLimit && rank <= cap) ||
-                                (forcedOut && vacAtOrig > 0 && rank <= bplLimit);
-
-                if (canHold) {
-                    newSeat = p.orig;
+                if (rank <= bplLimit && (hasVac || canBump)) {
+                    newSeat = targetKey;
                     awarded = true;
-                    log = { step: 'B', fromKey: null, toKey: p.orig, stayed: true, forcedOut };
+                    if (!hasVac && canBump) {
+                        bumpedPilot = junior;
+                        bumpedPilot.isForceDisplaced = true;
+                    }
+                    log = { step: 'B', fromKey: p.currentKey, toKey: targetKey, stayed: true, forcedOut: true, displacementBump: !!bumpedPilot };
                 }
             }
 
-            // ── STEP C: Force / Section-24 displacement fallback ────────────
+            // Step C: Section 24 Fallback Options
             if (!awarded) {
+                const [origBase, origStatus] = p.orig.split('-');
                 const cascadeOptions = [
                     `${origBase}-${origStatus}`,
-                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
-                        .filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
+                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'].filter(b => b !== origBase).map(b => `${b}-${origStatus}`),
                     `${origBase}-FO`,
-                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX']
-                        .filter(b => b !== origBase).map(b => `${b}-FO`)
+                    ...['ANC', 'SEA', 'LAX', 'SAN', 'SFO', 'PDX'].filter(b => b !== origBase).map(b => `${b}-FO`)
                 ];
 
                 for (const targetKey of cascadeOptions) {
                     if (targetMap[targetKey] === undefined) continue;
-                    const cap        = targetMap[targetKey] || 0;
-                    const isMovingIn = (p.currentKey !== targetKey);
+                    
+                    const hasVac = getVac(targetKey, targetMap) > 0;
+                    const junior = mostJuniorAt(targetKey, p.sen);
+                    const canBump = junior !== null && p.sen < junior.sen;
 
-                    let rank = 1;
-                    for (const other of bidders) {
-                        if (other.sen >= p.sen) break;
-                        if (other.currentKey === targetKey) rank++;
-                    }
-
-                    let vacancyOk;
-                    if (forcedOut && isMovingIn) {
-                        const junior = mostJuniorAt(targetKey, p.sen);
-                        vacancyOk = getVac(targetKey) > 0 || (junior !== null && p.sen < junior.sen);
-                    } else {
-                        vacancyOk = isMovingIn ? getVac(targetKey) > 0 : true;
-                    }
-
-                    if (rank <= cap && vacancyOk) {
+                    if (hasVac || canBump) {
                         newSeat = targetKey;
                         awarded = true;
-
-                        if (isMovingIn) {
-                            const hasVac = getVac(targetKey) > 0;
-                            let bumpedPilot = null;
-
-                            if (forcedOut && !hasVac) {
-                                bumpedPilot = mostJuniorAt(targetKey, p.sen);
-                                if (bumpedPilot && bumpedThisLoop.has(bumpedPilot.sen)) bumpedPilot = null;
-                                if (bumpedPilot) {
-                                    bumpedPilot.isForceDisplaced = true;
-                                    bumpedThisLoop.add(bumpedPilot.sen);
-                                }
-                                log = {
-                                    step: 'C',
-                                    fromKey: p.currentKey,
-                                    toKey: targetKey,
-                                    vacFromBefore: getVac(p.currentKey),
-                                    vacToBefore: getVac(targetKey),
-                                    source: bumpedPilot
-                                        ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name }
-                                        : { type: 'vacancy', label: 'retirement / system reduction' },
-                                    displacementBump: !!bumpedPilot,
-                                    bumpedSen: bumpedPilot ? bumpedPilot.sen : null,
-                                    forcedOut
-                                };
-                            } else {
-                                const src = consumeSlot(targetKey);
-                                log = {
-                                    step: 'C',
-                                    fromKey: p.currentKey,
-                                    toKey: targetKey,
-                                    vacFromBefore: getVac(p.currentKey),
-                                    vacToBefore: getVac(targetKey),
-                                    source: src,
-                                    displacementBump: false,
-                                    forcedOut
-                                };
-                            }
-                        } else {
-                            log = p.moveLog;
+                        if (!hasVac && canBump) {
+                            bumpedPilot = junior;
+                            bumpedPilot.isForceDisplaced = true;
                         }
+                        log = {
+                            step: 'C', fromKey: p.currentKey, toKey: targetKey,
+                            vacFromBefore: getVac(p.currentKey, targetMap), vacToBefore: getVac(targetKey, targetMap),
+                            source: bumpedPilot ? { type: 'pilot', sen: bumpedPilot.sen, name: bumpedPilot.name } : { type: 'vacancy', label: 'system vacancy' },
+                            displacementBump: !!bumpedPilot, bumpedSen: bumpedPilot ? bumpedPilot.sen : null, forcedOut: true
+                        };
                         break;
                     }
                 }
             }
 
-            // ── STEP D: Truly unassigned ─────────────────────────────────────
+            // Step D: Unassigned
             if (!awarded) {
                 newSeat = "UNASSIGNED";
-                let rank = 1;
-                for (const other of bidders) {
-                    if (other.sen >= p.sen) break;
-                    if (other.currentKey === p.orig) rank++;
-                }
-                const selfBid = p.prefs.find(pr => pr.targetKey === p.orig);
-                selfDisp = selfBid && rank > selfBid.bpl;
-                log = {
-                    step: 'D',
-                    fromKey: p.currentKey,
-                    toKey: 'UNASSIGNED',
-                    vacFromBefore: getVac(p.currentKey),
-                    selfDisp,
-                    forcedOut,
-                    bplRank: rank,
-                    bplLimit: selfBid ? selfBid.bpl : null,
-                    origKey: p.orig
-                };
+                log = { step: 'D', fromKey: p.currentKey, toKey: 'UNASSIGNED', forcedOut: true, selfDisp: false };
             }
 
-            p.awardedPrefNum   = prefNum;
-            p.wasSelfDisplaced = selfDisp;
-            p.moveLog          = log;
-            p.failedPrefs      = failedPrefs;
+            p.awardedPrefNum = prefNum;
+            p.moveLog = log;
+            p.isForceDisplaced = false;
 
             if (newSeat !== p.currentKey) {
                 const prevKey = p.currentKey;
-
-                if (p.currentKey !== "UNASSIGNED") {
-                    releaseSlot(p.currentKey, p.sen, p.name);
-                    currentCounts[p.currentKey]--;
-                }
-                if (newSeat !== "UNASSIGNED") {
-                    currentCounts[newSeat] = (currentCounts[newSeat] || 0) + 1;
-                }
-
-                p.currentKey   = newSeat;
-                p.moved        = (newSeat !== p.orig);
-                p.isUnassigned = (newSeat === "UNASSIGNED");
-
+                if (prevKey !== "UNASSIGNED") currentCounts[prevKey]--;
+                if (newSeat !== "UNASSIGNED") currentCounts[newSeat]++;
+                
+                p.currentKey = newSeat;
                 auditTrail.push({ loop: loops, sen: p.sen, name: p.name, from: prevKey, to: newSeat, log });
-
-                cascade = true;
-                break;
+                cascadePhase3 = true; 
+                break; 
             } else {
-                p.moved        = (p.currentKey !== p.orig);
-                p.isUnassigned = (p.currentKey === "UNASSIGNED");
-
-                if (forcedOut && awarded) {
-                    p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
-                }
+                p.reHoldEvents.push({ loop: loops, key: p.currentKey, log });
             }
         }
-        if (loops > 10000) break;
     }
 
-    function buildReasonFromLog(log, finalVacFn) {
+    // ── FINAL LOGGING & REASON BUILDER ───────────────────────────────────────
+    function fmtSource(src) {
+        if (!src) return 'Source unknown.';
+        if (src.type === 'pilot') return `Proffered from Sen #${src.sen} - ${src.name}.`;
+        return `Open position available (${src.label}).`;
+    }
+
+    function buildReasonFromLog(log) {
         if (!log) return "No bid data.";
-        const finalVac = finalVacFn || ((key) => (targetMap[key] || 0) - (currentCounts[key] || 0));
-        const bumpNote = (log.displacementBump && log.bumpedSen)
-            ? ` Bumped Sen #${log.bumpedSen} (displacement chain).`
-            : '';
-        const sec24Prefix = log.forcedOut ? `Section 24 Displacement \u2014 ` : '';
+        const bumpNote = (log.displacementBump && log.bumpedSen) ? ` Displace Sen #${log.bumpedSen}.` : '';
+        const sec24Prefix = log.forcedOut ? `Award due to Reduction/Displacement \u2014 ` : '';
 
         if (log.step === 'A' && !log.stayed) {
-            const line1 = `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
-            const line2 = log.displacementBump
-                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
-                : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
-            return line1 + '\n' + line2;
+            return `${sec24Prefix}Awarded Pref #${log.prefOrder} \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
         } else if (log.step === 'A' && log.stayed) {
             return `Remain in current position.`;
         } else if (log.step === 'B') {
             return `Remain in current position.`;
         } else if (log.step === 'C') {
-            const line1 = `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
-            const line2 = log.displacementBump
-                ? `Displacement move \u2014 no vacancy consumed in ${keyLabel(log.toKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`
-                : `Reduce vacancy in ${keyLabel(log.toKey)} from ${log.vacToBefore} to ${log.vacToBefore - 1}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
-            return line1 + '\n' + line2;
+            return `Section 24 Displacement \u2014 ${posLabel(log.toKey)}. ${fmtSource(log.source)}${bumpNote}`;
         } else if (log.step === 'D') {
-            if (log.selfDisp) {
-                return `BPL Failure \u2014 Rank ${log.bplRank} exceeds BPL limit of ${log.bplLimit} for ${posLabel(log.origKey)}. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
-            } else {
-                return `Displaced: No position available \u2014 system-wide reduction. Increase vacancy in ${keyLabel(log.fromKey)} from ${log.vacFromBefore} to ${log.vacFromBefore + 1}.`;
-            }
+            return log.selfDisp ? `BPL Failure.` : `Could not hold base with seniority. Displaced.`;
         }
         return "No bid data.";
     }
 
-    auditTrail.forEach(entry => {
-        entry.reason = buildReasonFromLog(entry.log);
-    });
-
+    auditTrail.forEach(entry => entry.reason = buildReasonFromLog(entry.log));
     bidders.forEach(p => {
-        const log = p.moveLog;
-        if (!log) { p.awardedReason = "No bid data."; return; }
-        p.awardedReason = buildReasonFromLog(log);
+        p.moved = p.currentKey !== p.orig;
+        p.isUnassigned = p.currentKey === "UNASSIGNED";
+        p.awardedReason = buildReasonFromLog(p.moveLog) || (p.moved ? "Awarded" : "Remain in current position.");
     });
 
     return { roster: bidders, loops, auditTrail, targetMap };
