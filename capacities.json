@@ -24,8 +24,7 @@
     "base": "LAX",
     "seat": "FO",
     "startCapacity": 230,
-    "delta": -26,
-    "initialVacancy": -16,
+    "delta": -16,
     "maxCapacity": 204
   },
   {
@@ -53,8 +52,7 @@
     "base": "SFO",
     "seat": "FO",
     "startCapacity": 194,
-    "delta": -23,
-    "initialVacancy": 7,
+    "delta": 7,
     "maxCapacity": 171
   },
   {
