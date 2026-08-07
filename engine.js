@@ -31,6 +31,17 @@
  *     to hold the position, bumping the junior pilot there. Displaced
  *     pilots re-enter the queue, most senior first, until it drains.
  *
+ * POSITION FREEZE (CBA 24.D — freeze.json)
+ *   A pilot who changed equipment, downgraded, or came out of training carries
+ *   a freeze for a fixed term. While it is live the pilot still bids, but some
+ *   targets are invalid for them. Default rule set:
+ *     - blockUpgrade    (on)  — an FO cannot bid CA. This is the 24.D.3 case.
+ *     - blockBaseChange (off) — the pilot MAY move base in the same seat.
+ *     - blockDowngrade  (off) — a CA may bid FO.
+ *   A freeze whose freezeEnd falls on or before the bid effective date has
+ *   expired and is not enforced. Freeze denials are logged like any other
+ *   denial and never consume vacancy.
+ *
  * OFF-MANNING PILOTS
  *   Two distinct groups, both excluded from BPL and from manning counts:
  *     - No-bid    (nobidpilots.json)     — do not bid; stay put.
@@ -109,6 +120,85 @@ function runBidEngine(data, deltaMap, options) {
   // A pilot listed in both files is a paper bidder — they do bid.
   Object.keys(paperSet).forEach(function (s) { delete noBidSet[s]; });
 
+  // ── Freeze (CBA 24.D) ───────────────────────────────────────────────────
+  // freeze.json is either { bidEffectiveDate, rules, pilots:[...] } or a bare
+  // array of pilot records. Records are keyed by seniority; psId is carried
+  // through for cross-checking against the workbook but is not the lookup key
+  // here, because everything downstream of this point works in seniority.
+  var freezeRules = { blockUpgrade: true, blockBaseChange: false,
+                      blockDowngrade: false, expireOnBidEffectiveDate: true };
+  var freezeBySen = {};
+  var freezeEffectiveDate = null;
+
+  (function () {
+    var src = data.freeze || data.freezes || null;
+    if (!src) return;
+    var list;
+    if (Array.isArray(src)) {
+      list = src;
+    } else {
+      list = src.pilots || src.frozen || [];
+      if (src.rules) {
+        Object.keys(src.rules).forEach(function (k) { freezeRules[k] = src.rules[k]; });
+      }
+      freezeEffectiveDate = src.bidEffectiveDate || null;
+    }
+    if (opts.freezeRules) {
+      Object.keys(opts.freezeRules).forEach(function (k) {
+        freezeRules[k] = opts.freezeRules[k];
+      });
+    }
+    if (opts.bidEffectiveDate) freezeEffectiveDate = opts.bidEffectiveDate;
+
+    list.forEach(function (f) {
+      if (!f) return;
+      var sen = senOf(f);
+      if (sen === undefined || sen === null) return;
+      // ISO date strings compare correctly with <=, so no Date parsing needed.
+      var end = f.freezeEnd || f.freeze_end || f.endDate || null;
+      var expired = !!(freezeRules.expireOnBidEffectiveDate && end &&
+                       freezeEffectiveDate && end <= freezeEffectiveDate);
+      freezeBySen[sen] = {
+        sen: sen,
+        psId: f.psId || null,
+        freezeType: (f.freezeType || f.type || 'FREEZE').toUpperCase(),
+        freezeEnd: end,
+        trainingStarted: !!f.trainingStarted,
+        expired: expired
+      };
+    });
+  })();
+
+  // Returns a denial note when `key` is off-limits to this pilot under an
+  // active freeze, or null when the bid is allowed. `home` is the position the
+  // pilot is bidding FROM — their live seat if they hold one, otherwise the
+  // seat they were last reduced or displaced out of.
+  function freezeBlock(p, key) {
+    var f = p.freeze;
+    if (!f || f.expired) return null;
+
+    var home = p.loc || p.lastHeld || p.orig;
+    if (!home) return null;
+
+    var homeSeat = home.split('-')[1], homeBase = home.split('-')[0];
+    var tgtSeat = key.split('-')[1], tgtBase = key.split('-')[0];
+    var until = f.freezeEnd ? ' Freeze ends ' + f.freezeEnd + '.' : '';
+
+    if (freezeRules.blockUpgrade && homeSeat === 'FO' && tgtSeat === 'CA') {
+      return 'Invalid bid. Pilot is in a position freeze (' + f.freezeType +
+             ') and may not upgrade to Captain. CBA Section 24.D.' + until;
+    }
+    if (freezeRules.blockDowngrade && homeSeat === 'CA' && tgtSeat === 'FO') {
+      return 'Invalid bid. Pilot is in a position freeze (' + f.freezeType +
+             ') and may not downgrade to First Officer. CBA Section 24.D.' + until;
+    }
+    if (freezeRules.blockBaseChange && tgtBase !== homeBase) {
+      return 'Invalid bid. Pilot is in a position freeze (' + f.freezeType +
+             ') and may not change base. CBA Section 24.D.' + until;
+    }
+    return null;
+  }
+
   // Preferences may be keyed by pilot id ({ pil863: {...} }) or supplied as a
   // flat array. Both shapes are accepted.
   var prefsBySen = {};
@@ -147,6 +237,7 @@ function runBidEngine(data, deltaMap, options) {
       loc: orig,
       lastHeld: null,
       prefs: prefsBySen[sen] || [],
+      freeze: freezeBySen[sen] || null,
       isPaper: !!paperSet[sen],
       // Pilots off the 737 have no position to bid from.
       isNoBid: !!noBidSet[sen] || orig === null,
@@ -332,6 +423,16 @@ function runBidEngine(data, deltaMap, options) {
         continue;
       }
 
+      // Freeze is a validity test on the bid itself, so it is checked ahead of
+      // vacancy and BPL — the bid is bad regardless of whether a seat is open.
+      // The pilot is NOT added to deniedAt[key]: an invalid bid must not be
+      // re-proffered later when that position frees up.
+      var frz = freezeBlock(p, key);
+      if (frz) {
+        emit(p, startPos, fmtPos(key), pr.order, 'Denied', frz);
+        continue;
+      }
+
       // Vacancy first, then BPL — the company denies in that order.
       if (key !== p.loc && vac[key] <= 0) {
         deniedAt[key].push(p);
@@ -383,6 +484,7 @@ function runBidEngine(data, deltaMap, options) {
           var pr = q.prefs[j];
           if (pr.key !== key) continue;
           if (q.awardOrder !== null && pr.order >= q.awardOrder) continue;
+          if (freezeBlock(q, key)) continue;
           var lateral = (q.loc === key);
           if (!lateral && vac[key] <= 0) continue;
           if (pr.bpl && bpl(q, key) > pr.bpl) continue;
@@ -519,6 +621,11 @@ function runBidEngine(data, deltaMap, options) {
       }
       lastKey = key;
 
+      var frz2 = freezeBlock(p, key);
+      if (frz2) {
+        emit(p, null, fmtPos(key), pr.order, 'Denied', frz2);
+        continue;
+      }
       if (blockedUpgrade(p, key)) {
         emit(p, null, fmtPos(key), pr.order, 'Denied',
              'Invalid bid. Not upgraded due to 1000 hour cumulative flight time ' +
@@ -547,7 +654,7 @@ function runBidEngine(data, deltaMap, options) {
 
     var options = fallbackKeys(home);
     for (var f = 0; f < options.length; f++) {
-      if (blockedUpgrade(p, options[f])) continue;
+      if (blockedUpgrade(p, options[f]) || freezeBlock(p, options[f])) continue;
       if (takePosition(p, options[f], '24.E.6.b')) break;
     }
   }
@@ -578,6 +685,50 @@ function runBidEngine(data, deltaMap, options) {
     };
   });
 
+  // ── Upgrade summary ─────────────────────────────────────────────────────
+  // Two different "junior CA" numbers, and they are not the same thing:
+  //
+  //   holdSen     the most junior pilot sitting in that CA seat when the bid
+  //               settles. This is the seniority it takes to HOLD the base —
+  //               it includes pilots who were already Captains there.
+  //   upgradeSen  the most junior pilot who came from an FO seat and was
+  //               awarded CA in this bid. This is the number a First Officer
+  //               actually cares about: how junior an upgrade went.
+  //
+  // holdSen is always at least as junior as upgradeSen. A base can post
+  // upgrades and still show a more senior hold number if the junior Captains
+  // there were sitting in the seat before the bid opened.
+  var upgrades = {};
+  BASES.forEach(function (b) {
+    var caKey = makeKey(b, 'CA');
+    var moved = pilots.filter(function (p) {
+      return p.loc === caKey && p.orig && p.orig.slice(-3) === '-FO' && !p.isPaper;
+    }).sort(function (x, y) { return x.sen - y.sen; });
+
+    var pos = positions[caKey];
+    var junior = moved.length ? moved[moved.length - 1] : null;
+
+    upgrades[b] = {
+      base: b,
+      cap: pos.cap,
+      filled: pos.filled,
+      open: pos.open,
+      holdSen: pos.minSeniority,
+      holdName: pos.holders.length ? pos.holders[pos.holders.length - 1].name : null,
+      upgradeCount: moved.length,
+      upgradeSen: junior ? junior.sen : null,
+      upgradeName: junior ? junior.name : null,
+      upgradeFrom: junior ? junior.orig : null,
+      upgradePref: junior ? junior.awardOrder : null,
+      upgrades: moved.map(function (p) {
+        return { sen: p.sen, name: p.name, from: p.orig,
+                 pref: p.awardOrder, isPaper: p.isPaper };
+      })
+    };
+  });
+
+  var frozenPilots = pilots.filter(function (p) { return p.freeze; });
+
   var roster = pilots.map(function (p) {
     var last = p.rows[p.rows.length - 1] || {};
     var wasDisplaced = p.rows.some(function (r) {
@@ -595,6 +746,10 @@ function runBidEngine(data, deltaMap, options) {
       moved: !!(p.loc && p.orig && p.loc !== p.orig),
       isPaper: p.isPaper,
       isNoBid: p.isNoBid,
+      freeze: p.freeze,
+      isFrozen: !!(p.freeze && !p.freeze.expired),
+      upgraded: !!(p.loc && p.orig && p.loc.slice(-3) === '-CA' &&
+                   p.orig.slice(-3) === '-FO' && !p.isPaper),
       wasDisplaced: wasDisplaced,
       isUnassigned: p.loc === null && p.orig !== null,
       rows: p.rows
@@ -610,6 +765,16 @@ function runBidEngine(data, deltaMap, options) {
     currentCounts: currentCounts,
     startCounts: startCounts,
     positions: positions,
+    upgrades: upgrades,
+    freeze: {
+      rules: freezeRules,
+      bidEffectiveDate: freezeEffectiveDate,
+      pilots: frozenPilots.map(function (p) {
+        return { sen: p.sen, name: p.name, psId: p.freeze.psId,
+                 freezeType: p.freeze.freezeType, freezeEnd: p.freeze.freezeEnd,
+                 expired: p.freeze.expired, orig: p.orig, final: p.loc };
+      })
+    },
     stats: {
       pilots: pilots.length,
       transactions: transactions.length,
@@ -621,6 +786,12 @@ function runBidEngine(data, deltaMap, options) {
       reductions: transactions.filter(function (r) { return r.status === 'Reduction'; }).length,
       displacements: transactions.filter(function (r) { return r.status === 'Displaced'; }).length,
       movers: roster.filter(function (r) { return r.moved; }).length,
+      upgrades: roster.filter(function (r) { return r.upgraded; }).length,
+      frozen: frozenPilots.filter(function (p) { return !p.freeze.expired; }).length,
+      frozenExpired: frozenPilots.filter(function (p) { return p.freeze.expired; }).length,
+      freezeDenials: transactions.filter(function (r) {
+        return r.status === 'Denied' && r.note.indexOf('position freeze') !== -1;
+      }).length,
       unassigned: roster.filter(function (r) { return r.isUnassigned; }).length
     }
   };
