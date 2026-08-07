@@ -81,6 +81,22 @@
   .t-mover { background:var(--green); color:#04140a; }
   .t-disp { background:var(--purple); color:#150a24; }
   .t-paper { background:var(--border); color:var(--text); }
+  .t-up { background:var(--orange); color:#1a0b02; }
+  .t-frz { background:var(--yellow); color:#1c1302; }
+
+  /* Upgrade board — one tile per base, CA column only. */
+  .up-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; }
+  .up { background:var(--sunk); border:1px solid var(--border); border-radius:6px; padding:12px 13px; }
+  .up .b { font-family:var(--mono); font-size:.82rem; font-weight:700; letter-spacing:.04em; }
+  .up .b .n { color:var(--dim); font-weight:400; margin-left:6px; font-size:.72rem; }
+  .up dl { margin:10px 0 0; display:grid; grid-template-columns:auto 1fr; gap:3px 10px; align-items:baseline; }
+  .up dt { font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+  .up dd { margin:0; font-family:var(--mono); font-size:.86rem; font-weight:600; }
+  .up dd .who { display:block; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+                font-size:.72rem; font-weight:400; color:var(--dim); letter-spacing:0; }
+  .up .none { color:var(--dim); font-weight:400; font-family:inherit; font-size:.78rem; }
+  .up.has dd.up-sen { color:var(--orange); }
+  .legend { color:var(--dim); font-size:.72rem; margin:11px 0 0; line-height:1.55; }
   .empty { padding:36px; text-align:center; color:var(--dim); }
   .more { padding:14px; text-align:center; }
   .err { border-left:3px solid var(--red); padding:14px; background:var(--card); color:var(--red); }
@@ -104,6 +120,7 @@
     <button id="expLog" class="btn ghost" disabled>Transaction log</button>
     <button id="expMaster" class="btn ghost" disabled>Master awards</button>
     <button id="expBase" class="btn ghost" disabled>Base lists</button>
+    <button id="expUp" class="btn ghost" disabled>Upgrades</button>
     <span class="spacer"></span>
     <select id="filter">
       <option value="changes">Position changes only</option>
@@ -111,11 +128,26 @@
       <option value="displaced">Reduced &amp; displaced</option>
       <option value="denied">Any denial</option>
       <option value="paper">Paper bids</option>
+      <option value="upgraded">Upgrades to CA</option>
+      <option value="frozen">On freeze (24.D)</option>
     </select>
     <input class="search" id="search" placeholder="Seniority or name">
   </div>
 
   <div class="stats" id="stats"></div>
+
+  <div class="card" id="upgradeCard" style="display:none;">
+    <h2>Captain upgrades by base</h2>
+    <div class="up-grid" id="upgradeGrid"></div>
+    <p class="legend">
+      <strong>Junior CA</strong> is the most junior pilot sitting in the seat once the bid
+      settles — the seniority it takes to hold Captain at that base, including pilots who
+      were already there. <strong>Junior upgrade</strong> is the most junior pilot who came
+      from a First Officer seat and was awarded Captain in this bid. A base can post
+      upgrades and still show a more senior junior-CA number when the junior Captains
+      held the seat before bidding opened.
+    </p>
+  </div>
 
   <div class="card" id="openPositionsCard" style="display:none;">
     <h2>Open positions</h2>
@@ -192,23 +224,35 @@ window.addEventListener('DOMContentLoaded', function () {
       return r.json();
     });
   })).then(function (res) {
-    // Paper bidders are optional: without the file every off-manning pilot is
-    // treated as a straight no-bid, which shifts vacancy counts.
-    return fetch('paperbid_pilots.json', { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .catch(function () { return []; })
-      .then(function (paper) {
-        store = {
-          roster: res[0], prefs: res[1], caps: res[2],
-          retired: res[3], noBid: res[4], paperBid: paper
-        };
-        renderCapacities();
-        $('runBtn').disabled = false;
-        $('subtitle').textContent =
-          store.roster.length + ' pilots · ' + store.noBid.length + ' no-bid · ' +
-          paper.length + ' paper-bid' +
-          (paper.length ? '' : ' (paperbid_pilots.json not found)');
-      });
+    // Both of these are optional, and each fails in its own way:
+    //   paperbid_pilots.json — without it every off-manning pilot is treated as
+    //     a straight no-bid, which shifts vacancy counts.
+    //   freeze.json — without it no 24.D freeze is enforced and frozen pilots
+    //     can upgrade. Silent either way, so the subtitle names what is missing.
+    var optional = ['paperbid_pilots.json', 'freeze.json'];
+    return Promise.all(optional.map(function (f) {
+      return fetch(f, { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; });
+    })).then(function (extra) {
+      var paper = extra[0] || [], freeze = extra[1];
+      store = {
+        roster: res[0], prefs: res[1], caps: res[2],
+        retired: res[3], noBid: res[4], paperBid: paper, freeze: freeze
+      };
+
+      var frozen = freeze ? (freeze.pilots || freeze) : [];
+      var missing = [];
+      if (!extra[0]) missing.push('paperbid_pilots.json');
+      if (!freeze) missing.push('freeze.json');
+
+      renderCapacities();
+      $('runBtn').disabled = false;
+      $('subtitle').textContent =
+        store.roster.length + ' pilots · ' + store.noBid.length + ' no-bid · ' +
+        paper.length + ' paper-bid · ' + frozen.length + ' on freeze' +
+        (missing.length ? ' · not found: ' + missing.join(', ') : '');
+    });
   }).catch(function (e) {
     document.querySelector('.wrap').innerHTML =
       '<div class="err">Could not load source data: ' + e.message +
@@ -239,10 +283,11 @@ $('runBtn').onclick = function () {
 
   setTimeout(function () {
     result = runBidEngine(store, deltas);
-    ['expLog', 'expMaster', 'expBase'].forEach(function (id) { $(id).disabled = false; });
+    ['expLog', 'expMaster', 'expBase', 'expUp'].forEach(function (id) { $(id).disabled = false; });
     $('runBtn').disabled = false;
     $('runBtn').textContent = 'Run bid';
     renderStats();
+    renderUpgrades();
     renderOpenPositions();
     shown = pageSize;
     renderTable();
@@ -260,11 +305,48 @@ function renderStats() {
     ['Reductions', s.reductions, 'var(--yellow)'],
     ['Displaced', s.displacements, 'var(--purple)'],
     ['Movers', s.movers, 'var(--accent)'],
+    ['Upgrades', s.upgrades, s.upgrades ? 'var(--orange)' : 'var(--dim)'],
+    ['On freeze', s.frozen, s.frozen ? 'var(--yellow)' : 'var(--dim)'],
+    ['Freeze denials', s.freezeDenials, s.freezeDenials ? 'var(--yellow)' : 'var(--dim)'],
     ['Unfilled', left.length, left.length ? 'var(--red)' : 'var(--green)']
   ];
   $('stats').innerHTML = cells.map(function (c) {
     return '<div class="stat"><span class="n" style="color:' + (c[2] || 'var(--text)') +
            '">' + c[1] + '</span><span class="l">' + c[0] + '</span></div>';
+  }).join('');
+}
+
+// ── Upgrade board ─────────────────────────────────────────────────────────
+var BASE_ORDER = ['SEA', 'PDX', 'ANC', 'LAX', 'SFO', 'SAN'];
+
+function renderUpgrades() {
+  var u = result.upgrades;
+  if (!u) { $('upgradeCard').style.display = 'none'; return; }
+  $('upgradeCard').style.display = 'block';
+
+  $('upgradeGrid').innerHTML = BASE_ORDER.map(function (b) {
+    var d = u[b];
+    if (!d) return '';
+
+    var count = d.upgradeCount;
+    var upCell = count
+      ? '<dd class="up-sen">' + d.upgradeSen +
+        '<span class="who">' + esc(d.upgradeName) + '</span></dd>'
+      : '<dd class="none">No upgrades</dd>';
+
+    var holdCell = d.holdSen === null
+      ? '<dd class="none">Seat empty</dd>'
+      : '<dd>' + d.holdSen + '<span class="who">' + esc(d.holdName) + '</span></dd>';
+
+    return '<div class="up' + (count ? ' has' : '') + '">' +
+      '<div class="b">' + b + ' CA' +
+        '<span class="n">' + d.filled + '/' + d.cap +
+        (d.open > 0 ? ' · ' + d.open + ' open' : '') + '</span></div>' +
+      '<dl>' +
+        '<dt>Junior CA</dt>' + holdCell +
+        '<dt>Junior upgrade</dt>' + upCell +
+        '<dt>Upgrades</dt><dd>' + count + '</dd>' +
+      '</dl></div>';
   }).join('');
 }
 
@@ -302,6 +384,8 @@ function matches(p) {
     case 'displaced': return p.wasDisplaced;
     case 'denied':    return p.rows.some(function (r) { return r.status === 'Denied'; });
     case 'paper':     return p.isPaper;
+    case 'upgraded':  return p.upgraded;
+    case 'frozen':    return p.isFrozen;
   }
   return true;
 }
@@ -329,9 +413,14 @@ function renderTable() {
   }
 
   $('tbody').innerHTML = page.map(function (p) {
-    var tags = (p.moved ? '<span class="tag t-mover">Mover</span>' : '') +
+    var tags = (p.upgraded ? '<span class="tag t-up">Upgrade</span>' : '') +
+               (p.moved ? '<span class="tag t-mover">Mover</span>' : '') +
                (p.wasDisplaced ? '<span class="tag t-disp">Displaced</span>' : '') +
-               (p.isPaper ? '<span class="tag t-paper">Paper</span>' : '');
+               (p.isPaper ? '<span class="tag t-paper">Paper</span>' : '') +
+               (p.isFrozen ? '<span class="tag t-frz" title="' +
+                  esc(p.freeze.freezeType) +
+                  (p.freeze.freezeEnd ? ' until ' + p.freeze.freezeEnd : '') +
+                  '">Freeze</span>' : '');
 
     return p.rows.map(function (r, i) {
       var first = i === 0;
@@ -408,6 +497,50 @@ $('expMaster').onclick = function () {
 
   download(sheetFromRows(rows, [10, 26, 17, 17, 8, 7, 12, 95]),
            'Master Awards', 'master_awards.xlsx');
+};
+
+// ── Upgrades — summary by base, every upgrade, and the freeze list ────────
+$('expUp').onclick = function () {
+  var wb = XLSX.utils.book_new();
+
+  var sum = [['Base', 'CA cap', 'Filled', 'Open',
+              'Junior CA (sen)', 'Junior CA', 'Junior upgrade (sen)',
+              'Junior upgrade', 'Upgraded from', 'Pref #', 'Upgrades']];
+  BASE_ORDER.forEach(function (b) {
+    var d = result.upgrades[b];
+    if (!d) return;
+    sum.push([b, d.cap, d.filled, d.open,
+              d.holdSen === null ? '' : d.holdSen, d.holdName || '',
+              d.upgradeSen === null ? '' : d.upgradeSen, d.upgradeName || '',
+              d.upgradeFrom ? posLong(d.upgradeFrom) : '',
+              d.upgradePref === null ? '' : d.upgradePref,
+              d.upgradeCount]);
+  });
+  XLSX.utils.book_append_sheet(wb,
+    sheetFromRows(sum, [7, 8, 8, 7, 15, 26, 18, 26, 17, 8, 10]), 'Upgrades by base');
+
+  var det = [['Base', 'Seniority', 'Pilot Name', 'From', 'To', 'Pref #', 'Paper bid']];
+  BASE_ORDER.forEach(function (b) {
+    var d = result.upgrades[b];
+    if (!d) return;
+    d.upgrades.forEach(function (p) {
+      det.push([b, p.sen, p.name, posLong(p.from), posLong(b + '-CA'),
+                p.pref === null ? '' : p.pref, p.isPaper ? 'Y' : '']);
+    });
+  });
+  XLSX.utils.book_append_sheet(wb,
+    sheetFromRows(det, [7, 10, 26, 17, 17, 8, 10]), 'All upgrades');
+
+  var frz = [['Seniority', 'PS ID', 'Pilot Name', 'Freeze type', 'Freeze end',
+              'Expired', 'Starting position', 'Final position']];
+  (result.freeze.pilots || []).forEach(function (p) {
+    frz.push([p.sen, p.psId || '', p.name, p.freezeType, p.freezeEnd || '',
+              p.expired ? 'Y' : '', posLong(p.orig), posLong(p.final)]);
+  });
+  XLSX.utils.book_append_sheet(wb,
+    sheetFromRows(frz, [10, 11, 26, 16, 12, 9, 17, 17]), 'Freeze list');
+
+  XLSX.writeFile(wb, 'upgrades.xlsx');
 };
 
 // ── Base lists — one sheet per base, CA and FO side by side ───────────────
