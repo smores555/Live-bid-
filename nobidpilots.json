@@ -3,1692 +3,2240 @@
     "sen": 5,
     "psId": 1006507,
     "name": "GARRETT, GEOFFREY A.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 11,
     "psId": 1022127,
     "name": "ANDRESS, STEVEN R.",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 25,
     "psId": 1026620,
     "name": "MADDEN III, RICHARD A.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 31,
     "psId": 1001109,
     "name": "BOYCE, KEVIN M.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 35,
     "psId": 1017647,
     "name": "LEMLEY, STEPHEN J.",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 40,
     "psId": 1015863,
     "name": "CRAWFORD, DENNIS J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 45,
     "psId": 1017648,
     "name": "DEIGNAN, JEFFREY J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 54,
     "psId": 1006201,
     "name": "MYRTVEDT, \"K.J.\" KJETIL",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 55,
     "psId": 1000544,
     "name": "BURTON, DOUGLAS M.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 58,
     "psId": 1013875,
     "name": "KRANJCEVICH, PATRICK S.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 59,
     "psId": 1001372,
     "name": "McKINNIS, DOUGLAS L.",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 64,
     "psId": 1012546,
     "name": "PARVI, SCOTT L.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 83,
     "psId": 1016177,
     "name": "FULLERTON, TROY B.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 105,
     "psId": 1022344,
     "name": "SABO, JEFFREY S.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 112,
     "psId": 1015325,
     "name": "SWEENEY, LISA BRANDON",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 140,
     "psId": 1024175,
     "name": "OEFELEIN, RANDALL W.",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 142,
     "psId": 1023311,
     "name": "ROACH, DAVID P.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 154,
     "psId": 1020939,
     "name": "BEITER, PAUL R.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 159,
     "psId": 1012814,
     "name": "UNDEM, TOD A.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 167,
     "psId": 1026484,
     "name": "THOMAS, SCOTT A.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 183,
     "psId": 1003952,
     "name": "CARY, SCOTT A.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 188,
     "psId": 1022671,
     "name": "WICHT, JOHN C.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 193,
     "psId": 1007073,
     "name": "FURRER, JEFFREY J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 194,
     "psId": 1058721,
     "name": "MCATEER, CRAIG",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 196,
     "psId": 1020677,
     "name": "STEINBRENNER, ERIC M.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 207,
     "psId": 1016968,
     "name": "BURKE, JEFFREY W.",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 221,
     "psId": 1059170,
     "name": "WIEBMER, ROBERT",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 225,
     "psId": 1014256,
     "name": "SPENCER, MICHAEL S.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 234,
     "psId": 1004858,
     "name": "TIPLADY, TIMOTHY J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 236,
     "psId": 1016140,
     "name": "ALDRICH, TOBY J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 244,
     "psId": 1006597,
     "name": "SOLANDROS, CHRIS M.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 246,
     "psId": 1060176,
     "name": "ROGELSTAD, DAVID",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 257,
     "psId": 1062527,
     "name": "PARTLOW, LEE",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 263,
     "psId": 1061180,
     "name": "BOHNEY, MARK",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 267,
     "psId": 1021217,
     "name": "TENTSCHERT, GARIN P.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 274,
     "psId": 1019308,
     "name": "PARKER, JEFFREY S.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 275,
     "psId": 1061535,
     "name": "DUNCAN, DELBERT",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 281,
     "psId": 1061534,
     "name": "LENNOX, SHAUN",
+    "base": "SAN",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 284,
     "psId": 1001571,
     "name": "HRIVNAK, ERIC J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 285,
     "psId": 1061548,
     "name": "SHEEHY, BRIAN",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 301,
     "psId": 1061444,
     "name": "LEE, DOUGLAS",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 302,
     "psId": 1020486,
     "name": "PHILLIPS, M. TODD",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 312,
     "psId": 1061437,
     "name": "WHITE, THOMAS",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 314,
     "psId": 1010986,
     "name": "CAWLEY, JEFFREY W.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 331,
     "psId": 1000226,
     "name": "ROTH, DAVID L.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 336,
     "psId": 1058694,
     "name": "ALLAN, ROBERT",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 343,
     "psId": 1020165,
     "name": "PATTERSON, BRUCE A.",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 344,
     "psId": 1019327,
     "name": "SMITH, MARK A.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 348,
     "psId": 1058695,
     "name": "MOLZBERGER, VICTOR",
-    "adminStatus": "PLTD"
-  },
-  {
-    "sen": 353,
-    "psId": 1060319,
-    "name": "MESSER, THOMAS",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 362,
     "psId": 1058952,
     "name": "HOFFMAN, PATTI",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 364,
     "psId": 1017956,
     "name": "BRODERSEN, STEVE E.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 373,
     "psId": 1020794,
     "name": "CUMMINS, ROBERT L.",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 374,
     "psId": 1017806,
     "name": "OSTER, DAVID W.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 376,
     "psId": 1005482,
     "name": "SULLIVAN, DONALD A.",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 384,
     "psId": 1058953,
     "name": "HUSSAR, WILLIAM",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 388,
     "psId": 1022220,
     "name": "ARNOLD, TORSTEN K.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 395,
     "psId": 1058706,
     "name": "ROWE, PERRY",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 399,
     "psId": 1002571,
     "name": "STEURER, MATE M.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 411,
     "psId": 1002268,
     "name": "HARRIS, GASTON C. (G.C.)",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 418,
     "psId": 1058737,
     "name": "ALBER, WILLIAM",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 436,
     "psId": 1002965,
     "name": "VELA, OSCAR",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 442,
     "psId": 1012790,
     "name": "HAASE, LESTER E. \"SKIP\"",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 449,
     "psId": 1058803,
     "name": "GRUSH, KEVIN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 481,
     "psId": 1062532,
     "name": "DIXON, RYAN",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 483,
     "psId": 1020074,
     "name": "DUBB, MICHAEL N.",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 498,
     "psId": 1000602,
     "name": "CORNWELL, THOMAS G.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 500,
     "psId": 1036506,
     "name": "FOUCH, AARON",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 512,
     "psId": 1059555,
     "name": "BRITTINGHAM, MARK",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 526,
     "psId": 1019355,
     "name": "JENSEN, THOMAS N.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 532,
     "psId": 1060549,
     "name": "GRIMES, MICHAEL",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 540,
     "psId": 1059835,
     "name": "HARRISON, PAUL",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 548,
     "psId": 1014114,
     "name": "CAMPBELL, DAVID T.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 561,
     "psId": 1007161,
     "name": "FRANCIS, ANDREW C.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 574,
     "psId": 1022796,
     "name": "WARREN, STEPHEN J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 575,
     "psId": 1006164,
     "name": "THOMPSON, JONATHAN D.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 581,
     "psId": 1061183,
     "name": "WSOL, JON",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 582,
     "psId": 1011843,
     "name": "REID, STEVEN E.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PRET"
   },
   {
     "sen": 588,
     "psId": 1061178,
     "name": "RODRIGUEZ, JAMES",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 602,
     "psId": 1012237,
     "name": "NISCO, FRANK C.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 626,
     "psId": 1060689,
     "name": "ROCKEFELLER, JASON",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 634,
     "psId": 1060667,
     "name": "CURREN, IRENE",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 635,
     "psId": 1017870,
     "name": "DONWAY, CHRISTOPHER A.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 647,
     "psId": 1004658,
     "name": "SMITH, ELISABETH M.",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 650,
     "psId": 1015512,
     "name": "WAITE, ANDREW M.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 657,
     "psId": 1059050,
     "name": "MCNAMARA, SHANNON",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 661,
     "psId": 1020364,
     "name": "LIVELY, JOHN R.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 662,
     "psId": 1020336,
     "name": "BAUMAN, KARL G.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 675,
     "psId": 1058797,
     "name": "VILLARREAL, LINDA",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLOA"
   },
   {
     "sen": 695,
     "psId": 1015056,
     "name": "BOARDMAN, BRADLEY J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 696,
     "psId": 1058921,
     "name": "ZENNER, MICHAEL",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 713,
     "psId": 1058854,
     "name": "SOKAL, JOHN",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 746,
     "psId": 1005697,
     "name": "PLA', IVAN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 768,
     "psId": 1011758,
     "name": "INMAN, DARRICK C.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 771,
     "psId": 1039697,
     "name": "JONES, CASEY",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 786,
     "psId": 1018653,
     "name": "HARSKAMP, JODI J.",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 795,
     "psId": 1014485,
     "name": "JARAMILLO, CHARLES A.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 807,
     "psId": 1058760,
     "name": "KISH, STEVEN",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 809,
     "psId": 1059117,
     "name": "HERMAN, DOUGLAS",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 810,
     "psId": 1058734,
     "name": "FARLEY, MICHAEL",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 818,
     "psId": 1011531,
     "name": "WEISETH, PETER B.",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 819,
     "psId": 1058762,
     "name": "KOHN, PAUL",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 831,
     "psId": 1059449,
     "name": "BRYAN, BARON",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 842,
     "psId": 1060607,
     "name": "ROELOFS, DAVID",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 844,
     "psId": 1061438,
     "name": "HAKKARAINEN, MARKUS",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 845,
     "psId": 1061439,
     "name": "MAHONEY, PATRICK",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 849,
     "psId": 1061457,
     "name": "FRANKLIN, DAVID",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 856,
     "psId": 1061171,
     "name": "ECKSTEIN, MICHAEL",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 862,
     "psId": 1013788,
     "name": "BUDINGER, VINCENT J.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 874,
     "psId": 1062536,
     "name": "PACCONE, JOHN",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 879,
     "psId": 1023497,
     "name": "SIS, CHRISTOPHER S.",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 896,
     "psId": 1020957,
     "name": "LINGLET, JEREMIE",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 900,
     "psId": 1058843,
     "name": "RUBIN, MATTHEW",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 905,
     "psId": 1012116,
     "name": "VINING, CLIFFORD M.",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 910,
     "psId": 1037171,
     "name": "WATERS, JAY",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 921,
     "psId": 1045439,
     "name": "ERICKSON, CHRISTOPHER S.",
+    "base": "PDX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 930,
     "psId": 1045725,
     "name": "JOHNSON, ANDREW C. (AJ)",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 942,
     "psId": 1060181,
     "name": "HARRILL, EDWARD",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 947,
     "psId": 1060264,
     "name": "DELANY, KATHLEEN",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 968,
     "psId": 1061824,
     "name": "WALSH, ADAM",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 973,
     "psId": 1046304,
     "name": "JANES, DARYL T.",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PPOI"
   },
   {
     "sen": 980,
     "psId": 1059065,
     "name": "LAYTON, KENNETH",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 986,
     "psId": 1059067,
     "name": "DALY, THOMAS",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 987,
     "psId": 1059129,
     "name": "OBEREMBT, ROBERT",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1003,
     "psId": 1058744,
     "name": "BERINGER, DENISE",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1005,
     "psId": 1058745,
     "name": "MONCUS, ANTHONY",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1011,
     "psId": 1046923,
     "name": "DUNHAM, JASON M.",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1018,
     "psId": 1018317,
     "name": "BRISBANE, MATTHEW",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1023,
     "psId": 1061710,
     "name": "SPERRY, JOE",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1051,
     "psId": 1049944,
     "name": "COLE, AUDREY LEE",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1055,
     "psId": 1061078,
     "name": "BARON, DAVID",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1085,
     "psId": 1059568,
     "name": "TIDWELL, PHILLIP",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1096,
     "psId": 1060567,
     "name": "CLINGAN, JAMES (JAY)",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1121,
     "psId": 1050714,
     "name": "COOK, MICHAEL",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1146,
     "psId": 1050809,
     "name": "PETERSON, DARYL",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "ACTIVE"
   },
   {
     "sen": 1154,
     "psId": 1050913,
     "name": "SIEGMUND, DON",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1231,
     "psId": 1052240,
     "name": "HAMMOND, BRYNN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1238,
     "psId": 1045116,
     "name": "KANNING, BRANDON",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1249,
     "psId": 1018321,
     "name": "HAMMON, MARK",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1261,
     "psId": 1052561,
     "name": "SIMONSEN, DAVID",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1267,
     "psId": 1052644,
     "name": "NIEDERMAN, ERIK",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1271,
     "psId": 1061177,
     "name": "MARKHAM, NICHOLAS",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1272,
     "psId": 1052715,
     "name": "GARTMAN, JEFF",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1277,
     "psId": 1052717,
     "name": "MA, JONATHAN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 1279,
     "psId": 1061565,
     "name": "GALBRAITH, DAVID",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1300,
     "psId": 1040692,
     "name": "AHN, BRYAN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1325,
     "psId": 1053526,
     "name": "RECKE, ERIN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1328,
     "psId": 1053522,
     "name": "BUELL, CAMDEN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1365,
     "psId": 1054050,
     "name": "PARSONS, DAVID",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1379,
     "psId": 1054166,
     "name": "WARD, KEVEN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1388,
     "psId": 1059319,
     "name": "MITCHELL, TREVOR",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1419,
     "psId": 1054631,
     "name": "MCCARTY, STEPHEN",
+    "base": "LAX",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1433,
     "psId": 1054777,
     "name": "DOMAS, BRANDI",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PPOI"
   },
   {
     "sen": 1455,
     "psId": 1055229,
     "name": "FISHER, MARVIN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1462,
     "psId": 1055227,
     "name": "MATTHAEY, ANDREW",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1468,
     "psId": 1055358,
     "name": "DIERENFIELD, GREGORY",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 1505,
     "psId": 1055879,
     "name": "JANG, RAYMOND",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1506,
     "psId": 1055876,
     "name": "ASHLEY, MICHELLE",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1527,
     "psId": 1059235,
     "name": "CARDWELL, JASON",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1568,
     "psId": 1059745,
     "name": "THAXTON, BRYAN",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1574,
     "psId": 1056728,
     "name": "SITTERLEY, THOMAS",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1588,
     "psId": 1056794,
     "name": "LASPE, CRAIG",
+    "base": "ANC",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1611,
     "psId": 1042562,
     "name": "REEVES, LUKE",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1672,
     "psId": 1061531,
     "name": "ALVEY, ANTHONY",
+    "base": "SAN",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1675,
     "psId": 1058068,
     "name": "MITCHELL, ROBERT",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1680,
     "psId": 1058066,
     "name": "CORONADO, ERIC",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1684,
     "psId": 1000367,
     "name": "SCHIEMER, CHARLES",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1698,
     "psId": 1054414,
     "name": "ENSELE, TOBIAS",
+    "base": "SAN",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1733,
     "psId": 1046773,
     "name": "LOCKHART, PAUL",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PFML"
   },
   {
     "sen": 1744,
     "psId": 1053917,
     "name": "CATONE, CARL",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1772,
     "psId": 1062370,
     "name": "PARSONS, CHRISTOPHER (MIKE)",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1779,
     "psId": 1062387,
     "name": "LIND, BRIAN",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1784,
     "psId": 1062511,
     "name": "BEYER, BRIAN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1813,
     "psId": 1062683,
     "name": "MORRISON, MICHAEL",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1829,
     "psId": 1062751,
     "name": "DOLAN, MATHEW",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1842,
     "psId": 1056301,
     "name": "KEMPF, STEVE",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "ACTIVE"
-  },
-  {
-    "sen": 1860,
-    "psId": 1063361,
-    "name": "JOHNSON, ZACHARY",
-    "adminStatus": "PLTD"
   },
   {
     "sen": 1876,
     "psId": 1063601,
     "name": "PETERSEN, WADE",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1883,
     "psId": 1064218,
     "name": "ARCHER, STEPHANIE",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1885,
     "psId": 1064220,
     "name": "WOOD, JESSICA",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLOA"
   },
   {
     "sen": 1889,
     "psId": 1064474,
     "name": "ZELLER, JUSTIN",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1923,
     "psId": 1068582,
     "name": "MACNAUGHTON, PEARSON",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PPOI"
   },
   {
     "sen": 1924,
     "psId": 1068583,
     "name": "GRUBBS, NATE",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 1926,
     "psId": 1068584,
     "name": "ULRICH, GREGORY",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 1945,
     "psId": 1068835,
     "name": "CHRISTENSEN, DAVID",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 1966,
     "psId": 1050707,
     "name": "BERTSCH, JOE",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PPOI"
   },
   {
     "sen": 1969,
     "psId": 1069605,
     "name": "AGOSTINO, MICHAEL",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1974,
     "psId": 1040061,
     "name": "OWENS, JOHN",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1977,
     "psId": 1069541,
     "name": "GEHRMANN, BRADEN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 1983,
     "psId": 1069544,
     "name": "TARNOVE, JAY",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1991,
     "psId": 1052358,
     "name": "ROARK, CHARLES (CHARLIE)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 1997,
     "psId": 1051837,
     "name": "ERICKSON, KALIN",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2034,
     "psId": 1070309,
     "name": "INKMANN, EDWARD",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2053,
     "psId": 1070386,
     "name": "FAIRCHILD, WEST",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2061,
     "psId": 1070496,
     "name": "MOESGES, BRAD",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2065,
     "psId": 1070638,
     "name": "BELLINI, GIOVANNI",
+    "base": "SFO",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2066,
     "psId": 1070636,
     "name": "SYLVESTER, MATTHEW",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2076,
     "psId": 1070750,
     "name": "KLINZING, CHAD",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2092,
     "psId": 1071004,
     "name": "DODD, JASON R",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2098,
     "psId": 1071081,
     "name": "LANDON, CHRISTIAN T",
+    "base": "SEA",
+    "position": "CA",
     "adminStatus": "PMED"
   },
   {
     "sen": 2110,
     "psId": 1052140,
     "name": "JOHNSON, KELLY",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2114,
     "psId": 1071514,
     "name": "TINKHAM, CLIF",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2121,
     "psId": 1071644,
     "name": "BOWIE, GRIFFITH",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2151,
     "psId": 1034610,
     "name": "PEARL, TIMOTHY",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2192,
     "psId": 1073645,
     "name": "CHEEVER, EMILY",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2194,
     "psId": 1048411,
     "name": "CROWDER, APRIL",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2215,
     "psId": 1036367,
     "name": "MAYES, LEASA",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2216,
     "psId": 1073829,
     "name": "SAUNDERS, ZANE",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2232,
     "psId": 1051195,
     "name": "ERIKSSON, KARL",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLOA"
   },
   {
     "sen": 2244,
     "psId": 1037541,
     "name": "DARROW, ZACHARY",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PPOI"
   },
   {
     "sen": 2249,
     "psId": 1041184,
     "name": "YOUNGMAN, ROBERT",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2250,
     "psId": 1037297,
     "name": "WARRICK, JOCELYN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2264,
     "psId": 1052983,
     "name": "FITZWATER, DAVID",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2280,
     "psId": 1074270,
     "name": "SCOTT, FREDRICK",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2323,
     "psId": 1054421,
     "name": "ORWICK, DOUGLAS",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2328,
     "psId": 1075518,
     "name": "GILSON, KATRINA",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2343,
     "psId": 1076009,
     "name": "HARRISON, MICHAEL",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2389,
     "psId": 1057008,
     "name": "NELSON, TYLER",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2404,
     "psId": 1077450,
     "name": "MENDEZ, JASON",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2405,
     "psId": 1077448,
     "name": "MULLINAX, ROBERT",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2423,
     "psId": 1079997,
     "name": "FEAVEL, VANCE",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2461,
     "psId": 1080330,
     "name": "ANDRESEN, ERIK",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2500,
     "psId": 1080767,
     "name": "SWICORD, SCOTT",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2503,
     "psId": 1080737,
     "name": "SYLVESTER, SEAN",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2504,
     "psId": 1080836,
     "name": "MORGAN, ANTHONY",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2512,
     "psId": 1080835,
     "name": "MEINHARD-PELLENS, J",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2513,
     "psId": 1054716,
     "name": "O'BRIEN, CULLEN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2526,
     "psId": 1080938,
     "name": "PHILLIPS, DAYLAN",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2590,
     "psId": 1081749,
     "name": "YOUNG, GARRETT",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2595,
     "psId": 1064690,
     "name": "VALDEZ, CARLOS",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2620,
     "psId": 1043103,
     "name": "EDGER, MICHAEL",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2621,
     "psId": 1082385,
     "name": "REILLY, DONALD",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2625,
     "psId": 1082344,
     "name": "LEONARD, BENJAMIN",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2655,
     "psId": 1082592,
     "name": "HELMREICH, DREW",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2679,
     "psId": 1083082,
     "name": "MCCOY, WAYNE",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2758,
     "psId": 1084590,
     "name": "BADUA, FRANCIS",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2766,
     "psId": 1084816,
     "name": "FULTON, MICHAEL",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2774,
     "psId": 1085035,
     "name": "BALLENGER, JOHN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2794,
     "psId": 1085479,
     "name": "HOOVER, ALEX",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PPOI"
   },
   {
     "sen": 2799,
     "psId": 1085761,
     "name": "ESKEW, MARK",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2803,
     "psId": 1085806,
     "name": "WHITE, ASHLIN \"AJ\"",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2808,
     "psId": 1085794,
     "name": "CULLIGAN, SEAN",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2818,
     "psId": 1070412,
     "name": "MITCHELL, COREY",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2853,
     "psId": 1044667,
     "name": "UNDERHILL, JASON",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2868,
     "psId": 1087267,
     "name": "COLLINS, GREGORY",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2875,
     "psId": 1087363,
     "name": "OWEN, SCOTT",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2909,
     "psId": 1087697,
     "name": "ARNOLD, CHARLES (CODY)",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2946,
     "psId": 1088004,
     "name": "DEVEREAUX, ALECSANDRA",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2974,
     "psId": 1088279,
     "name": "FURBUSH, LAUREN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 2975,
     "psId": 1088299,
     "name": "STRATTON, BRADLEY (BRAD)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 2983,
     "psId": 1078236,
     "name": "VIRAMONTES, ABRAHAM (ABE)",
+    "base": "SAN",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2997,
     "psId": 1072660,
     "name": "HULSTEIN, JOSHUA",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 2998,
     "psId": 1072328,
     "name": "LARSON, LARS",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3006,
     "psId": 1088501,
     "name": "TAMBURRINI, ANTHONY",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PFML"
   },
   {
     "sen": 3028,
     "psId": 1088682,
     "name": "CARLIN, JAMES",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 3035,
     "psId": 1088787,
     "name": "WILLIAMS, JAMES",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3054,
     "psId": 1088966,
     "name": "VINCENT, HALEY",
+    "base": "SAN",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3059,
     "psId": 1088884,
     "name": "CROWE, STEVEN (STEVE)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PLOA"
   },
   {
     "sen": 3086,
     "psId": 1089152,
     "name": "MONFORE, ROBERT",
+    "base": "ANC",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3090,
     "psId": 1089794,
     "name": "KUHN, MARK",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3093,
     "psId": 1089732,
     "name": "CARVER, NICHOLAS (NICK)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3105,
     "psId": 1089889,
     "name": "FAIRBANKS, ROBERT",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PWCP"
   },
   {
     "sen": 3139,
     "psId": 1090380,
     "name": "KELLY, KEVIN",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3162,
     "psId": 1076138,
     "name": "MAGISTRALE, NICOLAS (NIKO)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3164,
     "psId": 1090464,
     "name": "AZOUZ, KAMERON",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3173,
     "psId": 1090635,
     "name": "GREENE, ALAN",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3200,
     "psId": 1091295,
     "name": "KLINKNER, DANIEL",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3203,
     "psId": 1091292,
     "name": "SISTO, CASSIDY (CASS)",
+    "base": "PDX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3205,
     "psId": 1073975,
     "name": "LAUER, BRIANNA (BRIE)",
+    "base": "SAN",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3210,
     "psId": 1091343,
     "name": "WIGTON, BRANDON",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3221,
     "psId": 1091419,
     "name": "KNILL, VICTOR (CHOPPER)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3231,
     "psId": 1091422,
     "name": "STEPHENS, TANNER",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLTD"
   },
   {
     "sen": 3241,
     "psId": 1091466,
     "name": "CAILEANU, LARISA (LISA)",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3250,
     "psId": 1091563,
     "name": "EVELAND, KEITH",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLOA"
   },
   {
     "sen": 3252,
     "psId": 1091555,
     "name": "BAKKE, MICHAEL (MIKE)",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3253,
     "psId": 1091550,
     "name": "MELDAHL, TIMOTHY",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3260,
     "psId": 1091806,
     "name": "YANG, JUN MO (JOSHUA)",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PLOA"
   },
   {
     "sen": 3290,
     "psId": 1122729,
     "name": "CONNER, CALVIN (JAKE)",
+    "base": "SEA",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3322,
     "psId": 1122869,
     "name": "HOUCK, WILLIAM (REID)",
+    "base": "SAN",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3324,
     "psId": 1122978,
     "name": "COX, TYLER",
+    "base": "SFO",
+    "position": "FO",
     "adminStatus": "PMIL"
   },
   {
     "sen": 3351,
     "psId": 1082029,
     "name": "GABALDO, NIKO",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMED"
   },
   {
     "sen": 3365,
     "psId": 1123162,
     "name": "TIMMONS, KRISTIAN",
+    "base": "LAX",
+    "position": "FO",
     "adminStatus": "PMIL"
   }
 ]
