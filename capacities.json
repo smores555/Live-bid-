@@ -36,7 +36,7 @@
     "seat": "CA",
     "code": "CP4",
     "startCapacity": 222,
-    "publishedBaseSize": 221,
+    "publishedBaseSize": 222,
     "delta": 10
   },
   {
@@ -67,7 +67,7 @@
     "base": "SEA",
     "seat": "CA",
     "code": "CS4",
-    "startCapacity": 738,
+    "startCapacity": 739,
     "publishedBaseSize": 739,
     "delta": 36
   },
@@ -83,8 +83,8 @@
     "base": "SFO",
     "seat": "CA",
     "code": "CF4",
-    "startCapacity": 153,
-    "publishedBaseSize": 153,
+    "startCapacity": 154,
+    "publishedBaseSize": 154,
     "delta": 0
   },
   {
