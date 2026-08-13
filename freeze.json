@@ -2017,7 +2017,7 @@
       "psId": 1068576,
       "name": "FREEMAN, CARY",
       "freezeType": "DOWNGRADE",
-      "freezeEnd": "2026-10-13",
+      "freezeEnd": null,
       "trainingStarted": false,
       "source": "TDATA + FRZ List",
       "frzSheetSen": 2009,
@@ -2025,7 +2025,9 @@
       "newPosition": "737 PDX FO",
       "systemBid": "Bid 2026-03",
       "reason": "DOWNGRADE",
-      "length": "1 yr"
+      "length": "1 yr",
+      "blocksUpgrade": true,
+      "exception": "Confirmed by user unable to upgrade \u2014 freeze reactivated (original DOWNGRADE freeze end 2026-10-13 predates bid effective date and would otherwise be treated as expired). No end date given; freeze runs indefinitely until updated."
     },
     {
       "psId": 1008458,
@@ -2096,6 +2098,21 @@
       "bidType": "ACTIVE",
       "blocksUpgrade": true,
       "trainingStarted": false
+    },
+    {
+      "psId": 1037712,
+      "source": "TDATA",
+      "sen": 2211,
+      "name": "BRANDS, TIMOTHY",
+      "freezeType": "24.D.3 AGE-65",
+      "freezeEnd": null,
+      "age65": "2028-04-13",
+      "seat": "FO",
+      "base": "PDX",
+      "bidType": "ACTIVE",
+      "blocksUpgrade": false,
+      "trainingStarted": false,
+      "exception": "Previously held CA, downgraded prior to this bid cycle. Eligible to re-upgrade despite 24.D.3 window \u2014 confirmed by user."
     },
     {
       "psId": 1073811,
