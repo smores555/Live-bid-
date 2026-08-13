@@ -2100,21 +2100,6 @@
       "trainingStarted": false
     },
     {
-      "psId": 1037712,
-      "source": "TDATA",
-      "sen": 2211,
-      "name": "BRANDS, TIMOTHY",
-      "freezeType": "24.D.3 AGE-65",
-      "freezeEnd": null,
-      "age65": "2028-04-13",
-      "seat": "FO",
-      "base": "PDX",
-      "bidType": "ACTIVE",
-      "blocksUpgrade": false,
-      "trainingStarted": false,
-      "exception": "Previously held CA, downgraded prior to this bid cycle. Eligible to re-upgrade despite 24.D.3 window \u2014 confirmed by user."
-    },
-    {
       "psId": 1073811,
       "source": "TDATA",
       "sen": 2212,
