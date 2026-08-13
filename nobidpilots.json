@@ -669,7 +669,7 @@
     "sen": 896,
     "psId": 1020957,
     "name": "LINGLET, JEREMIE",
-    "adminStatus": "PMED"
+    "adminStatus": "PLTD"
   },
   {
     "sen": 900,
@@ -1023,7 +1023,7 @@
     "sen": 1784,
     "psId": 1062511,
     "name": "BEYER, BRIAN",
-    "adminStatus": "PMED"
+    "adminStatus": "PLTD"
   },
   {
     "sen": 1813,
@@ -1119,12 +1119,6 @@
     "sen": 1983,
     "psId": 1069544,
     "name": "TARNOVE, JAY",
-    "adminStatus": "PMED"
-  },
-  {
-    "sen": 1991,
-    "psId": 1052358,
-    "name": "ROARK, CHARLES (CHARLIE)",
     "adminStatus": "PMED"
   },
   {
@@ -1278,12 +1272,6 @@
     "adminStatus": "PMIL"
   },
   {
-    "sen": 2389,
-    "psId": 1057008,
-    "name": "NELSON, TYLER",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 2404,
     "psId": 1077450,
     "name": "MENDEZ, JASON",
@@ -1347,12 +1335,6 @@
     "sen": 2590,
     "psId": 1081749,
     "name": "YOUNG, GARRETT",
-    "adminStatus": "PMED"
-  },
-  {
-    "sen": 2595,
-    "psId": 1064690,
-    "name": "VALDEZ, CARLOS",
     "adminStatus": "PMED"
   },
   {
@@ -1570,6 +1552,12 @@
     "psId": 1090635,
     "name": "GREENE, ALAN",
     "adminStatus": "PMIL"
+  },
+  {
+    "sen": 3181,
+    "psId": 1090697,
+    "name": "ANDERSON, MARK",
+    "adminStatus": "PMED"
   },
   {
     "sen": 3200,
