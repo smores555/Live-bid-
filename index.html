@@ -297,10 +297,19 @@ $('runBtn').onclick = function () {
 
 function renderStats() {
   var s = result.stats;
-  var biddingPilots = s.pilots - s.noBid;
+  // Pilots who submitted bids have multiple rows, or a row that shows they tried to bid
+  // (not just the default "Remain in current position")
+  var bidsSubmitted = result.roster.filter(function (p) {
+    if (p.rows.length > 1) return true;
+    if (p.rows.length === 1) {
+      var r = p.rows[0];
+      return r.status !== 'Awarded' || r.note.indexOf('Remain in current position') === -1;
+    }
+    return false;
+  }).length;
   var cells = [
     ['Transactions', s.transactions, ''],
-    ['Submitted bids', biddingPilots, 'var(--accent)'],
+    ['Submitted bids', bidsSubmitted, 'var(--accent)'],
     ['Awarded', s.awarded, 'var(--green)'],
     ['Denied', s.denied, 'var(--red)'],
     ['Reductions', s.reductions, 'var(--yellow)'],
