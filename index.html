@@ -297,8 +297,10 @@ $('runBtn').onclick = function () {
 
 function renderStats() {
   var s = result.stats;
+  var biddingPilots = s.pilots - s.noBid;
   var cells = [
     ['Transactions', s.transactions, ''],
+    ['Submitted bids', biddingPilots, 'var(--accent)'],
     ['Awarded', s.awarded, 'var(--green)'],
     ['Denied', s.denied, 'var(--red)'],
     ['Reductions', s.reductions, 'var(--yellow)'],
@@ -384,7 +386,7 @@ function matches(p) {
     case 'paper':     return p.isPaper;
     case 'upgraded':  return p.upgraded;
     case 'frozen':    return p.isFrozen;
-    case 'downgrades': return p.freeze && p.freeze.freezeType === 'DOWNGRADE';
+    case 'downgrades': return !!(p.currentKey && p.orig && p.currentKey.slice(-3) === '-FO' && p.orig.slice(-3) === '-CA' && !p.isPaper);
   }
   return true;
 }
