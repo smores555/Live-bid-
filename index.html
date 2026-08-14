@@ -130,7 +130,6 @@
       <option value="paper">Paper bids</option>
       <option value="upgraded">Upgrades to CA</option>
       <option value="frozen">On freeze (24.D)</option>
-      <option value="downgrades">Downgrades (24.D)</option>
     </select>
     <input class="search" id="search" placeholder="Seniority or name">
   </div>
@@ -297,30 +296,12 @@ $('runBtn').onclick = function () {
 
 function renderStats() {
   var s = result.stats;
-  // Pilots who submitted bids have multiple rows, or a row that shows they tried to bid
-  // (not just the default "Remain in current position")
-  var bidsSubmitted = result.roster.filter(function (p) {
-    if (p.rows.length > 1) return true;
-    if (p.rows.length === 1) {
-      var r = p.rows[0];
-      return r.status !== 'Awarded' || r.note.indexOf('Remain in current position') === -1;
-    }
-    return false;
-  }).length;
-  // Downgrades: CA to FO moves
-  var downgrades = result.roster.filter(function (p) {
-    return !!(p.currentKey && p.orig && p.currentKey.slice(-3) === '-FO' && p.orig.slice(-3) === '-CA' && !p.isPaper);
-  }).length;
   var cells = [
     ['Transactions', s.transactions, ''],
-    ['Submitted bids', bidsSubmitted, 'var(--accent)'],
-    ['Denied', s.denied, 'var(--red)'],
-    ['Reductions', s.reductions, 'var(--yellow)'],
-    ['Displaced', s.displacements, 'var(--purple)'],
-    ['Movers', s.movers, 'var(--accent)'],
+    ['Bids submitted', s.bidsSubmitted, 'var(--accent)'],
+    ['Pilots moved', s.movers, 'var(--accent)'],
     ['Upgrades', s.upgrades, s.upgrades ? 'var(--orange)' : 'var(--dim)'],
-    ['Downgrades', downgrades, s.upgrades ? 'var(--purple)' : 'var(--dim)'],
-    ['Freeze denials', s.freezeDenials, s.freezeDenials ? 'var(--yellow)' : 'var(--dim)']
+    ['Downgrades', s.downgrades, s.downgrades ? 'var(--yellow)' : 'var(--dim)']
   ];
   $('stats').innerHTML = cells.map(function (c) {
     return '<div class="stat"><span class="n" style="color:' + (c[2] || 'var(--text)') +
@@ -398,7 +379,6 @@ function matches(p) {
     case 'paper':     return p.isPaper;
     case 'upgraded':  return p.upgraded;
     case 'frozen':    return p.isFrozen;
-    case 'downgrades': return !!(p.currentKey && p.orig && p.currentKey.slice(-3) === '-FO' && p.orig.slice(-3) === '-CA' && !p.isPaper);
   }
   return true;
 }
