@@ -130,6 +130,7 @@
       <option value="paper">Paper bids</option>
       <option value="upgraded">Upgrades to CA</option>
       <option value="frozen">On freeze (24.D)</option>
+      <option value="downgrades">Downgrades (24.D)</option>
     </select>
     <input class="search" id="search" placeholder="Seniority or name">
   </div>
@@ -296,19 +297,16 @@ $('runBtn').onclick = function () {
 
 function renderStats() {
   var s = result.stats;
-  var left = Object.keys(result.vacancies).filter(function (k) { return result.vacancies[k] !== 0; });
   var cells = [
     ['Transactions', s.transactions, ''],
     ['Awarded', s.awarded, 'var(--green)'],
     ['Denied', s.denied, 'var(--red)'],
-    ['No bid', s.noBid, 'var(--dim)'],
     ['Reductions', s.reductions, 'var(--yellow)'],
     ['Displaced', s.displacements, 'var(--purple)'],
     ['Movers', s.movers, 'var(--accent)'],
     ['Upgrades', s.upgrades, s.upgrades ? 'var(--orange)' : 'var(--dim)'],
     ['On freeze', s.frozen, s.frozen ? 'var(--yellow)' : 'var(--dim)'],
-    ['Freeze denials', s.freezeDenials, s.freezeDenials ? 'var(--yellow)' : 'var(--dim)'],
-    ['Unfilled', left.length, left.length ? 'var(--red)' : 'var(--green)']
+    ['Freeze denials', s.freezeDenials, s.freezeDenials ? 'var(--yellow)' : 'var(--dim)']
   ];
   $('stats').innerHTML = cells.map(function (c) {
     return '<div class="stat"><span class="n" style="color:' + (c[2] || 'var(--text)') +
@@ -386,6 +384,7 @@ function matches(p) {
     case 'paper':     return p.isPaper;
     case 'upgraded':  return p.upgraded;
     case 'frozen':    return p.isFrozen;
+    case 'downgrades': return p.freeze && p.freeze.freezeType === 'DOWNGRADE';
   }
   return true;
 }
