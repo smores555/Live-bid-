@@ -307,16 +307,19 @@ function renderStats() {
     }
     return false;
   }).length;
+  // Downgrades: CA to FO moves
+  var downgrades = result.roster.filter(function (p) {
+    return !!(p.currentKey && p.orig && p.currentKey.slice(-3) === '-FO' && p.orig.slice(-3) === '-CA' && !p.isPaper);
+  }).length;
   var cells = [
     ['Transactions', s.transactions, ''],
     ['Submitted bids', bidsSubmitted, 'var(--accent)'],
-    ['Awarded', s.awarded, 'var(--green)'],
     ['Denied', s.denied, 'var(--red)'],
     ['Reductions', s.reductions, 'var(--yellow)'],
     ['Displaced', s.displacements, 'var(--purple)'],
     ['Movers', s.movers, 'var(--accent)'],
     ['Upgrades', s.upgrades, s.upgrades ? 'var(--orange)' : 'var(--dim)'],
-    ['On freeze', s.frozen, s.frozen ? 'var(--yellow)' : 'var(--dim)'],
+    ['Downgrades', downgrades, s.upgrades ? 'var(--purple)' : 'var(--dim)'],
     ['Freeze denials', s.freezeDenials, s.freezeDenials ? 'var(--yellow)' : 'var(--dim)']
   ];
   $('stats').innerHTML = cells.map(function (c) {
