@@ -7,8 +7,6 @@
 
 <script src="engine.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
 <style>
   :root {
@@ -122,7 +120,6 @@
     <button id="expLog" class="btn ghost" disabled>Transaction log</button>
     <button id="expMaster" class="btn ghost" disabled>Master awards</button>
     <button id="expBase" class="btn ghost" disabled>Base lists</button>
-    <button id="expBasePdf" class="btn ghost" disabled>Base lists (PDF)</button>
     <button id="expUp" class="btn ghost" disabled>Upgrades</button>
     <span class="spacer"></span>
     <select id="filter">
@@ -133,7 +130,6 @@
       <option value="paper">Paper bids</option>
       <option value="upgraded">Upgrades to CA</option>
       <option value="frozen">On freeze (24.D)</option>
-      <option value="downgrades">Downgrades (24.D)</option>
       <option value="bplUnder10">BPL requested under 10</option>
     </select>
     <input class="search" id="search" placeholder="Seniority or name">
@@ -288,7 +284,7 @@ $('runBtn').onclick = function () {
 
   setTimeout(function () {
     result = runBidEngine(store, deltas);
-    ['expLog', 'expMaster', 'expBase', 'expBasePdf', 'expUp'].forEach(function (id) { $(id).disabled = false; });
+    ['expLog', 'expMaster', 'expBase', 'expUp'].forEach(function (id) { $(id).disabled = false; });
     $('runBtn').disabled = false;
     $('runBtn').textContent = 'Run bid';
     renderStats();
@@ -301,30 +297,12 @@ $('runBtn').onclick = function () {
 
 function renderStats() {
   var s = result.stats;
-  // Pilots who submitted bids have multiple rows, or a row that shows they tried to bid
-  // (not just the default "Remain in current position")
-  var bidsSubmitted = result.roster.filter(function (p) {
-    if (p.rows.length > 1) return true;
-    if (p.rows.length === 1) {
-      var r = p.rows[0];
-      return r.status !== 'Awarded' || r.note.indexOf('Remain in current position') === -1;
-    }
-    return false;
-  }).length;
-  // Downgrades: CA to FO moves
-  var downgrades = result.roster.filter(function (p) {
-    return !!(p.currentKey && p.orig && p.currentKey.slice(-3) === '-FO' && p.orig.slice(-3) === '-CA' && !p.isPaper);
-  }).length;
   var cells = [
     ['Transactions', s.transactions, ''],
-    ['Submitted bids', bidsSubmitted, 'var(--accent)'],
-    ['Denied', s.denied, 'var(--red)'],
-    ['Reductions', s.reductions, 'var(--yellow)'],
-    ['Displaced', s.displacements, 'var(--purple)'],
-    ['Movers', s.movers, 'var(--accent)'],
+    ['Bids submitted', s.bidsSubmitted, 'var(--accent)'],
+    ['Pilots moved', s.movers, 'var(--accent)'],
     ['Upgrades', s.upgrades, s.upgrades ? 'var(--orange)' : 'var(--dim)'],
-    ['Downgrades', downgrades, s.upgrades ? 'var(--purple)' : 'var(--dim)'],
-    ['Freeze denials', s.freezeDenials, s.freezeDenials ? 'var(--yellow)' : 'var(--dim)']
+    ['Downgrades', s.downgrades, s.downgrades ? 'var(--yellow)' : 'var(--dim)']
   ];
   $('stats').innerHTML = cells.map(function (c) {
     return '<div class="stat"><span class="n" style="color:' + (c[2] || 'var(--text)') +
@@ -413,7 +391,6 @@ function matches(p) {
     case 'paper':     return p.isPaper;
     case 'upgraded':  return p.upgraded;
     case 'frozen':    return p.isFrozen;
-    case 'downgrades': return !!(p.currentKey && p.orig && p.currentKey.slice(-3) === '-FO' && p.orig.slice(-3) === '-CA' && !p.isPaper);
     case 'bplUnder10': return pilotBplMins(p).some(function (b) { return b < 10; });
   }
   return true;
@@ -611,69 +588,6 @@ $('expBase').onclick = function () {
   });
 
   XLSX.writeFile(wb, 'base_lists.xlsx');
-};
-
-// ── Base lists (PDF) — same layout as the XLSX export, styled to match ────
-// the company's own printed BPL sheets: blue header, gray alternating rows,
-// footer stamped with the current west-coast date/time.
-$('expBasePdf').onclick = function () {
-  var baseNames = { ANC: 'ANCHORAGE', SEA: 'SEATTLE', LAX: 'LOS ANGELES',
-                    SAN: 'SAN DIEGO', SFO: 'SAN FRANCISCO', PDX: 'PORTLAND' };
-  var { jsPDF } = window.jspdf;
-  var doc = new jsPDF({ unit: 'in', format: 'letter' });
-  var now = new Date();
-  var stamp = 'Bids submitted as of ' + now.toLocaleString('en-US', {
-    timeZone: 'America/Los_Angeles', month: 'numeric', day: 'numeric',
-    year: 'numeric', hour: 'numeric', minute: '2-digit'
-  }) + ' PST';
-
-  var first = true;
-  ['SEA', 'PDX', 'ANC', 'LAX', 'SFO', 'SAN'].forEach(function (base) {
-    var caKey = base + '-CA', foKey = base + '-FO';
-    if (!result.positions[caKey] && !result.positions[foKey]) return;
-    var ca = result.positions[caKey] ? bplColumn(caKey) : [];
-    var fo = result.positions[foKey] ? bplColumn(foKey) : [];
-    if (!ca.length && !fo.length) return;
-
-    var body = [];
-    for (var i = 0; i < Math.max(ca.length, fo.length); i++) {
-      var c = ca[i] || ['', '', ''], f = fo[i] || ['', '', ''];
-      body.push([c[0], c[1], c[2], f[0], f[1], f[2]]);
-    }
-
-    if (!first) doc.addPage();
-    first = false;
-
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-    doc.text('737 ' + (baseNames[base] || base), 4.25, 0.5, { align: 'center' });
-
-    doc.autoTable({
-      startY: 0.75,
-      head: [['BPL', 'Captain Name', 'Sen', 'BPL', 'First Officer Name', 'Sen']],
-      body: body,
-      styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: '#4472c4', textColor: '#ffffff' },
-      alternateRowStyles: { fillColor: '#e7e6e6' },
-      columnStyles: {
-        0: { cellWidth: 0.8 }, 1: { cellWidth: 2 }, 2: { cellWidth: 0.8 },
-        3: { cellWidth: 0.8 }, 4: { cellWidth: 2 }, 5: { cellWidth: 0.8 }
-      },
-      margin: { bottom: 0.7 },
-      didDrawPage: function () {
-        var h = doc.internal.pageSize.getHeight();
-        doc.setDrawColor('#4472c4');
-        doc.setLineWidth(0.01);
-        doc.line(0.5, h - 0.55, 8, h - 0.55);
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'normal');
-        doc.setTextColor(0, 0, 0);
-        doc.text(stamp, 4.25, h - 0.35, { align: 'center' });
-      }
-    });
-  });
-
-  doc.save('base_lists_' + now.toISOString().slice(0, 10) + '.pdf');
 };
 </script>
 </body>
