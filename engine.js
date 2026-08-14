@@ -164,7 +164,10 @@ function runBidEngine(data, deltaMap, options) {
         freezeType: (f.freezeType || f.type || 'FREEZE').toUpperCase(),
         freezeEnd: end,
         trainingStarted: !!f.trainingStarted,
-        expired: expired
+        expired: expired,
+        // undefined unless the source record explicitly sets it (e.g. a
+        // manually-confirmed exception) — see freezeBlock().
+        blocksUpgrade: f.blocksUpgrade
       };
     });
   })();
@@ -184,7 +187,14 @@ function runBidEngine(data, deltaMap, options) {
     var tgtSeat = key.split('-')[1], tgtBase = key.split('-')[0];
     var until = f.freezeEnd ? ' Freeze ends ' + f.freezeEnd + '.' : '';
 
-    if (freezeRules.blockUpgrade && homeSeat === 'FO' && tgtSeat === 'CA') {
+    // A per-pilot blocksUpgrade in freeze.json overrides the global
+    // blockUpgrade rule for that one pilot — e.g. a manually-confirmed
+    // exception (previously held CA, downgraded, so this isn't a first
+    // upgrade). f.blocksUpgrade === false means "known exempt"; leaving it
+    // undefined falls through to the rule for everyone else.
+    var upgradeBlocked = f.blocksUpgrade === false ? false : freezeRules.blockUpgrade;
+
+    if (upgradeBlocked && homeSeat === 'FO' && tgtSeat === 'CA') {
       return 'Invalid bid. Pilot is in a position freeze (' + f.freezeType +
              ') and may not upgrade to Captain. CBA Section 24.D.' + until;
     }
@@ -750,6 +760,8 @@ function runBidEngine(data, deltaMap, options) {
       isFrozen: !!(p.freeze && !p.freeze.expired),
       upgraded: !!(p.loc && p.orig && p.loc.slice(-3) === '-CA' &&
                    p.orig.slice(-3) === '-FO' && !p.isPaper),
+      downgraded: !!(p.loc && p.orig && p.loc.slice(-3) === '-FO' &&
+                     p.orig.slice(-3) === '-CA' && !p.isPaper),
       wasDisplaced: wasDisplaced,
       isUnassigned: p.loc === null && p.orig !== null,
       rows: p.rows
@@ -787,6 +799,8 @@ function runBidEngine(data, deltaMap, options) {
       displacements: transactions.filter(function (r) { return r.status === 'Displaced'; }).length,
       movers: roster.filter(function (r) { return r.moved; }).length,
       upgrades: roster.filter(function (r) { return r.upgraded; }).length,
+      downgrades: roster.filter(function (r) { return r.downgraded; }).length,
+      bidsSubmitted: pilots.filter(function (p) { return p.prefs.length > 0; }).length,
       frozen: frozenPilots.filter(function (p) { return !p.freeze.expired; }).length,
       frozenExpired: frozenPilots.filter(function (p) { return p.freeze.expired; }).length,
       freezeDenials: transactions.filter(function (r) {
