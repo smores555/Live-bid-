@@ -52,14 +52,14 @@
     "base": "SAN",
     "seat": "FO",
     "code": "FN4",
-    "startCapacity": 112,
+    "startCapacity": 113,
     "delta": 9
   },
   {
     "base": "SEA",
     "seat": "CA",
     "code": "CS4",
-    "startCapacity": 739,
+    "startCapacity": 740,
     "delta": 36
   },
   {
@@ -83,4 +83,3 @@
     "startCapacity": 149,
     "delta": 3
   }
-]
