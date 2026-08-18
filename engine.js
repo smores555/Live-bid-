@@ -446,9 +446,10 @@ function runBidEngine(data, deltaMap, options) {
       // Vacancy first, then BPL — the company denies in that order.
       if (key !== p.loc && vac[key] <= 0) {
         deniedAt[key].push(p);
-        emit(p, startPos, fmtPos(key), pr.order, 'Denied',
-             'Requested position has ' + vac[key] +
-             ' vacancy and cannot accept additional pilots.');
+        var vacNote = 'Requested position has ' + vac[key] +
+             ' vacancy and cannot accept additional pilots.';
+        if (pr.bpl) vacNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of denial = ' + bpl(p, key) + '.';
+        emit(p, startPos, fmtPos(key), pr.order, 'Denied', vacNote);
         continue;
       }
 
@@ -464,7 +465,9 @@ function runBidEngine(data, deltaMap, options) {
       if (key !== p.loc) {
         var src = p.isPaper ? null : takeToken(key);
         var res = award(p, key, pr.order, src);
-        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
+        var awardNote = res.note;
+        if (pr.bpl) awardNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
+        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', awardNote);
         if (res.origin) proffer(res.origin);
         return true;
       }
