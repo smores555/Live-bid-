@@ -482,15 +482,14 @@ function runBidEngine(data, deltaMap, options) {
       if (key !== p.loc) {
         var src = p.isPaper ? null : takeToken(key);
         var res = award(p, key, pr.order, src);
-        var awardNote = res.note;
-        if (pr.bpl) awardNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
-        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', awardNote);
+        p.awardHadBpl = !!pr.bpl;
+        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
         if (res.origin) proffer(res.origin);
         return true;
       }
 
       var note = 'Remain in current position.';
-      if (pr.bpl) note += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
+      p.awardHadBpl = !!pr.bpl;
       p.awardOrder = pr.order;
       emit(p, startPos, fmtPos(key), pr.order, 'Awarded', note);
       return true;
@@ -502,7 +501,7 @@ function runBidEngine(data, deltaMap, options) {
   // opening and the BPL standings that improved for everyone below them.
   function proffer(key) {
     for (var guard = 0; guard < 20000; guard++) {
-      var best = null, bestOrder = null, seen = {};
+      var best = null, bestOrder = null, bestHadBpl = false, seen = {};
 
       for (var i = 0; i < deniedAt[key].length; i++) {
         var q = deniedAt[key][i];
@@ -536,7 +535,7 @@ function runBidEngine(data, deltaMap, options) {
               continue;
             }
           }
-          if (!best || q.sen < best.sen) { best = q; bestOrder = pr.order; }
+          if (!best || q.sen < best.sen) { best = q; bestOrder = pr.order; bestHadBpl = !!pr.bpl; }
           break;
         }
 
@@ -545,6 +544,7 @@ function runBidEngine(data, deltaMap, options) {
       if (!best) return;
       var src = best.loc === key ? 'self' : (best.isPaper ? null : takeToken(key));
       var res = award(best, key, bestOrder, src);
+      best.awardHadBpl = bestHadBpl;
       emit(best, fmtPos(best.orig), fmtPos(key), bestOrder, 'Awarded', res.note);
       if (res.origin && res.origin !== key) proffer(res.origin);
     }
@@ -792,6 +792,10 @@ function runBidEngine(data, deltaMap, options) {
     var finalBpl = finalBplRank[p.sen];
     if (finalBpl === undefined) return;
     p.finalBpl = finalBpl;
+    // Only surface it when the pilot actually submitted a BPL on the
+    // preference they were awarded — matches how the company only ever
+    // shows BPL for bids that carried a BPL requirement.
+    if (!p.awardHadBpl) return;
     var lastRow = p.rows[p.rows.length - 1];
     if (lastRow) {
       lastRow.note += (lastRow.note && !/[.]\s*$/.test(lastRow.note) ? '.' : '') +
