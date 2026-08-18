@@ -466,10 +466,10 @@ function runBidEngine(data, deltaMap, options) {
   var denialRows = {};
   function denialKey(sen, key, order) { return sen + '|' + key + '|' + order; }
 
-  function walkPreferences(p) {
+  function walkPreferences(p, fromIndex) {
     var startPos = fmtPos(p.orig);
 
-    for (var i = 0; i < p.prefs.length; i++) {
+    for (var i = (fromIndex || 0); i < p.prefs.length; i++) {
       var pr = p.prefs[i], key = pr.key;
 
 
@@ -601,14 +601,17 @@ function runBidEngine(data, deltaMap, options) {
     }
   }
 
-  // ── Live BPL enforcement (opt-in, ENFORCE_LIVE_BPL) ─────────────────────
+  // ── Live BPL enforcement (opt-in via enforceLiveBpl: false to disable) ──
   // Called right after ANY pilot is awarded into `key`. Re-tests every
   // current holder who was let in on a BPL requirement (awardedBplReq set)
   // against their LIVE bpl() now that the roster at `key` has changed. Any
-  // holder now over their own requested number loses the seat immediately
-  // and is routed into the same displacement queue Phase 2 uses — vacancy
-  // first, otherwise a seniority bump — rather than getting a free pass just
-  // because their award happened earlier in the run.
+  // holder now over their own requested number loses the seat immediately.
+  // They do NOT get 24.E displacement rights (no seniority bump on a junior
+  // pilot elsewhere) — losing a seat this way isn't a reduction, so they
+  // simply resume walking their OWN remaining preference list, picking up
+  // right after the preference they just lost, under the normal Phase 1
+  // vacancy-then-BPL gate. If nothing further on their list works, they end
+  // the run unassigned rather than bumping someone junior.
   function recheckBplHolders(key) {
     if (!ENFORCE_LIVE_BPL) return;
     var bumpedAny = false, changed = true;
@@ -621,16 +624,29 @@ function runBidEngine(data, deltaMap, options) {
         var live = bpl(q, key);
         if (live <= q.awardedBplReq) continue;
 
+        var oldOrder = q.awardOrder;
         exit(q);
         vac[key] += 1;
-        emit(q, fmtPos(key), fmtPos(key), q.awardOrder, 'Denied',
+        emit(q, fmtPos(key), fmtPos(key), oldOrder, 'Denied',
              'No longer meets BPL requirement — a more senior pilot was ' +
              'subsequently awarded ' + fmtKey(key) + '. Requested BPL = ' +
-             q.awardedBplReq + '. Live BPL = ' + live + '. Position vacated ' +
-             'and pilot re-enters for reassignment.');
+             q.awardedBplReq + '. Live BPL = ' + live + '. Position vacated.');
         q.awardedBplReq = null;
         q.awardOrder = null;
-        pushQueue(q);
+
+        // Resume their own list — first preference numbered after the one
+        // they just lost, not a restart from the top.
+        var resumeFrom = q.prefs.length;
+        for (var k = 0; k < q.prefs.length; k++) {
+          if (q.prefs[k].order > oldOrder) { resumeFrom = k; break; }
+        }
+        var reawarded = walkPreferences(q, resumeFrom);
+        if (!reawarded) {
+          emit(q, fmtPos(key), null, 'X', 'Denied',
+               'No further preferences remain after losing ' + fmtKey(key) +
+               ' to a more senior pilot. Pilot is unassigned.');
+        }
+
         bumpedAny = true;
         changed = true;
         break; // holders list is now stale — rescan
