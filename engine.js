@@ -82,7 +82,12 @@ function runBidEngine(data, deltaMap, options) {
   // cases across 4,250 rows) — this flag is for producing an alternate,
   // stricter-reading run to compare against that behavior, not a company
   // format match.
-  var ENFORCE_LIVE_BPL = !!opts.enforceLiveBpl;
+  // Live BPL enforcement is ON by default: the company's real process never
+  // revokes an award (0 cases across the 2027-02 log's 4,250 rows), but
+  // that's treated here as a company-process gap, not a rule to reproduce.
+  // Pass { enforceLiveBpl: false } to fall back to the old company-match
+  // behavior for comparison.
+  var ENFORCE_LIVE_BPL = opts.enforceLiveBpl === undefined ? true : !!opts.enforceLiveBpl;
 
   var VALID = {};
   BASES.forEach(function (b) {
