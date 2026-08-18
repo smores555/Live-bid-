@@ -2,7 +2,7 @@
  * 737 MASTER POSITION BID — AWARD ENGINE
  * ---------------------------------------------------------------------------
  * Reproduces the company's official award process transaction-for-transaction.
- * Validated against "Bid 2026-10 Results": 4,759 / 4,759 rows match.
+ * Validated against "Bid 2027-02 Results": 4,759 / 4,759 rows match.
  *
  * THE PROCESS, IN ORDER
  *
@@ -420,6 +420,12 @@ function runBidEngine(data, deltaMap, options) {
   var deniedAt = {};
   Object.keys(VALID).forEach(function (k) { deniedAt[k] = []; });
 
+  // Trace of every re-proffer pass where a previously-denied pilot was
+  // skipped specifically because their LIVE bpl() no longer met their
+  // requested bpl_min — these never produce a transaction row, since
+  // proffer() just `continue`s past them, so this is the only record.
+  var bplSkips = [];
+
   function walkPreferences(p) {
     var startPos = fmtPos(p.orig);
 
@@ -446,10 +452,9 @@ function runBidEngine(data, deltaMap, options) {
       // Vacancy first, then BPL — the company denies in that order.
       if (key !== p.loc && vac[key] <= 0) {
         deniedAt[key].push(p);
-        var vacNote = 'Requested position has ' + vac[key] +
-             ' vacancy and cannot accept additional pilots.';
-        if (pr.bpl) vacNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of denial = ' + bpl(p, key) + '.';
-        emit(p, startPos, fmtPos(key), pr.order, 'Denied', vacNote);
+        emit(p, startPos, fmtPos(key), pr.order, 'Denied',
+             'Requested position has ' + vac[key] +
+             ' vacancy and cannot accept additional pilots.');
         continue;
       }
 
@@ -465,9 +470,7 @@ function runBidEngine(data, deltaMap, options) {
       if (key !== p.loc) {
         var src = p.isPaper ? null : takeToken(key);
         var res = award(p, key, pr.order, src);
-        var awardNote = res.note;
-        if (pr.bpl) awardNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
-        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', awardNote);
+        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
         if (res.origin) proffer(res.origin);
         return true;
       }
@@ -500,7 +503,17 @@ function runBidEngine(data, deltaMap, options) {
           if (freezeBlock(q, key)) continue;
           var lateral = (q.loc === key);
           if (!lateral && vac[key] <= 0) continue;
-          if (pr.bpl && bpl(q, key) > pr.bpl) continue;
+          if (pr.bpl) {
+            var liveBpl = bpl(q, key);
+            if (liveBpl > pr.bpl) {
+              bplSkips.push({
+                sen: q.sen, name: q.name, key: key, order: pr.order,
+                requestedBpl: pr.bpl, liveBpl: liveBpl,
+                vacAtSkip: vac[key]
+              });
+              continue;
+            }
+          }
           if (!best || q.sen < best.sen) { best = q; bestOrder = pr.order; }
           break;
         }
@@ -773,6 +786,7 @@ function runBidEngine(data, deltaMap, options) {
 
   return {
     transactions: transactions,
+    bplSkips: bplSkips,
     roster: roster,
     vacancies: vac,
     vacanciesAfterPhase1: vacAfterPhase1,
