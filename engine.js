@@ -422,9 +422,18 @@ function runBidEngine(data, deltaMap, options) {
 
   // Trace of every re-proffer pass where a previously-denied pilot was
   // skipped specifically because their LIVE bpl() no longer met their
-  // requested bpl_min — these never produce a transaction row, since
-  // proffer() just `continue`s past them, so this is the only record.
+  // requested bpl_min — kept for internal debugging even though a visible
+  // row is now also emitted (see denialRows below).
   var bplSkips = [];
+
+  // A pilot can be denied the SAME (position, preference) more than once —
+  // first for vacancy, then again on a later re-proffer pass for BPL, as
+  // manning shifts around them. Rather than a new row per pass, all denials
+  // for one (pilot, position, preference) share a single row that gets
+  // updated in place, so the log shows just the FINAL reason he's still
+  // denied, sitting at the point where the first denial happened.
+  var denialRows = {};
+  function denialKey(sen, key, order) { return sen + '|' + key + '|' + order; }
 
   function walkPreferences(p) {
     var startPos = fmtPos(p.orig);
@@ -455,16 +464,18 @@ function runBidEngine(data, deltaMap, options) {
         var vacNote = 'Requested position has ' + vac[key] +
              ' vacancy and cannot accept additional pilots.';
         if (pr.bpl) vacNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of denial = ' + bpl(p, key) + '.';
-        emit(p, startPos, fmtPos(key), pr.order, 'Denied', vacNote);
+        denialRows[denialKey(p.sen, key, pr.order)] =
+          emit(p, startPos, fmtPos(key), pr.order, 'Denied', vacNote);
         continue;
       }
 
       var b = bpl(p, key);
       if (pr.bpl && b > pr.bpl) {
         deniedAt[key].push(p);
-        emit(p, startPos, fmtPos(key), pr.order, 'Denied',
-             'Bid request does not meet BPL requirement. Requested BPL = ' + pr.bpl +
-             '. BPL if awarded = ' + b + '.');
+        var bplDenyNote = 'Bid request does not meet BPL requirement. Requested BPL = ' + pr.bpl +
+             '. BPL if awarded = ' + b + '.';
+        denialRows[denialKey(p.sen, key, pr.order)] =
+          emit(p, startPos, fmtPos(key), pr.order, 'Denied', bplDenyNote);
         continue;
       }
 
@@ -514,15 +525,21 @@ function runBidEngine(data, deltaMap, options) {
                 requestedBpl: pr.bpl, liveBpl: liveBpl,
                 vacAtSkip: vac[key]
               });
-              emit(q, fmtPos(q.orig), fmtPos(key), pr.order, 'Denied',
-                   'Bid request does not meet BPL requirement. Requested BPL = ' + pr.bpl +
-                   '. BPL if awarded = ' + liveBpl + '.');
+              var dKey = denialKey(q.sen, key, pr.order);
+              var skipNote = 'Bid request does not meet BPL requirement. Requested BPL = ' +
+                   pr.bpl + '. BPL if awarded = ' + liveBpl + '.';
+              if (denialRows[dKey]) {
+                denialRows[dKey].note = skipNote;
+              } else {
+                denialRows[dKey] = emit(q, fmtPos(q.orig), fmtPos(key), pr.order, 'Denied', skipNote);
+              }
               continue;
             }
           }
           if (!best || q.sen < best.sen) { best = q; bestOrder = pr.order; }
           break;
         }
+
       }
 
       if (!best) return;
