@@ -459,13 +459,14 @@ function runBidEngine(data, deltaMap, options) {
       }
 
       // Vacancy first, then BPL — the company denies in that order.
+      // The company never appends BPL text to a vacancy denial (verified
+      // against 49 such rows in the 2026-10 log), so neither do we.
       if (key !== p.loc && vac[key] <= 0) {
         deniedAt[key].push(p);
-        var vacNote = 'Requested position has ' + vac[key] +
-             ' vacancy and cannot accept additional pilots.';
-        if (pr.bpl) vacNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of denial = ' + bpl(p, key) + '.';
         denialRows[denialKey(p.sen, key, pr.order)] =
-          emit(p, startPos, fmtPos(key), pr.order, 'Denied', vacNote);
+          emit(p, startPos, fmtPos(key), pr.order, 'Denied',
+               'Requested position has ' + vac[key] +
+               ' vacancy and cannot accept additional pilots.');
         continue;
       }
 
@@ -483,13 +484,17 @@ function runBidEngine(data, deltaMap, options) {
         var src = p.isPaper ? null : takeToken(key);
         var res = award(p, key, pr.order, src);
         p.awardHadBpl = !!pr.bpl;
-        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
+        var moveNote = res.note;
+        if (pr.bpl) moveNote += ' Requested BPL = ' + pr.bpl + '.';
+        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', moveNote);
         if (res.origin) proffer(res.origin);
         return true;
       }
 
+      // Remain-in-current-position keeps the company's own format.
       var note = 'Remain in current position.';
       p.awardHadBpl = !!pr.bpl;
+      if (pr.bpl) note += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
       p.awardOrder = pr.order;
       emit(p, startPos, fmtPos(key), pr.order, 'Awarded', note);
       return true;
@@ -501,7 +506,7 @@ function runBidEngine(data, deltaMap, options) {
   // opening and the BPL standings that improved for everyone below them.
   function proffer(key) {
     for (var guard = 0; guard < 20000; guard++) {
-      var best = null, bestOrder = null, bestHadBpl = false, seen = {};
+      var best = null, bestOrder = null, bestBplReq = null, bestLiveBpl = null, bestLateral = false, seen = {};
 
       for (var i = 0; i < deniedAt[key].length; i++) {
         var q = deniedAt[key][i];
@@ -516,17 +521,18 @@ function runBidEngine(data, deltaMap, options) {
           if (freezeBlock(q, key)) continue;
           var lateral = (q.loc === key);
           if (!lateral && vac[key] <= 0) continue;
+          var qLiveBpl = null;
           if (pr.bpl) {
-            var liveBpl = bpl(q, key);
-            if (liveBpl > pr.bpl) {
+            qLiveBpl = bpl(q, key);
+            if (qLiveBpl > pr.bpl) {
               bplSkips.push({
                 sen: q.sen, name: q.name, key: key, order: pr.order,
-                requestedBpl: pr.bpl, liveBpl: liveBpl,
+                requestedBpl: pr.bpl, liveBpl: qLiveBpl,
                 vacAtSkip: vac[key]
               });
               var dKey = denialKey(q.sen, key, pr.order);
               var skipNote = 'Bid request does not meet BPL requirement. Requested BPL = ' +
-                   pr.bpl + '. BPL if awarded = ' + liveBpl + '.';
+                   pr.bpl + '. BPL if awarded = ' + qLiveBpl + '.';
               if (denialRows[dKey]) {
                 denialRows[dKey].note = skipNote;
               } else {
@@ -535,7 +541,9 @@ function runBidEngine(data, deltaMap, options) {
               continue;
             }
           }
-          if (!best || q.sen < best.sen) { best = q; bestOrder = pr.order; bestHadBpl = !!pr.bpl; }
+          if (!best || q.sen < best.sen) {
+            best = q; bestOrder = pr.order; bestBplReq = pr.bpl || null; bestLiveBpl = qLiveBpl; bestLateral = lateral;
+          }
           break;
         }
 
@@ -544,8 +552,14 @@ function runBidEngine(data, deltaMap, options) {
       if (!best) return;
       var src = best.loc === key ? 'self' : (best.isPaper ? null : takeToken(key));
       var res = award(best, key, bestOrder, src);
-      best.awardHadBpl = bestHadBpl;
-      emit(best, fmtPos(best.orig), fmtPos(key), bestOrder, 'Awarded', res.note);
+      best.awardHadBpl = !!bestBplReq;
+      var pNote = res.note;
+      if (bestBplReq) {
+        pNote += bestLateral
+          ? ' Requested BPL = ' + bestBplReq + '. BPL at time of award = ' + bestLiveBpl + '.'
+          : ' Requested BPL = ' + bestBplReq + '.';
+      }
+      emit(best, fmtPos(best.orig), fmtPos(key), bestOrder, 'Awarded', pNote);
       if (res.origin && res.origin !== key) proffer(res.origin);
     }
   }
@@ -779,9 +793,9 @@ function runBidEngine(data, deltaMap, options) {
   var frozenPilots = pilots.filter(function (p) { return p.freeze; });
 
   // Final BPL: each pilot's settled BPL standing at whatever base/seat they
-  // actually ended up in, once the whole run is done and manning has
-  // stopped moving — not the BPL at the moment of any one decision, but
-  // where they landed at the end of the entire bid.
+  // actually ended up in, once the whole run is done. Shown on the award row
+  // (appended to whatever note is already there) only for pilots who
+  // submitted a BPL on the preference they were awarded.
   var finalBplRank = {};
   Object.keys(positions).forEach(function (key) {
     positions[key].holders.forEach(function (h, i) { finalBplRank[h.sen] = i + 1; });
@@ -792,9 +806,6 @@ function runBidEngine(data, deltaMap, options) {
     var finalBpl = finalBplRank[p.sen];
     if (finalBpl === undefined) return;
     p.finalBpl = finalBpl;
-    // Only surface it when the pilot actually submitted a BPL on the
-    // preference they were awarded — matches how the company only ever
-    // shows BPL for bids that carried a BPL requirement.
     if (!p.awardHadBpl) return;
     var lastRow = p.rows[p.rows.length - 1];
     if (lastRow) {
