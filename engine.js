@@ -15,6 +15,12 @@
  *         has to satisfy BPL — a pilot can be denied their own position.
  *       - BPL counts only ON-MANNING pilots senior to the bidder at that
  *         base/seat, evaluated live at the moment of the bid.
+ *       - opts.enforceLiveBpl (default OFF): re-tests every BPL-gated award
+ *         each time a more senior pilot later lands at that base/seat, and
+ *         bumps a holder into displacement the instant they're outnumbered.
+ *         The company's real process never does this — no award is ever
+ *         revoked in the source log — so this is an alternate stricter mode
+ *         for comparison, not the company-match default.
  *
  *   Re-proffer (runs inside Phase 1, depth-first)
  *     The instant a pilot vacates a position, that opening is offered back
@@ -66,6 +72,17 @@ function runBidEngine(data, deltaMap, options) {
   // Sen 3254 was allowed to upgrade and sen 3357 was not, so the real cutoff
   // is somewhere in 3255-3357. Set to null to disable the rule entirely.
   var UPGRADE_MIN_SEN = opts.upgradeMinSen === undefined ? 3255 : opts.upgradeMinSen;
+
+  // When on, a held BPL-gated award is re-tested every time a MORE SENIOR
+  // pilot is subsequently awarded into the same base/seat. The instant a
+  // holder's live BPL exceeds the BPL they requested, they lose the seat and
+  // re-enter through the same displacement machinery Phase 2 uses (vacancy
+  // first, otherwise seniority bump). Off by default: the real company
+  // process, per the 2027-02 log, never revokes an award once granted (0
+  // cases across 4,250 rows) — this flag is for producing an alternate,
+  // stricter-reading run to compare against that behavior, not a company
+  // format match.
+  var ENFORCE_LIVE_BPL = !!opts.enforceLiveBpl;
 
   var VALID = {};
   BASES.forEach(function (b) {
@@ -253,6 +270,7 @@ function runBidEngine(data, deltaMap, options) {
       isNoBid: !!noBidSet[sen] || orig === null,
       offManning: !!paperSet[sen] || !!noBidSet[sen] || orig === null,
       awardOrder: null,
+      awardedBplReq: null,
       processed: false,
       rows: []
     };
@@ -416,6 +434,14 @@ function runBidEngine(data, deltaMap, options) {
     return { note: note, origin: origin };
   }
 
+  // Displacement queue — declared here (not down in Phase 2) so a live-BPL
+  // bump during Phase 1 can push into the same queue Phase 2 drains.
+  var queue = [];
+  function pushQueue(p) {
+    queue.push(p);
+    queue.sort(function (a, b) { return a.sen - b.sen; });
+  }
+
   // ── Phase 1 ─────────────────────────────────────────────────────────────
   var deniedAt = {};
   Object.keys(VALID).forEach(function (k) { deniedAt[k] = []; });
@@ -484,19 +510,23 @@ function runBidEngine(data, deltaMap, options) {
         var src = p.isPaper ? null : takeToken(key);
         var res = award(p, key, pr.order, src);
         p.awardHadBpl = !!pr.bpl;
+        p.awardedBplReq = pr.bpl || null;
         var moveNote = res.note;
         if (pr.bpl) moveNote += ' Requested BPL = ' + pr.bpl + '.';
         emit(p, startPos, fmtPos(key), pr.order, 'Awarded', moveNote);
         if (res.origin) proffer(res.origin);
+        recheckBplHolders(key);
         return true;
       }
 
       // Remain-in-current-position keeps the company's own format.
       var note = 'Remain in current position.';
       p.awardHadBpl = !!pr.bpl;
+      p.awardedBplReq = pr.bpl || null;
       if (pr.bpl) note += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
       p.awardOrder = pr.order;
       emit(p, startPos, fmtPos(key), pr.order, 'Awarded', note);
+      recheckBplHolders(key);
       return true;
     }
     return false;
@@ -553,6 +583,7 @@ function runBidEngine(data, deltaMap, options) {
       var src = best.loc === key ? 'self' : (best.isPaper ? null : takeToken(key));
       var res = award(best, key, bestOrder, src);
       best.awardHadBpl = !!bestBplReq;
+      best.awardedBplReq = bestBplReq || null;
       var pNote = res.note;
       if (bestBplReq) {
         pNote += bestLateral
@@ -561,7 +592,46 @@ function runBidEngine(data, deltaMap, options) {
       }
       emit(best, fmtPos(best.orig), fmtPos(key), bestOrder, 'Awarded', pNote);
       if (res.origin && res.origin !== key) proffer(res.origin);
+      recheckBplHolders(key);
     }
+  }
+
+  // ── Live BPL enforcement (opt-in, ENFORCE_LIVE_BPL) ─────────────────────
+  // Called right after ANY pilot is awarded into `key`. Re-tests every
+  // current holder who was let in on a BPL requirement (awardedBplReq set)
+  // against their LIVE bpl() now that the roster at `key` has changed. Any
+  // holder now over their own requested number loses the seat immediately
+  // and is routed into the same displacement queue Phase 2 uses — vacancy
+  // first, otherwise a seniority bump — rather than getting a free pass just
+  // because their award happened earlier in the run.
+  function recheckBplHolders(key) {
+    if (!ENFORCE_LIVE_BPL) return;
+    var bumpedAny = false, changed = true;
+    while (changed) {
+      changed = false;
+      var holders = Object.keys(occBid[key]).map(Number);
+      for (var i = 0; i < holders.length; i++) {
+        var q = bySen[holders[i]];
+        if (!q.awardedBplReq) continue;
+        var live = bpl(q, key);
+        if (live <= q.awardedBplReq) continue;
+
+        exit(q);
+        vac[key] += 1;
+        emit(q, fmtPos(key), fmtPos(key), q.awardOrder, 'Denied',
+             'No longer meets BPL requirement — a more senior pilot was ' +
+             'subsequently awarded ' + fmtKey(key) + '. Requested BPL = ' +
+             q.awardedBplReq + '. Live BPL = ' + live + '. Position vacated ' +
+             'and pilot re-enters for reassignment.');
+        q.awardedBplReq = null;
+        q.awardOrder = null;
+        pushQueue(q);
+        bumpedAny = true;
+        changed = true;
+        break; // holders list is now stale — rescan
+      }
+    }
+    if (bumpedAny) proffer(key);
   }
 
   pilots.forEach(function (p) {
@@ -590,11 +660,7 @@ function runBidEngine(data, deltaMap, options) {
   Object.keys(vac).forEach(function (k) { vacAfterPhase1[k] = vac[k]; });
 
   // ── Phase 2 ─────────────────────────────────────────────────────────────
-  var queue = [];
-  function pushQueue(p) {
-    queue.push(p);
-    queue.sort(function (a, b) { return a.sen - b.sen; });
-  }
+  // queue / pushQueue are declared above Phase 1 now — see note there.
 
   // Any position left over its cap sheds its junior overage.
   Object.keys(VALID).sort().forEach(function (key) {
