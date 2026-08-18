@@ -2084,20 +2084,7 @@
       "bidType": "ACTIVE",
       "blocksUpgrade": true,
       "trainingStarted": false
-    },
-    {
-      "psId": 1034199,
-      "source": "TDATA",
-      "sen": 2196,
-      "name": "GRAY, GARRETT",
-      "freezeType": "24.D.3 AGE-65",
-      "freezeEnd": null,
-      "age65": "2028-10-09",
-      "seat": "FO",
-      "base": "SEA",
-      "bidType": "ACTIVE",
-      "blocksUpgrade": true,
-      "trainingStarted": false
+
     },
     {
       "psId": 1073811,
