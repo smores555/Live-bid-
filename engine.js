@@ -452,9 +452,10 @@ function runBidEngine(data, deltaMap, options) {
       // Vacancy first, then BPL — the company denies in that order.
       if (key !== p.loc && vac[key] <= 0) {
         deniedAt[key].push(p);
-        emit(p, startPos, fmtPos(key), pr.order, 'Denied',
-             'Requested position has ' + vac[key] +
-             ' vacancy and cannot accept additional pilots.');
+        var vacNote = 'Requested position has ' + vac[key] +
+             ' vacancy and cannot accept additional pilots.';
+        if (pr.bpl) vacNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of denial = ' + bpl(p, key) + '.';
+        emit(p, startPos, fmtPos(key), pr.order, 'Denied', vacNote);
         continue;
       }
 
@@ -470,7 +471,9 @@ function runBidEngine(data, deltaMap, options) {
       if (key !== p.loc) {
         var src = p.isPaper ? null : takeToken(key);
         var res = award(p, key, pr.order, src);
-        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', res.note);
+        var awardNote = res.note;
+        if (pr.bpl) awardNote += ' Requested BPL = ' + pr.bpl + '. BPL at time of award = ' + b + '.';
+        emit(p, startPos, fmtPos(key), pr.order, 'Awarded', awardNote);
         if (res.origin) proffer(res.origin);
         return true;
       }
@@ -511,6 +514,9 @@ function runBidEngine(data, deltaMap, options) {
                 requestedBpl: pr.bpl, liveBpl: liveBpl,
                 vacAtSkip: vac[key]
               });
+              emit(q, fmtPos(q.orig), fmtPos(key), pr.order, 'Denied',
+                   'Bid request does not meet BPL requirement. Requested BPL = ' + pr.bpl +
+                   '. BPL if awarded = ' + liveBpl + '.');
               continue;
             }
           }
@@ -755,6 +761,27 @@ function runBidEngine(data, deltaMap, options) {
 
   var frozenPilots = pilots.filter(function (p) { return p.freeze; });
 
+  // Final BPL: each pilot's settled BPL standing at whatever base/seat they
+  // actually ended up in, once the whole run is done and manning has
+  // stopped moving — not the BPL at the moment of any one decision, but
+  // where they landed at the end of the entire bid.
+  var finalBplRank = {};
+  Object.keys(positions).forEach(function (key) {
+    positions[key].holders.forEach(function (h, i) { finalBplRank[h.sen] = i + 1; });
+  });
+
+  pilots.forEach(function (p) {
+    if (!p.loc) return;
+    var finalBpl = finalBplRank[p.sen];
+    if (finalBpl === undefined) return;
+    p.finalBpl = finalBpl;
+    var lastRow = p.rows[p.rows.length - 1];
+    if (lastRow) {
+      lastRow.note += (lastRow.note && !/[.]\s*$/.test(lastRow.note) ? '.' : '') +
+        ' Final BPL = ' + finalBpl + '.';
+    }
+  });
+
   var roster = pilots.map(function (p) {
     var last = p.rows[p.rows.length - 1] || {};
     var wasDisplaced = p.rows.some(function (r) {
@@ -766,6 +793,7 @@ function runBidEngine(data, deltaMap, options) {
       orig: p.orig,
       currentKey: p.loc,
       finalPos: fmtPos(p.loc),
+      finalBpl: p.finalBpl === undefined ? null : p.finalBpl,
       awardedPrefNum: p.awardOrder,
       status: last.status || 'Awarded',
       note: last.note || '',
