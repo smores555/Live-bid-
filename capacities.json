@@ -24,7 +24,7 @@
     "base": "LAX",
     "seat": "FO",
     "code": "FL4",
-    "startCapacity": 171,
+    "startCapacity": 160,
     "delta": 8
   },
   {
@@ -52,7 +52,7 @@
     "base": "SAN",
     "seat": "FO",
     "code": "FN4",
-    "startCapacity": 122,
+    "startCapacity": 96,
     "delta": 6
   },
   {
@@ -66,7 +66,7 @@
     "base": "SEA",
     "seat": "FO",
     "code": "FS4",
-    "startCapacity": 680,
+    "startCapacity": 673,
     "delta": 38
   },
   {
@@ -80,7 +80,7 @@
     "base": "SFO",
     "seat": "FO",
     "code": "FF4",
-    "startCapacity": 148,
+    "startCapacity": 127,
     "delta": 0
   }
 ]
