@@ -4,83 +4,83 @@
     "seat": "CA",
     "code": "CA4",
     "startCapacity": 147,
-    "delta": 5
+    "delta": 9
   },
   {
     "base": "ANC",
     "seat": "FO",
     "code": "FA4",
-    "startCapacity": 149,
-    "delta": 0
+    "startCapacity": 150,
+    "delta": 6
   },
   {
     "base": "LAX",
     "seat": "CA",
     "code": "CL4",
-    "startCapacity": 178,
-    "delta": 0
+    "startCapacity": 175,
+    "delta": 7
   },
   {
     "base": "LAX",
     "seat": "FO",
     "code": "FL4",
-    "startCapacity": 173,
-    "delta": 0
+    "startCapacity": 171,
+    "delta": 8
   },
   {
     "base": "PDX",
     "seat": "CA",
     "code": "CP4",
-    "startCapacity": 222,
-    "delta": 10
+    "startCapacity": 229,
+    "delta": 13
   },
   {
     "base": "PDX",
     "seat": "FO",
     "code": "FP4",
-    "startCapacity": 223,
-    "delta": 2
+    "startCapacity": 232,
+    "delta": 0
   },
   {
     "base": "SAN",
     "seat": "CA",
     "code": "CN4",
-    "startCapacity": 133,
-    "delta": 0
+    "startCapacity": 129,
+    "delta": 1
   },
   {
     "base": "SAN",
     "seat": "FO",
     "code": "FN4",
-    "startCapacity": 113,
-    "delta": 9
+    "startCapacity": 122,
+    "delta": 6
   },
   {
     "base": "SEA",
     "seat": "CA",
     "code": "CS4",
-    "startCapacity": 740,
-    "delta": 36
+    "startCapacity": 774,
+    "delta": 12
   },
   {
     "base": "SEA",
     "seat": "FO",
     "code": "FS4",
-    "startCapacity": 679,
-    "delta": 0
+    "startCapacity": 680,
+    "delta": 38
   },
   {
     "base": "SFO",
     "seat": "CA",
     "code": "CF4",
-    "startCapacity": 154,
-    "delta": 0
+    "startCapacity": 155,
+    "delta": 2
   },
   {
     "base": "SFO",
     "seat": "FO",
     "code": "FF4",
-    "startCapacity": 149,
-    "delta": 3
+    "startCapacity": 148,
+    "delta": 0
   }
 ]
