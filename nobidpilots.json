@@ -984,12 +984,6 @@
     "adminStatus": "PLTD"
   },
   {
-    "sen": 1624,
-    "psId": 1060276,
-    "name": "BRETZ, ROBERT",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 1631,
     "psId": 1057138,
     "name": "LEWIS, PAIGE",
@@ -1074,12 +1068,6 @@
     "adminStatus": "PMED"
   },
   {
-    "sen": 1876,
-    "psId": 1063601,
-    "name": "PETERSEN, WADE",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 1883,
     "psId": 1064218,
     "name": "ARCHER, STEPHANIE",
@@ -1090,12 +1078,6 @@
     "psId": 1064474,
     "name": "ZELLER, JUSTIN",
     "adminStatus": "PLTD"
-  },
-  {
-    "sen": 1891,
-    "psId": 1064476,
-    "name": "VAETH, JOSEPH",
-    "adminStatus": "PMED"
   },
   {
     "sen": 1923,
@@ -1258,6 +1240,12 @@
     "psId": 1052983,
     "name": "FITZWATER, DAVID",
     "adminStatus": "PLTD"
+  },
+  {
+    "sen": 2269,
+    "psId": 1074180,
+    "name": "HARWOOD, PREM",
+    "adminStatus": "PMED"
   },
   {
     "sen": 2280,
@@ -1446,12 +1434,6 @@
     "adminStatus": "PMED"
   },
   {
-    "sen": 2945,
-    "psId": 1057831,
-    "name": "MUESSLE, PETER",
-    "adminStatus": "PFML"
-  },
-  {
     "sen": 2946,
     "psId": 1088004,
     "name": "DEVEREAUX, ALECSANDRA (SASHA)",
@@ -1524,16 +1506,16 @@
     "adminStatus": "PWCP"
   },
   {
-    "sen": 3132,
-    "psId": 1090409,
-    "name": "LAZZARO, JOSEPH (ROB)",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 3139,
     "psId": 1090380,
     "name": "KELLY, KEVIN",
     "adminStatus": "PMIL"
+  },
+  {
+    "sen": 3160,
+    "psId": 1090469,
+    "name": "NGUYEN, JONATHAN (JON)",
+    "adminStatus": "PFML"
   },
   {
     "sen": 3162,
@@ -1546,12 +1528,6 @@
     "psId": 1090464,
     "name": "AZOUZ, KAMERON",
     "adminStatus": "PMED"
-  },
-  {
-    "sen": 3167,
-    "psId": 1090494,
-    "name": "BLESSINGER, DAVID",
-    "adminStatus": "PMIL"
   },
   {
     "sen": 3173,
@@ -1602,12 +1578,6 @@
     "adminStatus": "PLTD"
   },
   {
-    "sen": 3234,
-    "psId": 1091465,
-    "name": "SEARS, GLENN",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 3253,
     "psId": 1091550,
     "name": "MELDAHL, TIMOTHY",
@@ -1626,12 +1596,6 @@
     "adminStatus": "PFML"
   },
   {
-    "sen": 3281,
-    "psId": 1078008,
-    "name": "GREENBERG, NATHAN",
-    "adminStatus": "PFMN"
-  },
-  {
     "sen": 3282,
     "psId": 1075637,
     "name": "MCMAHON, MANDI",
@@ -1648,6 +1612,12 @@
     "psId": 1122747,
     "name": "VAN WAGNER, CRAIG",
     "adminStatus": "PQIT"
+  },
+  {
+    "sen": 3317,
+    "psId": 1079568,
+    "name": "JOHNSON, MARCI",
+    "adminStatus": "PMED"
   },
   {
     "sen": 3320,
