@@ -148,8 +148,8 @@
       from a First Officer seat and was awarded Captain in this bid. A base can post
       upgrades and still show a more senior junior-CA number when the junior Captains
       held the seat before bidding opened. <strong>Junior FO</strong> is the most junior
-      pilot sitting in the First Officer seat once the bid settles. <strong>Open</strong> is
-      the number of seats still unfilled after the bid, Captain and First Officer.
+      pilot sitting in the First Officer seat once the bid settles. <strong>Open FO</strong> is
+      the number of First Officer seats still unfilled after the bid (Open CA appears only if a Captain seat is open).
     </p>
   </div>
 
@@ -333,10 +333,8 @@ function renderUpgrades() {
       : '<dd class="none">Seat empty</dd>';
 
     var caOpen = d.open || 0, foOpen = fo ? fo.open : 0;
-    var openCell = '<dd class="' + ((caOpen + foOpen) ? 'open-some' : 'none') + '">' +
-      ((caOpen + foOpen)
-        ? [caOpen ? caOpen + ' CA' : '', foOpen ? foOpen + ' FO' : ''].filter(Boolean).join(' &middot; ')
-        : 'None') + '</dd>';
+    var openFo = '<dd class="' + (foOpen ? 'open-some' : 'none') + '">' + (foOpen || 'None') + '</dd>';
+    var openCa = caOpen ? '<dt>Open CA</dt><dd class="open-some">' + caOpen + '</dd>' : '';
 
     return '<div class="up' + (count ? ' has' : '') + '">' +
       '<div class="b">' + b +
@@ -346,7 +344,7 @@ function renderUpgrades() {
         '<dt>Junior upgrade</dt>' + upCell +
         '<dt>Junior FO</dt>' + foCell +
         '<dt>Upgrades</dt><dd>' + count + '</dd>' +
-        '<dt>Open</dt>' + openCell +
+        openCa + '<dt>Open FO</dt>' + openFo +
       '</dl></div>';
   }).join('');
 }
