@@ -38,14 +38,14 @@
     "base": "PDX",
     "seat": "FO",
     "code": "FP4",
-    "startCapacity": 232,
+    "startCapacity": 233,
     "delta": 0
   },
   {
     "base": "SAN",
     "seat": "CA",
     "code": "CN4",
-    "startCapacity": 129,
+    "startCapacity": 130,
     "delta": 1
   },
   {
@@ -59,14 +59,14 @@
     "base": "SEA",
     "seat": "CA",
     "code": "CS4",
-    "startCapacity": 774,
+    "startCapacity": 775,
     "delta": 12
   },
   {
     "base": "SEA",
     "seat": "FO",
     "code": "FS4",
-    "startCapacity": 673,
+    "startCapacity": 674,
     "delta": 38
   },
   {
@@ -80,7 +80,7 @@
     "base": "SFO",
     "seat": "FO",
     "code": "FF4",
-    "startCapacity": 127,
+    "startCapacity": 128,
     "delta": 0
   }
 ]
