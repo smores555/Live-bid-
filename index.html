@@ -94,6 +94,7 @@
   .up dd { margin:0; font-family:var(--mono); font-size:.86rem; font-weight:600; }
   .up dd .who { display:block; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
                 font-size:.72rem; font-weight:400; color:var(--dim); letter-spacing:0; }
+  .up dd.open-some { color:var(--green); }
   .up .none { color:var(--dim); font-weight:400; font-family:inherit; font-size:.78rem; }
   .up.has dd.up-sen { color:var(--orange); }
   .legend { color:var(--dim); font-size:.72rem; margin:11px 0 0; line-height:1.55; }
@@ -138,7 +139,7 @@
   <div class="stats" id="stats"></div>
 
   <div class="card" id="upgradeCard" style="display:none;">
-    <h2>Captain upgrades by base</h2>
+    <h2>Base summary</h2>
     <div class="up-grid" id="upgradeGrid"></div>
     <p class="legend">
       <strong>Junior CA</strong> is the most junior pilot sitting in the seat once the bid
@@ -146,20 +147,10 @@
       were already there. <strong>Junior upgrade</strong> is the most junior pilot who came
       from a First Officer seat and was awarded Captain in this bid. A base can post
       upgrades and still show a more senior junior-CA number when the junior Captains
-      held the seat before bidding opened.
+      held the seat before bidding opened. <strong>Junior FO</strong> is the most junior
+      pilot sitting in the First Officer seat once the bid settles. <strong>Open</strong> is
+      the number of seats still unfilled after the bid, Captain and First Officer.
     </p>
-  </div>
-
-  <div class="card" id="openPositionsCard" style="display:none;">
-    <h2>Open positions</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Position</th><th>Cap</th><th>Filled</th><th>Open</th><th>Min seniority</th>
-        </tr>
-      </thead>
-      <tbody id="openPositionsBody"></tbody>
-    </table>
   </div>
 
   <div class="card" style="padding:0; overflow:hidden;">
@@ -289,7 +280,6 @@ $('runBtn').onclick = function () {
     $('runBtn').textContent = 'Run bid';
     renderStats();
     renderUpgrades();
-    renderOpenPositions();
     shown = pageSize;
     renderTable();
   }, 20);
@@ -336,35 +326,28 @@ function renderUpgrades() {
       ? '<dd class="none">Seat empty</dd>'
       : '<dd>' + d.holdSen + '<span class="who">' + esc(d.holdName) + '</span></dd>';
 
+    var fo = result.positions[b + '-FO'];
+    var foJunior = fo && fo.holders.length ? fo.holders[fo.holders.length - 1] : null;
+    var foCell = foJunior
+      ? '<dd>' + foJunior.sen + '<span class="who">' + esc(foJunior.name) + '</span></dd>'
+      : '<dd class="none">Seat empty</dd>';
+
+    var caOpen = d.open || 0, foOpen = fo ? fo.open : 0;
+    var openCell = '<dd class="' + ((caOpen + foOpen) ? 'open-some' : 'none') + '">' +
+      ((caOpen + foOpen)
+        ? [caOpen ? caOpen + ' CA' : '', foOpen ? foOpen + ' FO' : ''].filter(Boolean).join(' &middot; ')
+        : 'None') + '</dd>';
+
     return '<div class="up' + (count ? ' has' : '') + '">' +
-      '<div class="b">' + b + ' CA' +
-        '<span class="n">' + d.filled + '/' + d.cap +
-        (d.open > 0 ? ' · ' + d.open + ' open' : '') + '</span></div>' +
+      '<div class="b">' + b +
+        '<span class="n">CA ' + d.filled + '/' + d.cap + '</span></div>' +
       '<dl>' +
         '<dt>Junior CA</dt>' + holdCell +
         '<dt>Junior upgrade</dt>' + upCell +
+        '<dt>Junior FO</dt>' + foCell +
         '<dt>Upgrades</dt><dd>' + count + '</dd>' +
+        '<dt>Open</dt>' + openCell +
       '</dl></div>';
-  }).join('');
-}
-
-function renderOpenPositions() {
-  var order = ['SEA-CA', 'SEA-FO', 'PDX-CA', 'PDX-FO', 'ANC-CA', 'ANC-FO',
-               'LAX-CA', 'LAX-FO', 'SFO-CA', 'SFO-FO', 'SAN-CA', 'SAN-FO'];
-  var open = order.filter(function (k) { return result.positions[k].open > 0; });
-
-  if (!open.length) {
-    $('openPositionsCard').style.display = 'none';
-    return;
-  }
-  $('openPositionsCard').style.display = 'block';
-  $('openPositionsBody').innerHTML = open.map(function (k) {
-    var p = result.positions[k];
-    return '<tr><td class="pos">737 ' + k.replace('-', ' ') + '</td>' +
-           '<td class="pref">' + p.cap + '</td>' +
-           '<td class="pref">' + p.filled + '</td>' +
-           '<td class="pref" style="color:var(--green);font-weight:600">' + p.open + '</td>' +
-           '<td class="pref">' + (p.minSeniority || '—') + '</td></tr>';
   }).join('');
 }
 
