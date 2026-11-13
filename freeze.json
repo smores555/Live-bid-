@@ -2272,34 +2272,6 @@
       "trainingStarted": false
     },
     {
-      "psId": 1071549,
-      "source": "TDATA",
-      "sen": 2331,
-      "name": "SCHMIDT, GARRETT",
-      "freezeType": "24.D.3 AGE-65",
-      "freezeEnd": null,
-      "age65": "2029-05-08",
-      "seat": "FO",
-      "base": "PDX",
-      "bidType": "ACTIVE",
-      "blocksUpgrade": true,
-      "trainingStarted": false
-    },
-    {
-      "psId": 1080961,
-      "source": "TDATA",
-      "sen": 2529,
-      "name": "MENDONCA, JOHN",
-      "freezeType": "24.D.3 AGE-65",
-      "freezeEnd": null,
-      "age65": "2028-08-23",
-      "seat": "FO",
-      "base": "LAX",
-      "bidType": "ACTIVE",
-      "blocksUpgrade": true,
-      "trainingStarted": false
-    },
-    {
       "psId": 1043103,
       "source": "TDATA",
       "sen": 2620,
