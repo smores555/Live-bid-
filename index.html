@@ -7,6 +7,8 @@
 
 <script src="engine.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
 <style>
   :root {
@@ -121,6 +123,7 @@
     <button id="expLog" class="btn ghost" disabled>Transaction log</button>
     <button id="expMaster" class="btn ghost" disabled>Master awards</button>
     <button id="expBase" class="btn ghost" disabled>Base lists</button>
+    <button id="expSnap" class="btn ghost" disabled>Base list PDF</button>
     <button id="expUp" class="btn ghost" disabled>Upgrades</button>
     <span class="spacer"></span>
     <select id="filter">
@@ -221,7 +224,7 @@ window.addEventListener('DOMContentLoaded', function () {
     //     a straight no-bid, which shifts vacancy counts.
     //   freeze.json — without it no 24.D freeze is enforced and frozen pilots
     //     can upgrade. Silent either way, so the subtitle names what is missing.
-    var optional = ['paperbid_pilots.json', 'freeze.json'];
+    var optional = ['paperbid_pilots.json', 'freeze.json', 'meta.json'];
     return Promise.all(optional.map(function (f) {
       return fetch(f, { cache: 'no-store' })
         .then(function (r) { return r.ok ? r.json() : null; })
@@ -230,16 +233,19 @@ window.addEventListener('DOMContentLoaded', function () {
       var paper = extra[0] || [], freeze = extra[1];
       store = {
         roster: res[0], prefs: res[1], caps: res[2],
-        retired: res[3], noBid: res[4], paperBid: paper, freeze: freeze
+        retired: res[3], noBid: res[4], paperBid: paper, freeze: freeze,
+        meta: extra[2] || null
       };
 
       var frozen = freeze ? (freeze.pilots || freeze) : [];
       var missing = [];
       if (!extra[0]) missing.push('paperbid_pilots.json');
       if (!freeze) missing.push('freeze.json');
+      if (!extra[2]) missing.push('meta.json');
 
       renderCapacities();
       $('runBtn').disabled = false;
+      $('expSnap').disabled = false;
       $('subtitle').textContent =
         store.roster.length + ' pilots · ' + store.noBid.length + ' no-bid · ' +
         paper.length + ' paper-bid · ' + frozen.length + ' on freeze' +
@@ -574,6 +580,116 @@ $('expBase').onclick = function () {
 
   XLSX.writeFile(wb, 'base_lists.xlsx');
 };
+// ── Start-of-bid base list PDF ────────────────────────────────────────────
+// Who is on manning at each base/seat before the award runs, in seniority
+// order, followed by the open seats. Seats the previous bid left open belong
+// to the company (new hires), so they are labelled separately from the seats
+// this bid opens. The footer time is the OutputBids export time (meta.json).
+function fmtBidTime(iso) {
+  var m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(iso || '');
+  if (!m) return '';
+  var months = ['January','February','March','April','May','June','July',
+                'August','September','October','November','December'];
+  var h = +m[4], ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return months[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[1] + ', ' + h + ':' + m[5] + ' ' + ap + ' PST';
+}
+
+$('expSnap').onclick = function () {
+  if (!window.jspdf) { alert('PDF library did not load — check your connection and try again.'); return; }
+  var meta = store.meta || {};
+  var carriedLbl = meta.carriedLabel || 'previous', newLbl = meta.newLabel || 'this';
+  var footer = meta.bidsSubmitted ? 'Bids submitted as of ' + fmtBidTime(meta.bidsSubmitted) : '';
+
+  var senOf = function (p) { return p.sen !== undefined ? p.sen : p.seniority; };
+  var off = {};
+  (store.noBid || []).forEach(function (p) { off[senOf(p)] = true; });
+  (store.paperBid || []).forEach(function (p) { off[senOf(p)] = true; });
+
+  var held = {};
+  store.roster.forEach(function (r) {
+    var c = r.current || {};
+    if (c.equip !== '737' || off[senOf(r)]) return;
+    var k = c.base + '-' + c.seat;
+    (held[k] = held[k] || []).push({ sen: senOf(r), name: r.name });
+  });
+  Object.keys(held).forEach(function (k) { held[k].sort(function (a, b) { return a.sen - b.sen; }); });
+
+  var capOf = {}, carriedOf = {};
+  store.caps.forEach(function (c) {
+    var k = c.base + '-' + c.seat;
+    capOf[k] = (c.startCapacity || 0) + (c.delta || 0);
+    carriedOf[k] = c.carried || 0;
+  });
+
+  var titles = { ANC: '737 ANCHORAGE (ANC)', LAX: '737 LOS ANGELES (LAX)', PDX: '737 PORTLAND (PDX)',
+                 SAN: '737 SAN DIEGO (SAN)', SEA: '737 SEATTLE (SEA)', SFO: '737 SAN FRANCISCO (SFO)' };
+  var CARRY = [252, 228, 214], NEWV = [226, 239, 218], GRAY = [231, 230, 230], BLUE = [68, 114, 196];
+
+  var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+  var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 21.6;
+
+  function column(key) {
+    var list = (held[key] || []).map(function (h, i) {
+      return { n: i + 1, name: h.name, sen: h.sen, fill: null };
+    });
+    var open = Math.max(0, (capOf[key] || 0) - list.length);
+    var carried = carriedOf[key] || 0, n = list.length;
+    for (var i = 0; i < carried; i++, n++)
+      list.push({ n: n + 1, name: 'VACANCY - ' + carriedLbl + ' bid', sen: '', fill: CARRY });
+    for (var j = 0; j < open; j++, n++)
+      list.push({ n: n + 1, name: 'VACANCY - ' + newLbl + ' bid', sen: '', fill: NEWV });
+    return list;
+  }
+
+  ['ANC', 'LAX', 'PDX', 'SAN', 'SEA', 'SFO'].forEach(function (base, bi) {
+    var ca = column(base + '-CA'), fo = column(base + '-FO');
+    var body = [], total = Math.max(ca.length, fo.length);
+    for (var i = 0; i < total; i++) {
+      var c = ca[i], f = fo[i];
+      body.push([
+        c ? c.n : '', c ? c.name : '', c ? c.sen : '',
+        f ? f.n : '', f ? f.name : '', f ? f.sen : '',
+        { c: c, f: f }                       // fills, read in didParseCell
+      ]);
+    }
+    if (bi > 0) doc.addPage();
+    doc.autoTable({
+      head: [[{ content: 'Captain', colSpan: 3 }, { content: 'First Officer', colSpan: 3 }]],
+      body: body.map(function (r) { return r.slice(0, 6); }),
+      theme: 'grid',
+      startY: 54,
+      margin: { left: (W - 579.6) / 2, right: (W - 579.6) / 2, top: 54, bottom: 47 },
+      tableWidth: 579.6,
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: { top: 2.5, bottom: 2.5, left: 4, right: 4 },
+                lineColor: [128, 128, 128], lineWidth: 0.5, textColor: 0, minCellHeight: 13.2 },
+      headStyles: { fillColor: BLUE, textColor: 245, fontStyle: 'bold', halign: 'center', minCellHeight: 14 },
+      columnStyles: {
+        0: { cellWidth: 64.8, halign: 'center' }, 1: { cellWidth: 158.4 }, 2: { cellWidth: 57.6, halign: 'center' },
+        3: { cellWidth: 82.8, halign: 'center' }, 4: { cellWidth: 158.4 }, 5: { cellWidth: 57.6, halign: 'center' }
+      },
+      didParseCell: function (d) {
+        if (d.section !== 'body') return;
+        var extra = body[d.row.index][6];
+        var side = d.column.index < 3 ? extra.c : extra.f;
+        if (d.row.index % 2 === 1) d.cell.styles.fillColor = GRAY;
+        if (side && side.fill) d.cell.styles.fillColor = side.fill;
+      },
+      didDrawPage: function () {
+        doc.setTextColor(0); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+        doc.text(titles[base], W / 2, 36, { align: 'center' });
+        doc.setDrawColor(68, 114, 196); doc.setLineWidth(1);
+        doc.line(M, H - 39.6, W - M, H - 39.6);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        if (footer) doc.text(footer, W / 2, H - 27, { align: 'center' });
+      }
+    });
+  });
+
+  var d = /^\d{4}-(\d\d)-(\d\d)/.exec(meta.bidsSubmitted || '');
+  doc.save((d ? d[1] + '-' + d[2] + ' ' : '') + newLbl + ' snapshot.pdf');
+};
+
 </script>
 </body>
 </html>
