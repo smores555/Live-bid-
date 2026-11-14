@@ -581,7 +581,8 @@ $('expBase').onclick = function () {
 };
 // ── Base list PDF ─────────────────────────────────────────────────────────
 // The same lists as the "Base lists" Excel export (post-award holders in
-// seniority order, then any open seats as VACANCY rows), laid out as a PDF.
+// seniority order, then open seats), laid out as a PDF. Open seats are shown
+// in two colours: carried over from the previous bid, and new this bid.
 // The footer time is the OutputBids export time (meta.json).
 function fmtBidTime(iso) {
   var m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(iso || '');
@@ -602,14 +603,30 @@ $('expSnap').onclick = function () {
   var titles = { ANC: '737 ANCHORAGE (ANC)', LAX: '737 LOS ANGELES (LAX)', PDX: '737 PORTLAND (PDX)',
                  SAN: '737 SAN DIEGO (SAN)', SEA: '737 SEATTLE (SEA)', SFO: '737 SAN FRANCISCO (SFO)' };
   var GRAY = [231, 230, 230], BLUE = [68, 114, 196];
+  var CARRY = [252, 228, 214], NEWV = [226, 239, 218];
+  var carriedLbl = meta.carriedLabel || 'previous';
+  var carriedOf = {};
+  store.caps.forEach(function (c) { carriedOf[c.base + '-' + c.seat] = c.carried || 0; });
 
   var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 21.6;
 
   function column(key) {
-    return result.positions[key] ? bplColumn(key).map(function (r) {
-      return { n: r[0], name: r[1], sen: r[2], fill: null };
-    }) : [];
+    if (!result.positions[key]) return [];
+    var rows = bplColumn(key), out = [];
+    var open = 0;
+    rows.forEach(function (r) {
+      if (r[1] === 'VACANCY') open++;
+      else out.push({ n: r[0], name: r[1], sen: r[2], fill: null });
+    });
+    // Seats the previous bid left open belong to the company: shown first
+    // (orange), then the seats this bid opened that are still unfilled (green).
+    var n = out.length, carried = carriedOf[key] || 0;
+    for (var i = 0; i < carried; i++, n++)
+      out.push({ n: n + 1, name: 'VACANCY - ' + carriedLbl + ' bid', sen: '', fill: CARRY });
+    for (var j = 0; j < open; j++, n++)
+      out.push({ n: n + 1, name: 'VACANCY - ' + newLbl + ' bid', sen: '', fill: NEWV });
+    return out;
   }
 
   ['ANC', 'LAX', 'PDX', 'SAN', 'SEA', 'SFO'].forEach(function (base, bi) {
