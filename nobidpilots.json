@@ -546,6 +546,12 @@
     "adminStatus": "PLTD"
   },
   {
+    "sen": 651,
+    "psId": 1004697,
+    "name": "DAGNON, BRIAN A.",
+    "adminStatus": "PMED"
+  },
+  {
     "sen": 657,
     "psId": 1059050,
     "name": "MCNAMARA, SHANNON",
@@ -574,12 +580,6 @@
     "psId": 1058921,
     "name": "ZENNER, MICHAEL",
     "adminStatus": "PLTD"
-  },
-  {
-    "sen": 701,
-    "psId": 1006458,
-    "name": "LARSON, PAUL C.",
-    "adminStatus": "PMED"
   },
   {
     "sen": 713,
@@ -1272,12 +1272,6 @@
     "adminStatus": "PMIL"
   },
   {
-    "sen": 2357,
-    "psId": 1076654,
-    "name": "O'DONNELL, ANDREW",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 2404,
     "psId": 1077450,
     "name": "MENDEZ, JASON",
@@ -1588,12 +1582,6 @@
     "psId": 1091806,
     "name": "YANG, JUN MO (JOSHUA)",
     "adminStatus": "PLOA"
-  },
-  {
-    "sen": 3280,
-    "psId": 1051482,
-    "name": "WUNDER, JAMES",
-    "adminStatus": "PFML"
   },
   {
     "sen": 3282,
