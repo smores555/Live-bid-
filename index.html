@@ -245,7 +245,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
       renderCapacities();
       $('runBtn').disabled = false;
-      $('expSnap').disabled = false;
       $('subtitle').textContent =
         store.roster.length + ' pilots · ' + store.noBid.length + ' no-bid · ' +
         paper.length + ' paper-bid · ' + frozen.length + ' on freeze' +
@@ -281,7 +280,7 @@ $('runBtn').onclick = function () {
 
   setTimeout(function () {
     result = runBidEngine(store, deltas);
-    ['expLog', 'expMaster', 'expBase', 'expUp'].forEach(function (id) { $(id).disabled = false; });
+    ['expLog', 'expMaster', 'expBase', 'expSnap', 'expUp'].forEach(function (id) { $(id).disabled = false; });
     $('runBtn').disabled = false;
     $('runBtn').textContent = 'Run bid';
     renderStats();
@@ -580,11 +579,10 @@ $('expBase').onclick = function () {
 
   XLSX.writeFile(wb, 'base_lists.xlsx');
 };
-// ── Start-of-bid base list PDF ────────────────────────────────────────────
-// Who is on manning at each base/seat before the award runs, in seniority
-// order, followed by the open seats. Seats the previous bid left open belong
-// to the company (new hires), so they are labelled separately from the seats
-// this bid opens. The footer time is the OutputBids export time (meta.json).
+// ── Base list PDF ─────────────────────────────────────────────────────────
+// The same lists as the "Base lists" Excel export (post-award holders in
+// seniority order, then any open seats as VACANCY rows), laid out as a PDF.
+// The footer time is the OutputBids export time (meta.json).
 function fmtBidTime(iso) {
   var m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(iso || '');
   if (!m) return '';
@@ -598,48 +596,20 @@ function fmtBidTime(iso) {
 $('expSnap').onclick = function () {
   if (!window.jspdf) { alert('PDF library did not load — check your connection and try again.'); return; }
   var meta = store.meta || {};
-  var carriedLbl = meta.carriedLabel || 'previous', newLbl = meta.newLabel || 'this';
+  var newLbl = meta.newLabel || 'base list';
   var footer = meta.bidsSubmitted ? 'Bids submitted as of ' + fmtBidTime(meta.bidsSubmitted) : '';
-
-  var senOf = function (p) { return p.sen !== undefined ? p.sen : p.seniority; };
-  var off = {};
-  (store.noBid || []).forEach(function (p) { off[senOf(p)] = true; });
-  (store.paperBid || []).forEach(function (p) { off[senOf(p)] = true; });
-
-  var held = {};
-  store.roster.forEach(function (r) {
-    var c = r.current || {};
-    if (c.equip !== '737' || off[senOf(r)]) return;
-    var k = c.base + '-' + c.seat;
-    (held[k] = held[k] || []).push({ sen: senOf(r), name: r.name });
-  });
-  Object.keys(held).forEach(function (k) { held[k].sort(function (a, b) { return a.sen - b.sen; }); });
-
-  var capOf = {}, carriedOf = {};
-  store.caps.forEach(function (c) {
-    var k = c.base + '-' + c.seat;
-    capOf[k] = (c.startCapacity || 0) + (c.delta || 0);
-    carriedOf[k] = c.carried || 0;
-  });
 
   var titles = { ANC: '737 ANCHORAGE (ANC)', LAX: '737 LOS ANGELES (LAX)', PDX: '737 PORTLAND (PDX)',
                  SAN: '737 SAN DIEGO (SAN)', SEA: '737 SEATTLE (SEA)', SFO: '737 SAN FRANCISCO (SFO)' };
-  var CARRY = [252, 228, 214], NEWV = [226, 239, 218], GRAY = [231, 230, 230], BLUE = [68, 114, 196];
+  var GRAY = [231, 230, 230], BLUE = [68, 114, 196];
 
   var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 21.6;
 
   function column(key) {
-    var list = (held[key] || []).map(function (h, i) {
-      return { n: i + 1, name: h.name, sen: h.sen, fill: null };
-    });
-    var open = Math.max(0, (capOf[key] || 0) - list.length);
-    var carried = carriedOf[key] || 0, n = list.length;
-    for (var i = 0; i < carried; i++, n++)
-      list.push({ n: n + 1, name: 'VACANCY - ' + carriedLbl + ' bid', sen: '', fill: CARRY });
-    for (var j = 0; j < open; j++, n++)
-      list.push({ n: n + 1, name: 'VACANCY - ' + newLbl + ' bid', sen: '', fill: NEWV });
-    return list;
+    return result.positions[key] ? bplColumn(key).map(function (r) {
+      return { n: r[0], name: r[1], sen: r[2], fill: null };
+    }) : [];
   }
 
   ['ANC', 'LAX', 'PDX', 'SAN', 'SEA', 'SFO'].forEach(function (base, bi) {
