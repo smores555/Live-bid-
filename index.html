@@ -527,14 +527,14 @@ $('expUp').onclick = function () {
   XLSX.utils.book_append_sheet(wb,
     sheetFromRows(det, [7, 10, 26, 17, 17, 8, 10]), 'All upgrades');
 
-  var frz = [['Seniority', 'PS ID', 'Pilot Name', 'Freeze type', 'Freeze end',
+  var frz = [['Seniority', 'Pilot Name', 'Freeze type', 'Freeze end',
               'Expired', 'Starting position', 'Final position']];
   (result.freeze.pilots || []).forEach(function (p) {
-    frz.push([p.sen, p.psId || '', p.name, p.freezeType, p.freezeEnd || '',
+    frz.push([p.sen, p.name, p.freezeType, p.freezeEnd || '',
               p.expired ? 'Y' : '', posLong(p.orig), posLong(p.final)]);
   });
   XLSX.utils.book_append_sheet(wb,
-    sheetFromRows(frz, [10, 11, 26, 16, 12, 9, 17, 17]), 'Freeze list');
+    sheetFromRows(frz, [10, 26, 16, 12, 9, 17, 17]), 'Freeze list');
 
   XLSX.writeFile(wb, 'upgrades.xlsx');
 };
