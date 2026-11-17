@@ -2097,6 +2097,24 @@
       "trainingStarted": false
     },
     {
+      "sen": 1624,
+      "psId": 1060276,
+      "name": "BRETZ, ROBERT",
+      "freezeType": "DOWNGRADE",
+      "freezeEnd": "2027-08-21",
+      "trainingStarted": false,
+      "source": "FRZ List 11.05.2026",
+      "prevPosition": "737 SEA CA",
+      "newPosition": "737 SEA FO",
+      "systemBid": "Bid 2027-02",
+      "reason": "DOWNGRADE",
+      "length": "1 yr",
+      "freezeStart": "2026-08-21",
+      "blocksUpgrade": true,
+      "base": "SEA",
+      "seat": "FO"
+    },
+    {
       "psId": 1000367,
       "source": "TDATA",
       "sen": 1684,
@@ -2184,6 +2202,24 @@
       "bidType": "ACTIVE",
       "blocksUpgrade": false,
       "trainingStarted": false
+    },
+    {
+      "sen": 2120,
+      "psId": 1053916,
+      "name": "BACCHUS, CHRIS",
+      "freezeType": "DOWNGRADE",
+      "freezeEnd": "2027-08-21",
+      "trainingStarted": false,
+      "source": "FRZ List 11.05.2026",
+      "prevPosition": "737 SFO CA",
+      "newPosition": "737 PDX FO",
+      "systemBid": "Bid 2027-02",
+      "reason": "DOWNGRADE",
+      "length": "1 yr",
+      "freezeStart": "2026-08-21",
+      "blocksUpgrade": true,
+      "base": "PDX",
+      "seat": "FO"
     },
     {
       "psId": 1042368,
