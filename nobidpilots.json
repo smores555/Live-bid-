@@ -708,12 +708,6 @@
     "adminStatus": "PMED"
   },
   {
-    "sen": 886,
-    "psId": 1018793,
-    "name": "EVEN, MATTHEW B.",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 896,
     "psId": 1020957,
     "name": "LINGLET, JEREMIE",
@@ -814,12 +808,6 @@
     "psId": 1059568,
     "name": "TIDWELL, PHILLIP",
     "adminStatus": "PLTD"
-  },
-  {
-    "sen": 1101,
-    "psId": 1030957,
-    "name": "PETERSON, JOHN",
-    "adminStatus": "PFML"
   },
   {
     "sen": 1121,
@@ -1140,12 +1128,6 @@
     "adminStatus": "PMED"
   },
   {
-    "sen": 2034,
-    "psId": 1070309,
-    "name": "INKMANN, EDWARD",
-    "adminStatus": "PMED"
-  },
-  {
     "sen": 2053,
     "psId": 1070386,
     "name": "FAIRCHILD, WEST",
@@ -1180,12 +1162,6 @@
     "psId": 1071081,
     "name": "LANDON, CHRISTIAN T",
     "adminStatus": "PMED"
-  },
-  {
-    "sen": 2109,
-    "psId": 1069351,
-    "name": "HARRIS, NICK",
-    "adminStatus": "PFML"
   },
   {
     "sen": 2114,
@@ -1300,6 +1276,12 @@
     "psId": 1057003,
     "name": "SCHWEITZER, ALEXANDER",
     "adminStatus": "PFML"
+  },
+  {
+    "sen": 2497,
+    "psId": 1080751,
+    "name": "LUX, BRET",
+    "adminStatus": "PMED"
   },
   {
     "sen": 2503,
@@ -1482,6 +1464,12 @@
     "adminStatus": "PMIL"
   },
   {
+    "sen": 3057,
+    "psId": 1088835,
+    "name": "EHLEN, HENRY (HANK)",
+    "adminStatus": "PMIL"
+  },
+  {
     "sen": 3090,
     "psId": 1089794,
     "name": "KUHN, MARK",
@@ -1552,6 +1540,12 @@
     "psId": 1091343,
     "name": "WIGTON, BRANDON",
     "adminStatus": "PMIL"
+  },
+  {
+    "sen": 3216,
+    "psId": 1091333,
+    "name": "YOUNG, ELIZABETH (LIZ)",
+    "adminStatus": "PMED"
   },
   {
     "sen": 3221,
@@ -1630,12 +1624,6 @@
     "psId": 1123029,
     "name": "NEUFELD, SPENCER",
     "adminStatus": "PMIL"
-  },
-  {
-    "sen": 3351,
-    "psId": 1082029,
-    "name": "GABALDO, NIKO",
-    "adminStatus": "PMED"
   },
   {
     "sen": 3365,
