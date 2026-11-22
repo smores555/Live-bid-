@@ -78,6 +78,7 @@
   .s-Displaced { color:var(--purple); }
   .s-Reduction { color:var(--yellow); }
   .s-NoBid { color:var(--dim); }
+  .s-PaperBid { color:var(--accent); }
   .s-Insufficient { color:var(--orange); }
   .tag { font-size:.6rem; font-weight:700; padding:2px 5px; border-radius:3px; margin-left:6px; text-transform:uppercase; letter-spacing:.04em; }
   .t-mover { background:var(--green); color:#04140a; }
@@ -394,6 +395,7 @@ function esc(s) {
 
 function statusClass(s) {
   if (s === 'No Bid') return 's-NoBid';
+  if (s === 'Paper Bid') return 's-PaperBid';
   if (s === 'Insufficient Bids') return 's-Insufficient';
   return 's-' + s;
 }
