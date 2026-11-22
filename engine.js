@@ -341,7 +341,7 @@ function runBidEngine(data, deltaMap, options) {
       startPos: startPos || null,
       bidPos: bidPos || null,
       prefLabel: prefLabel,
-      status: status,
+      status: (p.isPaper && status === 'Awarded') ? 'Paper Bid' : status,
       note: note
     };
     transactions.push(row);
@@ -956,7 +956,7 @@ function runBidEngine(data, deltaMap, options) {
       transactions: transactions.length,
       phase1Transactions: phase1Count,
       cascadeLoops: loops,
-      awarded: transactions.filter(function (r) { return r.status === 'Awarded'; }).length,
+      awarded: transactions.filter(function (r) { return r.status === 'Awarded' || r.status === 'Paper Bid'; }).length,
       denied: transactions.filter(function (r) { return r.status === 'Denied'; }).length,
       noBid: transactions.filter(function (r) { return r.status === 'No Bid'; }).length,
       reductions: transactions.filter(function (r) { return r.status === 'Reduction'; }).length,
