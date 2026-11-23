@@ -60,6 +60,12 @@
     "adminStatus": "PMPS"
   },
   {
+    "sen": 477,
+    "psId": 1037932,
+    "name": "WILHELM, DAVID",
+    "adminStatus": "PUBO"
+  },
+  {
     "sen": 550,
     "psId": 1003454,
     "name": "THIELE, JULIE A.",
@@ -96,6 +102,12 @@
     "adminStatus": "PUBM"
   },
   {
+    "sen": 985,
+    "psId": 1059128,
+    "name": "ALBRIGHT, JUSTIN",
+    "adminStatus": "PUBO"
+  },
+  {
     "sen": 990,
     "psId": 1039329,
     "name": "NELSON, ADAM B.",
@@ -108,10 +120,28 @@
     "adminStatus": "PMPS"
   },
   {
+    "sen": 1065,
+    "psId": 1050002,
+    "name": "WERTZ, GREGORY",
+    "adminStatus": "PUBO"
+  },
+  {
     "sen": 1107,
     "psId": 1050618,
     "name": "STRELINGER, AUSTIN",
     "adminStatus": "PMPL"
+  },
+  {
+    "sen": 1114,
+    "psId": 1060633,
+    "name": "O'DONOGHUE, RONAN",
+    "adminStatus": "PUBO"
+  },
+  {
+    "sen": 1280,
+    "psId": 1052714,
+    "name": "BEACHLER, BRAD",
+    "adminStatus": "PUBO"
   },
   {
     "sen": 1475,
@@ -136,6 +166,12 @@
     "psId": 1070092,
     "name": "CAVE, MALLORY",
     "adminStatus": "PMPL"
+  },
+  {
+    "sen": 2069,
+    "psId": 1070726,
+    "name": "SAMSON, TOM",
+    "adminStatus": "PUBO"
   },
   {
     "sen": 2082,
