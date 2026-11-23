@@ -19,7 +19,7 @@
     "code": "CL4",
     "base": "LAX",
     "seat": "CA",
-    "startCapacity": 176,
+    "startCapacity": 175,
     "delta": 7,
     "carried": 0
   },
@@ -35,7 +35,7 @@
     "code": "CP4",
     "base": "PDX",
     "seat": "CA",
-    "startCapacity": 230,
+    "startCapacity": 228,
     "delta": 13,
     "carried": 0
   },
@@ -67,7 +67,7 @@
     "code": "CS4",
     "base": "SEA",
     "seat": "CA",
-    "startCapacity": 775,
+    "startCapacity": 772,
     "delta": 12,
     "carried": 0
   },
@@ -75,7 +75,7 @@
     "code": "FS4",
     "base": "SEA",
     "seat": "FO",
-    "startCapacity": 672,
+    "startCapacity": 671,
     "delta": 38,
     "carried": 7
   },
